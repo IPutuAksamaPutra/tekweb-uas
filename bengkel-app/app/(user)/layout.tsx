@@ -1,31 +1,23 @@
 "use client";
 
-import Sidebar from "@/components/admin/Sidebar";
-import Navbar from "@/components/admin/Navbar";
-import Footer from "@/components/admin/Footer";
+import Navbar from "@/components/user/NavbarUsr";
+import Footer from "@/components/user/FooterUsr";
 import "../globals.css";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex bg-gray-100 min-h-screen">
+    <div className="flex flex-col min-h-screen bg-gray-100">
 
-      {/* SIDEBAR */}
-      <aside className="fixed left-0 top-0 w-64 h-screen bg-[#234C6A] text-white shadow-lg">
-        <Sidebar />
-      </aside>
+      {/* Navbar */}
+      <Navbar />
 
-      {/* CONTENT */}
-      <div className="ml-64 flex flex-col flex-1">
+      {/* Main Content */}
+      <main className="flex-1 p-6">
+        {children}
+      </main>
 
-        <Navbar />
-
-        <main className="flex-1 p-6">
-          {children}
-        </main>
-
-        <Footer />
-
-      </div>
+      {/* Footer */}
+      <Footer />
 
     </div>
   );
