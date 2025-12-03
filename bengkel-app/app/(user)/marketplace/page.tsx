@@ -3,43 +3,84 @@
 import { useEffect, useState } from "react";
 import { ShoppingCart } from "lucide-react";
 
-export default function MarketplacePage() {
-  const API_URL = "http://localhost:8000/api";
+// ===============================
+// TIPE DATA PRODUK
+// ===============================
+interface Product {
+  id: number;
+  name: string;
+  price: number;
+  category: { name: string };
+  image_url: string;
+}
 
-  const [products, setProducts] = useState([]);
+export default function MarketplacePage() {
+  const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [cartCount, setCartCount] = useState(0);
 
-  async function loadProducts() {
-    try {
-      const res = await fetch(`${API_URL}/products`, { cache: "no-store" });
-      const data = await res.json();
-      setProducts(data);
-    } catch (e) {
-      console.log("Fetch error:", e);
-    }
-  }
+  // ===============================
+  // DUMMY DATA PRODUK
+  // ===============================
+  const dummyData: Product[] = [
+    {
+      id: 1,
+      name: "Oli Mesin Yamalube",
+      price: 35000,
+      category: { name: "suku cadang" },
+      image_url:
+        "https://images.tokopedia.net/img/cache/700/VqbcmM/2022/5/26/9b2e0d19-698e-48fd-a1c1-d257a7b82d49.jpg",
+    },
+    {
+      id: 2,
+      name: "Kampas Rem Motor",
+      price: 26000,
+      category: { name: "suku cadang" },
+      image_url:
+        "https://images.tokopedia.net/img/cache/700/VqbcmM/2023/7/3/4f497c6e-c7db-4cd0-b74f-65a97b93cf9f.jpg",
+    },
+    {
+      id: 3,
+      name: "Sarung Tangan Motor",
+      price: 45000,
+      category: { name: "aksesoris" },
+      image_url:
+        "https://images.tokopedia.net/img/cache/700/VqbcmM/2021/12/3/260b4b8d-0777-4dec-abc6-1fa5321f9086.jpg",
+    },
+    {
+      id: 4,
+      name: "Helm Bogo Retro",
+      price: 160000,
+      category: { name: "aksesoris" },
+      image_url:
+        "https://images.tokopedia.net/img/cache/700/VqbcmM/2020/6/1/8c1ff99a-913f-44e8-b8d3-8ab616c3e2e6.jpg",
+    },
+  ];
 
+  // ===============================
+  // LOAD DATA DUMMY + CART COUNT
+  // ===============================
   useEffect(() => {
-    loadProducts();
+    setProducts(dummyData);
+
     const saved = localStorage.getItem("cart");
-    if (saved) {
-      const arr = JSON.parse(saved);
-      setCartCount(arr.length);
-    }
+    if (saved) setCartCount(JSON.parse(saved).length);
   }, []);
 
-  const filteredProducts = products.filter((p: any) => {
+  // ===============================
+  // FILTER PRODUK
+  // ===============================
+  const filteredProducts = products.filter((p) => {
     const searchMatch = p.name.toLowerCase().includes(search.toLowerCase());
 
     const filterMatch =
       filter === "all"
         ? true
         : filter === "suku-cadang"
-        ? p.category?.name?.toLowerCase() === "suku cadang"
+        ? p.category.name.toLowerCase() === "suku cadang"
         : filter === "aksesoris"
-        ? p.category?.name?.toLowerCase() === "aksesoris"
+        ? p.category.name.toLowerCase() === "aksesoris"
         : true;
 
     return searchMatch && filterMatch;
@@ -48,13 +89,12 @@ export default function MarketplacePage() {
   return (
     <div className="space-y-10">
 
-      {/* TITLE + CART */}
+      {/* ==================== TITLE + CART ==================== */}
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-[#234C6A]">
           Marketplace Produk
         </h1>
 
-        {/* CART ICON */}
         <a href="/cart" className="relative">
           <ShoppingCart
             size={28}
@@ -62,7 +102,6 @@ export default function MarketplacePage() {
             className="cursor-pointer hover:scale-110 transition"
           />
 
-          {/* BADGE */}
           {cartCount > 0 && (
             <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs rounded-full px-2 py-px">
               {cartCount}
@@ -71,7 +110,7 @@ export default function MarketplacePage() {
         </a>
       </div>
 
-      {/* SEARCH + FILTER */}
+      {/* ==================== SEARCH + FILTER ==================== */}
       <div className="flex items-center gap-3 w-full">
 
         {/* SEARCH */}
@@ -100,7 +139,7 @@ export default function MarketplacePage() {
           />
         </div>
 
-        {/* FILTER DROPDOWN */}
+        {/* FILTER */}
         <select
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
@@ -112,20 +151,21 @@ export default function MarketplacePage() {
         </select>
       </div>
 
-      {/* LIST PRODUK */}
+      {/* ==================== GRID PRODUK ==================== */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+
         {filteredProducts.length === 0 && (
           <p className="text-gray-500 col-span-full">Produk tidak ditemukan.</p>
         )}
 
-        {filteredProducts.map((p: any) => (
+        {filteredProducts.map((p) => (
           <a
             key={p.id}
             href={`/marketplace/${p.id}`}
             className="bg-white rounded-xl shadow hover:shadow-lg transition border overflow-hidden"
           >
             <img
-              src={p.image_url || "/no-image.jpg"}
+              src={p.image_url}
               alt={p.name}
               className="w-full h-40 object-cover"
             />
@@ -136,11 +176,11 @@ export default function MarketplacePage() {
               </h2>
 
               <p className="text-sm text-gray-500 capitalize">
-                {p.category?.name}
+                {p.category.name}
               </p>
 
               <p className="text-[#FF6D1F] font-bold mt-2">
-                Rp {Number(p.price).toLocaleString("id-ID")}
+                Rp {p.price.toLocaleString("id-ID")}
               </p>
             </div>
           </a>
