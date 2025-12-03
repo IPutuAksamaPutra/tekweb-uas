@@ -1,6 +1,6 @@
 export default function NavbarUsr() {
   return (
-    <nav className="w-full bg-blue-600 text-white p-4 shadow-md">
+    <nav className="w-full text-white p-4 shadow-md" style={{ backgroundColor: "#234C6A" }}>
       <div className="container mx-auto flex items-center justify-between">
         <a href="/" className="text-xl font-bold">BengkelApp</a>
 
