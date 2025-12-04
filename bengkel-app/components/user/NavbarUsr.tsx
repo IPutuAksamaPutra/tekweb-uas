@@ -5,7 +5,7 @@ export default function NavbarUsr() {
         <a href="/" className="text-xl font-bold">BengkelApp</a>
 
         <div className="flex items-center gap-6 text-sm font-medium">
-          <a href="/" className="hover:text-gray-300">About</a>
+          <a href="/" className="hover:text-gray-300">Home</a>
           <a href="/marketplace" className="hover:text-gray-300">Marketplace</a>
           <a href="/booking" className="hover:text-gray-300">Booking</a>
           <a href="/booking/history" className="hover:text-gray-300">History</a>

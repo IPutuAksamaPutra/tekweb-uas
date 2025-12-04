@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ShoppingCart } from "lucide-react";
+// Import ikon tambahan untuk interaktivitas
+import { ShoppingCart, Search, Wrench, Shirt, PlusCircle } from "lucide-react"; 
 
 // ===============================
 // TIPE DATA PRODUK
@@ -10,9 +11,34 @@ interface Product {
   id: number;
   name: string;
   price: number;
-  category: { name: string };
+  category: { name: string; slug: string }; // Tambah slug untuk filter yang lebih baik
   image_url: string;
 }
+
+// Tambahkan fungsi simulasi addToCart ke localStorage
+const addToCart = (product: Product) => {
+    // Logika sederhana: Cek jika sudah ada, tambahkan qty, jika belum, tambahkan item baru
+    const saved = localStorage.getItem("cart");
+    const cartItems: any[] = saved ? JSON.parse(saved) : [];
+
+    const existingItemIndex = cartItems.findIndex(item => item.id === product.id);
+
+    let updatedCart;
+    if (existingItemIndex > -1) {
+        updatedCart = cartItems.map((item, index) => 
+            index === existingItemIndex ? { ...item, qty: item.qty + 1 } : item
+        );
+    } else {
+        updatedCart = [...cartItems, { ...product, qty: 1 }];
+    }
+
+    localStorage.setItem("cart", JSON.stringify(updatedCart));
+    alert(`${product.name} berhasil ditambahkan ke keranjang!`);
+    
+    // Refresh hitungan cart (ini akan dilakukan oleh useEffect di komponen utama)
+    return updatedCart.length;
+};
+
 
 export default function MarketplacePage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -21,38 +47,38 @@ export default function MarketplacePage() {
   const [cartCount, setCartCount] = useState(0);
 
   // ===============================
-  // DUMMY DATA PRODUK
+  // DUMMY DATA PRODUK (Disesuaikan dengan slug)
   // ===============================
   const dummyData: Product[] = [
     {
       id: 1,
-      name: "Oli Mesin Yamalube",
+      name: "Oli Mesin Yamalube Power Matic",
       price: 35000,
-      category: { name: "suku cadang" },
+      category: { name: "Suku Cadang", slug: "suku-cadang" },
       image_url:
         "https://images.tokopedia.net/img/cache/700/VqbcmM/2022/5/26/9b2e0d19-698e-48fd-a1c1-d257a7b82d49.jpg",
     },
     {
       id: 2,
-      name: "Kampas Rem Motor",
+      name: "Kampas Rem Cakram Depan Motor",
       price: 26000,
-      category: { name: "suku cadang" },
+      category: { name: "Suku Cadang", slug: "suku-cadang" },
       image_url:
         "https://images.tokopedia.net/img/cache/700/VqbcmM/2023/7/3/4f497c6e-c7db-4cd0-b74f-65a97b93cf9f.jpg",
     },
     {
       id: 3,
-      name: "Sarung Tangan Motor",
+      name: "Sarung Tangan Full Finger Racing",
       price: 45000,
-      category: { name: "aksesoris" },
+      category: { name: "Aksesoris", slug: "aksesoris" },
       image_url:
         "https://images.tokopedia.net/img/cache/700/VqbcmM/2021/12/3/260b4b8d-0777-4dec-abc6-1fa5321f9086.jpg",
     },
     {
       id: 4,
-      name: "Helm Bogo Retro",
+      name: "Helm Bogo Retro Classic",
       price: 160000,
-      category: { name: "aksesoris" },
+      category: { name: "Aksesoris", slug: "aksesoris" },
       image_url:
         "https://images.tokopedia.net/img/cache/700/VqbcmM/2020/6/1/8c1ff99a-913f-44e8-b8d3-8ab616c3e2e6.jpg",
     },
@@ -63,10 +89,20 @@ export default function MarketplacePage() {
   // ===============================
   useEffect(() => {
     setProducts(dummyData);
+    updateCartCount();
+  }, []);
 
+  // Fungsi untuk memperbarui hitungan keranjang
+  const updateCartCount = () => {
     const saved = localStorage.getItem("cart");
     if (saved) setCartCount(JSON.parse(saved).length);
-  }, []);
+  };
+  
+  // Wrapper untuk addToCart
+  const handleAddToCart = (product: Product) => {
+    addToCart(product);
+    updateCartCount(); // Perbarui hitungan setelah menambahkan
+  };
 
   // ===============================
   // FILTER PRODUK
@@ -77,114 +113,141 @@ export default function MarketplacePage() {
     const filterMatch =
       filter === "all"
         ? true
-        : filter === "suku-cadang"
-        ? p.category.name.toLowerCase() === "suku cadang"
-        : filter === "aksesoris"
-        ? p.category.name.toLowerCase() === "aksesoris"
-        : true;
+        : p.category.slug === filter;
 
     return searchMatch && filterMatch;
   });
 
+  // Fungsi untuk mendapatkan ikon kategori
+  const getCategoryIcon = (slug: string) => {
+      switch (slug) {
+          case 'suku-cadang':
+              return <Wrench size={16} className="inline mr-1 text-gray-500" />;
+          case 'aksesoris':
+              return <Shirt size={16} className="inline mr-1 text-gray-500" />;
+          default:
+              return null;
+      }
+  }
+
+
   return (
-    <div className="space-y-10">
+    <div className="min-h-screen bg-gray-50 py-10 px-4 md:px-0">
+      <div className="max-w-6xl mx-auto space-y-8">
 
-      {/* ==================== TITLE + CART ==================== */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-[#234C6A]">
-          Marketplace Produk
-        </h1>
+        {/* ==================== TITLE + CART ==================== */}
+        <div className="flex items-center justify-between border-b pb-4">
+          <h1 className="text-4xl font-extrabold text-[#234C6A]">
+            Marketplace Produk Bengkel 🛒
+          </h1>
 
-        <a href="/cart" className="relative">
-          <ShoppingCart
-            size={28}
-            color="#FF6D1F"
-            className="cursor-pointer hover:scale-110 transition"
-          />
-
-          {cartCount > 0 && (
-            <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs rounded-full px-2 py-px">
-              {cartCount}
-            </span>
-          )}
-        </a>
-      </div>
-
-      {/* ==================== SEARCH + FILTER ==================== */}
-      <div className="flex items-center gap-3 w-full">
-
-        {/* SEARCH */}
-        <div className="flex items-center bg-white border shadow-sm rounded-full px-4 py-2 w-full">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth="1.5"
-            stroke="#234C6A"
-            className="w-5 h-5 mr-2"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 104.5 4.5a7.5 7.5 0 0012.15 12.15z"
+          <a href="/cart" className="relative p-2 rounded-full hover:bg-gray-100 transition">
+            <ShoppingCart
+              size={32}
+              color="#FF6D1F"
+              className="cursor-pointer hover:scale-105 transition"
             />
-          </svg>
 
-          <input
-            type="text"
-            placeholder="Cari produk…"
-            className="grow outline-none text-sm"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+            {cartCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-600 text-white text-sm font-bold rounded-full w-6 h-6 flex items-center justify-center border-2 border-white">
+                {cartCount}
+              </span>
+            )}
+          </a>
         </div>
 
-        {/* FILTER */}
-        <select
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          className="border p-2.5 rounded-lg shadow-sm cursor-pointer text-sm w-36"
-        >
-          <option value="all">Semua</option>
-          <option value="suku-cadang">Suku Cadang</option>
-          <option value="aksesoris">Aksesoris</option>
-        </select>
-      </div>
+        {/* ==================== SEARCH + FILTER ==================== */}
+        <div className="flex flex-col sm:flex-row items-center gap-4 w-full bg-white p-4 rounded-xl shadow-md border border-gray-100">
 
-      {/* ==================== GRID PRODUK ==================== */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-
-        {filteredProducts.length === 0 && (
-          <p className="text-gray-500 col-span-full">Produk tidak ditemukan.</p>
-        )}
-
-        {filteredProducts.map((p) => (
-          <a
-            key={p.id}
-            href={`/marketplace/${p.id}`}
-            className="bg-white rounded-xl shadow hover:shadow-lg transition border overflow-hidden"
-          >
-            <img
-              src={p.image_url}
-              alt={p.name}
-              className="w-full h-40 object-cover"
+          {/* SEARCH */}
+          <div className="flex items-center border border-gray-300 rounded-full px-4 py-2 w-full sm:w-2/3 shadow-inner">
+            <Search
+                size={20}
+                className="text-[#234C6A] mr-2 flex-shrink-0"
             />
 
-            <div className="p-4">
-              <h2 className="font-semibold text-[#234C6A] truncate">
-                {p.name}
-              </h2>
+            <input
+              type="text"
+              placeholder="Cari nama produk: oli, kampas, helm, dll."
+              className="grow outline-none text-gray-800 placeholder-gray-500 text-base"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
 
-              <p className="text-sm text-gray-500 capitalize">
-                {p.category.name}
-              </p>
+          {/* FILTER */}
+          <select
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            className="border-2 border-gray-300 p-2.5 rounded-full shadow-sm cursor-pointer text-gray-700 font-medium transition w-full sm:w-1/3 appearance-none bg-white"
+          >
+            <option value="all">Semua Kategori</option>
+            <option value="suku-cadang">Suku Cadang</option>
+            <option value="aksesoris">Aksesoris</option>
+          </select>
+        </div>
+        
+        {/* ==================== GRID PRODUK ==================== */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 pt-4">
 
-              <p className="text-[#FF6D1F] font-bold mt-2">
-                Rp {p.price.toLocaleString("id-ID")}
-              </p>
+          {filteredProducts.length === 0 && (
+            <div className="text-center col-span-full py-10 bg-white rounded-xl shadow border border-gray-200">
+                <p className="text-gray-600 text-lg">Produk tidak ditemukan untuk pencarian ini.</p>
             </div>
-          </a>
-        ))}
+          )}
+
+          {filteredProducts.map((p) => (
+            <div
+              key={p.id}
+              className="group bg-white rounded-xl shadow-lg border border-gray-200 
+                hover:shadow-xl hover:border-[#FF6D1F] transition duration-300 overflow-hidden relative"
+            >
+                {/* Gambar Produk */}
+                <a href={`/marketplace/${p.id}`} className="block">
+                    <img
+                        src={p.image_url}
+                        alt={p.name}
+                        className="w-full h-44 object-cover transition duration-300 group-hover:scale-[1.03]"
+                        onError={(e) => {
+                          e.currentTarget.onerror = null; 
+                          e.currentTarget.src = "https://placehold.co/176x176/cccccc/333333?text=Gambar+Produk";
+                        }}
+                    />
+                </a>
+
+                <div className="p-4 flex flex-col justify-between h-36">
+                    <div>
+                        <h2 className="font-bold text-lg text-[#234C6A] line-clamp-2 leading-snug">
+                            {p.name}
+                        </h2>
+
+                        <p className="text-xs text-gray-500 capitalize mt-1">
+                            {getCategoryIcon(p.category.slug)} 
+                            {p.category.name}
+                        </p>
+                    </div>
+
+                    <div className="flex justify-between items-end pt-2">
+                        <p className="text-[#FF6D1F] font-extrabold text-xl">
+                            Rp {p.price.toLocaleString("id-ID")}
+                        </p>
+                        
+                        {/* Tombol Add to Cart */}
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation(); // Mencegah navigasi saat klik tombol
+                                handleAddToCart(p);
+                            }}
+                            className="bg-[#234C6A] text-white p-2 rounded-full hover:bg-[#1A374A] transition transform hover:scale-105"
+                            title="Tambahkan ke Keranjang"
+                        >
+                            <PlusCircle size={24} />
+                        </button>
+                    </div>
+                </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
