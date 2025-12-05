@@ -114,7 +114,7 @@ export default function DetailPesananPage() {
 
                 </div>
 
-                <a href="/pesanan" className="block text-center mt-10 text-[#234C6A] hover:text-[#FF6D1F] font-semibold">
+                <a href="/marketplace/pesanan" className="block text-center mt-10 text-[#234C6A] hover:text-[#FF6D1F] font-semibold">
                     <ArrowLeft className="inline"/> Kembali
                 </a>
             </div>

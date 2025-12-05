@@ -180,7 +180,7 @@ export default function MarketplacePage() {
 
     const handleProductClick = (product: Product) => {
         localStorage.setItem("selectedProduct", JSON.stringify(product));
-        window.location.href = `/marketplace/detailProduk`;
+        window.location.href = `/marketplace/pesanan`;
     };
     
     useEffect(() => {
@@ -238,7 +238,7 @@ export default function MarketplacePage() {
                         {/* TOMBOL BARU: Detail Pesanan Terakhir */}
                         {hasLatestOrder && (
                             <a 
-                                href="/marketplace/detailPesanan"
+                                href="/marketplace/pesanan"
                                 className="flex items-center gap-2 bg-[#234C6A] text-white p-3 rounded-full text-sm font-semibold 
                                             hover:bg-[#FF6D1F] transition transform hover:scale-105 shadow-md"
                                 title="Lihat Status Pesanan Terakhir Anda"
@@ -274,7 +274,7 @@ export default function MarketplacePage() {
                     }}
                 >
                     <div className="flex items-center gap-4">
-                        <div className="p-3 rounded-full bg-white/20 flex-shrink-0">
+                        <div className="p-3 rounded-full bg-white/20 shrink-0">
                             {currentPromo.icon}
                         </div>
                         <div>
@@ -283,7 +283,7 @@ export default function MarketplacePage() {
                         </div>
                     </div>
                     
-                    <span className="text-xl font-bold opacity-90 border border-white/50 px-4 py-2 rounded-full hover:bg-white/10 flex-shrink-0 transition hidden sm:inline-block">
+                    <span className="text-xl font-bold opacity-90 border border-white/50 px-4 py-2 rounded-full hover:bg-white/10 shrink-0 transition hidden sm:inline-block">
                         Lihat Sekarang →
                     </span>
 
@@ -305,7 +305,7 @@ export default function MarketplacePage() {
                 <div className="flex flex-col sm:flex-row items-center gap-4 w-full bg-white p-4 rounded-xl shadow-md border border-gray-100">
 
                     <div className="flex items-center border border-gray-300 rounded-full px-4 py-2 w-full sm:w-2/3 shadow-inner">
-                        <Search size={20} className="text-[#234C6A] mr-2 flex-shrink-0" />
+                        <Search size={20} className="text-[#234C6A] mr-2 shrink-0" />
                         <input
                             type="text"
                             placeholder="Cari nama produk: oli, kampas, helm, dll."
