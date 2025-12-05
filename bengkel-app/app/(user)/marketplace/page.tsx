@@ -1,354 +1,413 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ShoppingCart, Search, Wrench, Shirt, PlusCircle, TrendingUp, Sparkles, AlertTriangle, Package } from "lucide-react"; 
+import {
+  ShoppingCart,
+  Search,
+  Wrench,
+  Shirt,
+  PlusCircle,
+  AlertTriangle,
+  Package,
+  // Optional: ikon kecil untuk label berita
+  // Newspaper,
+} from "lucide-react";
 
 // ===============================
 // TIPE DATA PRODUK
 // ===============================
 interface Product {
-    id: number;
-    name: string;
-    price: number;
-    category: { name: string; slug: string };
-    image_url: string;
+  id: number;
+  name: string;
+  price: number;
+  category: { name: string; slug: string };
+  image_url: string;
 }
 
 // ===============================
-// DUMMY DATA PROMOSI
+// DUMMY DATA PROMOSI / BERITA (PAKAI FOTO)
 // ===============================
 const PROMO_BANNERS = [
-    {
-        id: 1,
-        title: "Diskon 30% Oli Full Synthetic",
-        subtitle: "Hemat Besar untuk Servis Berat!",
-        color: "bg-[#234C6A]",
-        icon: <TrendingUp size={24} className="text-[#FF6D1F]" />,
-        link: "/marketplace/oli-promo",
-    },
-    {
-        id: 2,
-        title: "Produk Terbaru: Knalpot Racing",
-        subtitle: "Tingkatkan Performa Motor Anda!",
-        color: "bg-[#FF6D1F]",
-        icon: <Sparkles size={24} className="text-[#234C6A]" />,
-        link: "/marketplace/knalpot-baru",
-    },
+  {
+    id: 1,
+    title: "Diskon 30% Oli Full Synthetic",
+    subtitle: "Hemat besar untuk servis berkala motor kamu.",
+    imageUrl:
+      "https://images.pexels.com/photos/4489732/pexels-photo-4489732.jpeg?auto=compress&cs=tinysrgb&w=1200",
+    link: "/marketplace/oli-promo",
+    tag: "Promo Spesial",
+  },
+  {
+    id: 2,
+    title: "Produk Baru: Knalpot Racing",
+    subtitle: "Suara gahar, performa naik, tetap aman buat harian.",
+    imageUrl:
+      "https://images.pexels.com/photos/974262/pexels-photo-974262.jpeg?auto=compress&cs=tinysrgb&w=1200",
+    link: "/marketplace/knalpot-baru",
+    tag: "Produk Baru",
+  },
+  {
+    id: 3,
+    title: "Layanan Jemput Motor ke Rumah",
+    subtitle: "Booking via aplikasi, teknisi datang jemput motor kamu.",
+    imageUrl:
+      "https://images.pexels.com/photos/4488650/pexels-photo-4488650.jpeg?auto=compress&cs=tinysrgb&w=1200",
+    link: "/booking",
+    tag: "Berita Bengkel",
+  },
 ];
 
 // ===============================
 // Fungsi Add Cart (Simulasi localStorage)
 // ===============================
 const addToCart = (product: Product, updateCount: () => void) => {
-    const saved = localStorage.getItem("cart");
-    const cartItems = saved ? JSON.parse(saved) : [];
+  const saved = localStorage.getItem("cart");
+  const cartItems = saved ? JSON.parse(saved) : [];
 
-    // Tambahkan properti isSelected agar kompatibel dengan halaman Cart
-    const exist = cartItems.findIndex((i: any) => i.id === product.id);
+  const exist = cartItems.findIndex((i: any) => i.id === product.id);
 
-    if (exist >= 0) cartItems[exist].qty++;
-    else cartItems.push({ ...product, qty: 1, isSelected: true });
+  if (exist >= 0) cartItems[exist].qty++;
+  else cartItems.push({ ...product, qty: 1, isSelected: true });
 
-    localStorage.setItem("cart", JSON.stringify(cartItems));
-    
-    // Menggunakan custom modal/message box daripada alert()
-    if (typeof window !== 'undefined') {
-        const messageBox = document.getElementById('message-box');
-        if (messageBox) {
-            messageBox.innerHTML = `<div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative" role="alert">
+  localStorage.setItem("cart", JSON.stringify(cartItems));
+
+  if (typeof window !== "undefined") {
+    const messageBox = document.getElementById("message-box");
+    if (messageBox) {
+      messageBox.innerHTML = `<div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative" role="alert">
                 <strong class="font-bold">Sukses!</strong>
                 <span class="block sm:inline"> ${product.name} ditambahkan ke keranjang.</span>
             </div>`;
-            messageBox.style.display = 'block';
-            setTimeout(() => { messageBox.style.display = 'none'; }, 2000);
-        }
+      messageBox.style.display = "block";
+      setTimeout(() => {
+        messageBox.style.display = "none";
+      }, 2000);
     }
-    
-    updateCount(); // Panggil fungsi untuk update count
+  }
+
+  updateCount();
 };
 
 // ===============================
 // TIPE PROPS UNTUK PRODUCT CARD
 // ===============================
 interface ProductCardProps {
-    product: Product;
-    addToCart: Function;
-    getCategoryIcon: Function;
-    updateCartCount: () => void;
-    onProductClick: (product: Product) => void; 
+  product: Product;
+  addToCart: Function;
+  getCategoryIcon: Function;
+  updateCartCount: () => void;
+  onProductClick: (product: Product) => void;
 }
 
-
 // ===============================
-// KOMPONEN LOKAL: ProductCard 
+// KOMPONEN LOKAL: ProductCard
 // ===============================
-const ProductCardComponent = ({ product, addToCart, getCategoryIcon, updateCartCount, onProductClick }: ProductCardProps) => {
-    
-    const handleAdd = (e: React.MouseEvent) => {
-        e.preventDefault();
-        e.stopPropagation(); 
-        addToCart(product, updateCartCount);
-    };
+const ProductCardComponent = ({
+  product,
+  addToCart,
+  getCategoryIcon,
+  updateCartCount,
+  onProductClick,
+}: ProductCardProps) => {
+  const handleAdd = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    addToCart(product, updateCartCount);
+  };
 
-    const handleCardClick = (e: React.MouseEvent) => {
-        // Fix untuk TypeScript error pada .closest()
-        const targetElement = e.target as Element;
+  const handleCardClick = (e: React.MouseEvent) => {
+    const targetElement = e.target as Element;
+    if (targetElement.closest("button")) {
+      return;
+    }
+    onProductClick(product);
+  };
 
-        // Mencegah navigasi jika mengklik tombol keranjang
-        if (targetElement.closest('button')) {
-            return;
-        }
-        onProductClick(product);
-    };
-
-    return (
-        <div
-            key={product.id}
-            onClick={handleCardClick}
-            className="group bg-white rounded-xl shadow-lg border border-gray-200 
+  return (
+    <div
+      key={product.id}
+      onClick={handleCardClick}
+      className="group bg-white rounded-xl shadow-lg border border-gray-200 
                 hover:shadow-xl hover:border-[#FF6D1F] transition duration-300 overflow-hidden relative cursor-pointer"
-        >
-            {/* Gambar Produk - TIDAK LAGI MENGGUNAKAN <a> */}
-            <div className="block"> 
-                <img
-                    src={product.image_url}
-                    alt={product.name}
-                    className="w-full h-44 object-cover transition duration-300 group-hover:scale-[1.03]"
-                    onError={(e) => {
-                        e.currentTarget.onerror = null; 
-                        e.currentTarget.src = "https://placehold.co/176x176/cccccc/333333?text=Gambar+Produk";
-                    }}
-                />
-            </div>
+    >
+      <div className="block">
+        <img
+          src={product.image_url}
+          alt={product.name}
+          className="w-full h-44 object-cover transition duration-300 group-hover:scale-[1.03]"
+          onError={(e) => {
+            e.currentTarget.onerror = null;
+            e.currentTarget.src =
+              "https://placehold.co/176x176/cccccc/333333?text=Gambar+Produk";
+          }}
+        />
+      </div>
 
-            <div className="p-4 flex flex-col justify-between h-36">
-                <div>
-                    <h2 className="font-bold text-lg text-[#234C6A] line-clamp-2 leading-snug">
-                        {product.name}
-                    </h2>
+      <div className="p-4 flex flex-col justify-between h-36">
+        <div>
+          <h2 className="font-bold text-lg text-[#234C6A] line-clamp-2 leading-snug">
+            {product.name}
+          </h2>
 
-                    <p className="text-xs text-gray-500 capitalize mt-1">
-                        {getCategoryIcon(product.category.slug)} 
-                        {product.category.name}
-                    </p>
-                </div>
-
-                <div className="flex justify-between items-end pt-2">
-                    <p className="text-[#FF6D1F] font-extrabold text-xl">
-                        Rp {product.price.toLocaleString("id-ID")}
-                    </p>
-                    
-                    {/* Tombol Add to Cart */}
-                    <button
-                        onClick={handleAdd}
-                        className="bg-[#234C6A] text-white p-2 rounded-full hover:bg-[#1A374A] transition transform hover:scale-105"
-                        title="Tambahkan ke Keranjang"
-                    >
-                        <PlusCircle size={24} />
-                    </button>
-                </div>
-            </div>
+          <p className="text-xs text-gray-500 capitalize mt-1">
+            {getCategoryIcon(product.category.slug)}
+            {product.category.name}
+          </p>
         </div>
-    );
-};
 
+        <div className="flex justify-between items-end pt-2">
+          <p className="text-[#FF6D1F] font-extrabold text-xl">
+            Rp {product.price.toLocaleString("id-ID")}
+          </p>
+
+          <button
+            onClick={handleAdd}
+            className="bg-[#234C6A] text-white p-2 rounded-full hover:bg-[#1A374A] transition transform hover:scale-105"
+            title="Tambahkan ke Keranjang"
+          >
+            <PlusCircle size={24} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 // ===============================
 // KOMPONEN UTAMA MARKETPLACE
 // ===============================
 export default function MarketplacePage() {
-    const [products, setProducts] = useState<Product[]>([]);
-    const [search, setSearch] = useState("");
-    const [filter, setFilter] = useState("all");
-    const [cartCount, setCartCount] = useState(0);
-    const [currentPromoIndex, setCurrentPromoIndex] = useState(0); 
-    // State BARU untuk melacak apakah ada pesanan terakhir
-    const [hasLatestOrder, setHasLatestOrder] = useState(false); 
+  const [products, setProducts] = useState<Product[]>([]);
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState("all");
+  const [cartCount, setCartCount] = useState(0);
+  const [currentPromoIndex, setCurrentPromoIndex] = useState(0);
+  const [hasLatestOrder, setHasLatestOrder] = useState(false);
 
-    // =============== Dummy Produk ===============
-    const dummyData: Product[] = [
-        { id: 1, name: "Oli Mesin Yamalube Power Matic", price: 35000, category:{name:"Suku Cadang",slug:"suku-cadang"}, image_url:"https://placehold.co/700x700/234C6A/FFFFFF/png?text=Oli+Mesin" },
-        { id: 2, name: "Kampas Rem Cakram Depan Motor", price: 26000, category:{name:"Suku Cadang",slug:"suku-cadang"}, image_url:"https://placehold.co/700x700/FF6D1F/FFFFFF/png?text=Kampas+Rem" },
-        { id: 3, name: "Sarung Tangan Full Finger Racing", price: 45000, category:{name:"Aksesoris",slug:"aksesoris"}, image_url:"https://placehold.co/700x700/234C6A/FFFFFF/png?text=Sarung+Tangan" },
-        { id: 4, name: "Helm Bogo Retro Classic", price: 160000, category:{name:"Aksesoris",slug:"aksesoris"}, image_url:"https://placehold.co/700x700/FF6D1F/FFFFFF/png?text=Helm+Bogo" },
-    ];
+  const dummyData: Product[] = [
+    {
+      id: 1,
+      name: "Oli Mesin Yamalube Power Matic",
+      price: 35000,
+      category: { name: "Suku Cadang", slug: "suku-cadang" },
+      image_url:
+        "https://placehold.co/700x700/234C6A/FFFFFF/png?text=Oli+Mesin",
+    },
+    {
+      id: 2,
+      name: "Kampas Rem Cakram Depan Motor",
+      price: 26000,
+      category: { name: "Suku Cadang", slug: "suku-cadang" },
+      image_url:
+        "https://placehold.co/700x700/FF6D1F/FFFFFF/png?text=Kampas+Rem",
+    },
+    {
+      id: 3,
+      name: "Sarung Tangan Full Finger Racing",
+      price: 45000,
+      category: { name: "Aksesoris", slug: "aksesoris" },
+      image_url:
+        "https://placehold.co/700x700/234C6A/FFFFFF/png?text=Sarung+Tangan",
+    },
+    {
+      id: 4,
+      name: "Helm Bogo Retro Classic",
+      price: 160000,
+      category: { name: "Aksesoris", slug: "aksesoris" },
+      image_url:
+        "https://placehold.co/700x700/FF6D1F/FFFFFF/png?text=Helm+Bogo",
+    },
+  ];
 
-    const updateCartCount = () => {
-        const saved = localStorage.getItem("cart");
-        if (saved) setCartCount(JSON.parse(saved).length);
-    };
+  const updateCartCount = () => {
+    const saved = localStorage.getItem("cart");
+    if (saved) setCartCount(JSON.parse(saved).length);
+  };
 
-    const handleProductClick = (product: Product) => {
-        localStorage.setItem("selectedProduct", JSON.stringify(product));
-        window.location.href = `/marketplace/pesanan`;
-    };
-    
-    useEffect(() => {
-        setProducts(dummyData);
-        updateCartCount();
+  const handleProductClick = (product: Product) => {
+    localStorage.setItem("selectedProduct", JSON.stringify(product));
+    window.location.href = `/marketplace/detailProduk`;
+  };
 
-        // Cek pesanan terakhir
-        if (localStorage.getItem("latestOrder")) {
-            setHasLatestOrder(true);
-        }
+  useEffect(() => {
+    setProducts(dummyData);
+    updateCartCount();
 
-        // Logika Auto-Carousel: Ganti banner setiap 5 detik
-        const interval = setInterval(() => {
-            setCurrentPromoIndex(prevIndex => 
-                (prevIndex + 1) % PROMO_BANNERS.length
-            );
-        }, 5000);
-
-        return () => clearInterval(interval); // Cleanup
-    }, []);
-
-    // ============ Filter Search ============
-    const filtered = products.filter(p =>
-        p.name.toLowerCase().includes(search.toLowerCase()) &&
-        (filter === "all" ? true : p.category.slug === filter)
-    );
-
-    // Fungsi untuk mendapatkan ikon kategori
-    const getCategoryIcon = (slug: string) => {
-        switch (slug) {
-            case 'suku-cadang':
-                return <Wrench size={16} className="inline mr-1 text-gray-500" />;
-            case 'aksesoris':
-                return <Shirt size={16} className="inline mr-1 text-gray-500" />;
-            default:
-                return null;
-        }
+    if (localStorage.getItem("latestOrder")) {
+      setHasLatestOrder(true);
     }
-    
-    const currentPromo = PROMO_BANNERS[currentPromoIndex];
 
-    return (
-        <div className="min-h-screen bg-gray-50 py-10 px-4 md:px-0">
-            <div id="message-box" className="fixed top-4 right-4 z-50 hidden"></div>
+    // Auto slide berita / promo tiap 5 detik
+    const interval = setInterval(() => {
+      setCurrentPromoIndex(
+        (prevIndex) => (prevIndex + 1) % PROMO_BANNERS.length
+      );
+    }, 5000);
 
-            <div className="max-w-6xl mx-auto space-y-8">
+    return () => clearInterval(interval);
+  }, []);
 
-                {/* ==================== Title + Cart + Order Button ==================== */}
-                <div className="flex items-center justify-between border-b pb-4">
-                    <h1 className="text-4xl font-extrabold text-[#234C6A]">
-                        Marketplace Produk 🛒
-                    </h1>
+  const filtered = products.filter(
+    (p) =>
+      p.name.toLowerCase().includes(search.toLowerCase()) &&
+      (filter === "all" ? true : p.category.slug === filter)
+  );
 
-                    <div className="flex items-center gap-4">
-                        {/* TOMBOL BARU: Detail Pesanan Terakhir */}
-                        {hasLatestOrder && (
-                            <a 
-                                href="/marketplace/pesanan"
-                                className="flex items-center gap-2 bg-[#234C6A] text-white p-3 rounded-full text-sm font-semibold 
+  const getCategoryIcon = (slug: string) => {
+    switch (slug) {
+      case "suku-cadang":
+        return <Wrench size={16} className="inline mr-1 text-gray-500" />;
+      case "aksesoris":
+        return <Shirt size={16} className="inline mr-1 text-gray-500" />;
+      default:
+        return null;
+    }
+  };
+
+  const currentPromo = PROMO_BANNERS[currentPromoIndex];
+
+  return (
+    <div className="min-h-screen bg-gray-50 py-10 px-4 md:px-0">
+      <div id="message-box" className="fixed top-4 right-4 z-50 hidden"></div>
+
+      <div className="max-w-6xl mx-auto space-y-8">
+        {/* ==================== Title + Cart + Order Button ==================== */}
+        <div className="flex items-center justify-between border-b pb-4">
+          <h1 className="text-4xl font-extrabold text-[#234C6A]">
+            Marketplace Produk 🛒
+          </h1>
+
+          <div className="flex items-center gap-4">
+            {hasLatestOrder && (
+              <a
+                href="/marketplace/pesanan"
+                className="flex items-center gap-2 bg-[#234C6A] text-white p-3 rounded-full text-sm font-semibold 
                                             hover:bg-[#FF6D1F] transition transform hover:scale-105 shadow-md"
-                                title="Lihat Status Pesanan Terakhir Anda"
-                            >
-                                <Package size={20} /> Pesanan Saya
-                            </a>
-                        )}
+                title="Lihat Status Pesanan Terakhir Anda"
+              >
+                <Package size={20} /> Pesanan Saya
+              </a>
+            )}
 
-                        <a href="/cart" className="relative p-2 rounded-full hover:bg-gray-100 transition">
-                            <ShoppingCart
-                                size={32}
-                                color="#FF6D1F"
-                                className="cursor-pointer hover:scale-105 transition"
-                            />
+            <a
+              href="/cart"
+              className="relative p-2 rounded-full hover:bg-gray-100 transition"
+            >
+              <ShoppingCart
+                size={32}
+                color="#FF6D1F"
+                className="cursor-pointer hover:scale-105 transition"
+              />
 
-                            {cartCount > 0 && (
-                                <span className="absolute -top-1 -right-1 bg-red-600 text-white text-sm font-bold rounded-full w-6 h-6 flex items-center justify-center border-2 border-white">
-                                    {cartCount}
-                                </span>
-                            )}
-                        </a>
-                    </div>
-                </div>
-
-                {/* ==================== PROMO BANNER CAROUSEL ==================== */}
-                {/* ... (Konten Carousel Anda) ... */}
-                <a 
-                    href={currentPromo.link} 
-                    className={`block ${currentPromo.color} text-white p-6 rounded-2xl shadow-xl transition-all duration-500 cursor-pointer 
-                                 flex items-center justify-between overflow-hidden relative`}
-                    style={{ 
-                        backgroundImage: 'radial-gradient(circle at 100% 0%, rgba(255,255,255,0.1) 0%, rgba(0,0,0,0) 70%)'
-                    }}
-                >
-                    <div className="flex items-center gap-4">
-                        <div className="p-3 rounded-full bg-white/20 shrink-0">
-                            {currentPromo.icon}
-                        </div>
-                        <div>
-                            <p className="text-sm font-medium opacity-80">{currentPromo.subtitle}</p>
-                            <h2 className="text-2xl font-extrabold">{currentPromo.title}</h2>
-                        </div>
-                    </div>
-                    
-                    <span className="text-xl font-bold opacity-90 border border-white/50 px-4 py-2 rounded-full hover:bg-white/10 shrink-0 transition hidden sm:inline-block">
-                        Lihat Sekarang →
-                    </span>
-
-                    {/* Indikator Carousel */}
-                    <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 flex gap-1">
-                        {PROMO_BANNERS.map((_, index) => (
-                            <div 
-                                key={index}
-                                className={`w-2 h-2 rounded-full transition-all ${
-                                    index === currentPromoIndex ? 'bg-white' : 'bg-white/50'
-                                }`}
-                                onClick={(e) => { e.preventDefault(); setCurrentPromoIndex(index); }}
-                            ></div>
-                        ))}
-                    </div>
-                </a>
-
-                {/* ==================== Search + Filter ==================== */}
-                <div className="flex flex-col sm:flex-row items-center gap-4 w-full bg-white p-4 rounded-xl shadow-md border border-gray-100">
-
-                    <div className="flex items-center border border-gray-300 rounded-full px-4 py-2 w-full sm:w-2/3 shadow-inner">
-                        <Search size={20} className="text-[#234C6A] mr-2 shrink-0" />
-                        <input
-                            type="text"
-                            placeholder="Cari nama produk: oli, kampas, helm, dll."
-                            className="grow outline-none text-gray-800 placeholder-gray-500 text-base"
-                            value={search}
-                            onChange={e => setSearch(e.target.value)}
-                        />
-                    </div>
-
-                    <select
-                        value={filter}
-                        onChange={e => setFilter(e.target.value)}
-                        className="border-2 border-gray-300 p-2.5 rounded-full shadow-sm cursor-pointer text-gray-700 font-medium transition w-full sm:w-1/3 appearance-none bg-white"
-                    >
-                        <option value="all">Semua Kategori</option>
-                        <option value="suku-cadang">Suku Cadang</option>
-                        <option value="aksesoris">Aksesoris</option>
-                    </select>
-                </div>
-
-                {/* ================= Grid Produk ================= */}
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-
-                    {filtered.length === 0 && (
-                        <p className="text-center col-span-full text-gray-600 py-10 bg-white rounded-xl shadow border border-gray-200">
-                            <AlertTriangle size={24} className="inline mr-2 text-red-500" />
-                            Produk tidak ditemukan. Coba kata kunci atau filter lain.
-                        </p>
-                    )}
-
-                    {filtered.map(p => (
-                        <ProductCardComponent 
-                            key={p.id} 
-                            product={p} 
-                            addToCart={addToCart} 
-                            getCategoryIcon={getCategoryIcon} 
-                            updateCartCount={updateCartCount}
-                            onProductClick={handleProductClick} 
-                        />
-                    ))}
-
-                </div>
-            </div>
+              {cartCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-600 text-white text-sm font-bold rounded-full w-6 h-6 flex items-center justify-center border-2 border-white">
+                  {cartCount}
+                </span>
+              )}
+            </a>
+          </div>
         </div>
-    );
+
+        {/* ==================== PROMO / BERITA SLIDER DENGAN FOTO ==================== */}
+        <a
+          href={currentPromo.link}
+          className="block rounded-2xl shadow-xl overflow-hidden relative group"
+        >
+          {/* Foto utama */}
+          <img
+            src={currentPromo.imageUrl}
+            alt={currentPromo.title}
+            className="w-full h-40 md:h-56 lg:h-64 object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+          />
+
+          {/* Overlay gelap biar teks kebaca */}
+          <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/50 to-transparent" />
+
+          {/* Konten teks di atas foto */}
+          <div className="absolute inset-0 flex items-center justify-between px-6 md:px-10">
+            <div className="text-white max-w-xl">
+              {currentPromo.tag && (
+                <span className="inline-block text-xs font-semibold tracking-wide bg-white/20 px-3 py-1 rounded-full mb-2 backdrop-blur-sm">
+                  {currentPromo.tag}
+                </span>
+              )}
+              <h2 className="text-2xl md:text-3xl font-extrabold leading-snug">
+                {currentPromo.title}
+              </h2>
+              <p className="text-sm md:text-base mt-1 text-gray-100/80">
+                {currentPromo.subtitle}
+              </p>
+            </div>
+
+            <span className="hidden sm:inline-flex text-sm md:text-base font-semibold text-white border border-white/70 px-4 py-2 rounded-full hover:bg-white/10 transition">
+              Lihat Sekarang →
+            </span>
+          </div>
+
+          {/* Indikator Carousel */}
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+            {PROMO_BANNERS.map((_, index) => (
+              <button
+                key={index}
+                className={`w-2.5 h-2.5 rounded-full transition-all ${
+                  index === currentPromoIndex
+                    ? "bg-white"
+                    : "bg-white/50 hover:bg-white/80"
+                }`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  setCurrentPromoIndex(index);
+                }}
+              />
+            ))}
+          </div>
+        </a>
+
+        {/* ==================== Search + Filter ==================== */}
+        <div className="flex flex-col sm:flex-row items-center gap-4 w-full bg-white p-4 rounded-xl shadow-md border border-gray-100">
+          <div className="flex items-center border border-gray-300 rounded-full px-4 py-2 w-full sm:w-2/3 shadow-inner">
+            <Search size={20} className="text-[#234C6A] mr-2 flex-shrink-0" />
+            <input
+              type="text"
+              placeholder="Cari nama produk: oli, kampas, helm, dll."
+              className="grow outline-none text-gray-800 placeholder-gray-500 text-base"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+
+          <select
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            className="border-2 border-gray-300 p-2.5 rounded-full shadow-sm cursor-pointer text-gray-700 font-medium transition w-full sm:w-1/3 appearance-none bg-white"
+          >
+            <option value="all">Semua Kategori</option>
+            <option value="suku-cadang">Suku Cadang</option>
+            <option value="aksesoris">Aksesoris</option>
+          </select>
+        </div>
+
+        {/* ================= Grid Produk ================= */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          {filtered.length === 0 && (
+            <p className="text-center col-span-full text-gray-600 py-10 bg-white rounded-xl shadow border border-gray-200">
+              <AlertTriangle size={24} className="inline mr-2 text-red-500" />
+              Produk tidak ditemukan. Coba kata kunci atau filter lain.
+            </p>
+          )}
+
+          {filtered.map((p) => (
+            <ProductCardComponent
+              key={p.id}
+              product={p}
+              addToCart={addToCart}
+              getCategoryIcon={getCategoryIcon}
+              updateCartCount={updateCartCount}
+              onProductClick={handleProductClick}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }
