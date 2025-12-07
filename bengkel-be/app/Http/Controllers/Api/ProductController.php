@@ -1,4 +1,4 @@
-<?php  
+<?php 
 
 namespace App\Http\Controllers\Api;
 
@@ -14,7 +14,8 @@ class ProductController extends Controller
     // ======================= LIST PRODUCT =======================
     public function index()
     {
-        $products = Product::with('category')->get();
+        // ❌ Hapus with('category') karena relasi sudah dihapus/diubah.
+        $products = Product::all(); 
 
         return response()->json([
             'message' => 'Daftar produk berhasil diambil.',
@@ -25,28 +26,33 @@ class ProductController extends Controller
     // ======================= CREATE PRODUCT =======================
     public function store(Request $request)
     {
+        // 💡 PERUBAHAN KRUSIAL: category_id diganti category_type dengan validasi IN
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255|unique:products,name',
             'description' => 'required|string',
             'price' => 'required|numeric|min:0',
             'stock' => 'required|integer|min:0',
             'img_url' => 'required|image|mimes:jpg,jpeg,png,webp|max:2048',
-            'category_id' => 'required|exists:categories,id',
+            'jenis_barang' => 'required|in:Sparepart,Aksesoris', // 💡 Perubahan Validasi
         ]);
 
         if ($validator->fails()) {
+            // Mengembalikan error 422 (Unprocessable Entity)
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
         $imagePath = null;
+        $folder = 'products';
 
         if($request->hasFile('img_url')){
             $file = $request->file('img_url');
-            $fileName = time().'.'.$file->getClientOriginalExtension();
-            $file->storeAs('public/products', $fileName);
+            $fileName = time().'_'.Str::slug($request->name).'.'.$file->getClientOriginalExtension();
+            
+            // Simpan file ke disk 'public'
+            $file->storeAs($folder, $fileName, 'public'); 
 
-            // Path yang disimpan ke database untuk bisa diakses frontend
-            $imagePath = 'storage/products/'.$fileName;
+            // Simpan path relatif ke database.
+            $imagePath = $folder.'/'.$fileName; 
         }
 
         $product = Product::create([
@@ -56,7 +62,7 @@ class ProductController extends Controller
             'price' => $request->price,
             'stock' => $request->stock,
             'img_url' => $imagePath,
-            'category_id' => $request->category_id,
+            'jenis_barang' => $request->jenis_barang, // 💡 Perubahan Field
         ]);
 
         return response()->json([
@@ -68,41 +74,48 @@ class ProductController extends Controller
     // ======================= DETAIL PRODUCT =======================
     public function show(Product $product)
     {
+        // ❌ Hapus load('category')
         return response()->json([
             'message' => 'Detail produk berhasil diambil.',
-            'product' => $product->load('category')
+            'product' => $product 
         ]);
     }
 
     // ======================= UPDATE PRODUCT =======================
     public function update(Request $request, Product $product)
     {
+        // 💡 PERUBAHAN KRUSIAL: category_id diganti category_type
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255|unique:products,name,' . $product->id,
             'description' => 'required|string',
             'price' => 'required|numeric|min:0',
             'stock' => 'required|integer|min:0',
             'img_url' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
-            'category_id' => 'required|exists:categories,id',
+            'jenis_barang' => 'required|in:Sparepart,Aksesoris', // 💡 Perubahan Validasi
         ]);
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
+        
+        $folder = 'products';
 
         // Jika upload gambar baru maka hapus gambar lama
         if ($request->hasFile('img_url')) {
 
-            // Hapus jika file lama ada
-            if($product->img_url && Storage::exists(str_replace('storage/', 'public/', $product->img_url))){
-                Storage::delete(str_replace('storage/', 'public/', $product->img_url));
+            // Hapus gambar lama
+            if($product->img_url){
+                Storage::disk('public')->delete($product->img_url);
             }
 
             $file = $request->file('img_url');
-            $fileName = time().'.'.$file->getClientOriginalExtension();
-            $file->storeAs('public/products', $fileName);
+            $fileName = time().'_'.Str::slug($request->name).'.'.$file->getClientOriginalExtension();
+            
+            // Simpan ke disk 'public'
+            $file->storeAs($folder, $fileName, 'public');
 
-            $product->img_url = 'storage/products/'.$fileName;
+            // Simpan path relatif baru ke Model
+            $product->img_url = $folder.'/'.$fileName;
         }
 
         $product->update([
@@ -111,21 +124,22 @@ class ProductController extends Controller
             'description' => $request->description,
             'price' => $request->price,
             'stock' => $request->stock,
-            'category_id' => $request->category_id,
+            'jenis_barang' => $request->jenis_barang, // 💡 Perubahan Field
         ]);
 
+        // ❌ Hapus load('category')
         return response()->json([
             'message' => 'Produk berhasil diperbarui.',
-            'product' => $product->load('category')
-        ]);
+            'product' => $product 
+        ], 200);
     }
 
     // ======================= DELETE PRODUCT =======================
     public function destroy(Product $product)
     {
-        // Hapus gambar dari storage
-        if($product->img_url && Storage::exists(str_replace('storage/', 'public/', $product->img_url))){
-            Storage::delete(str_replace('storage/', 'public/', $product->img_url));
+        // Hapus gambar dari storage 
+        if($product->img_url){
+            Storage::disk('public')->delete($product->img_url);
         }
 
         $product->delete();

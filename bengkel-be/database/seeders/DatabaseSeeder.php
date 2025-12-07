@@ -5,7 +5,7 @@ namespace Database\Seeders;
 use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB; // <-- IMPORT FACADE DB
+use Illuminate\Support\Facades\DB; 
 
 class DatabaseSeeder extends Seeder
 {
@@ -16,35 +16,31 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // 1. NONAKTIFKAN Foreign Key Checks untuk menghindari error truncate/seeding
+        // 1. NONAKTIFKAN Foreign Key Checks (Wajib saat truncate atau seeding kompleks)
         DB::statement('SET FOREIGN_KEY_CHECKS=0;'); 
 
         $this->call([
-            // Urutan disarankan: Tabel Induk paling atas, Anak di bawah.
-            UserSeeder::class,      
-            CategorySeeder::class,  // Induk
-            ProductSeeder::class,   // Anak dari Category, Induk dari CartItem, Review, Cashier
-            // ServiceSeeder::class, // HATI-HATI: Jika tidak dipakai, hapus/perbaiki migrasinya
+            // --- DATA INDUK DAN INTI ---
+            UserSeeder::class,      // ID user dibutuhkan oleh hampir semua tabel
+              
+            PromotionSeeder::class, // Harus di sini sebelum ProductSeeder jika ProductSeeder me-refer-nya
+            ProductSeeder::class,   
             
-            // BookingSeeder harus dipanggil SEBELUM CashierSeeder
-            BookingSeeder::class,   // Induk dari Cashier
+            // --- BOOKING & LAYANAN ---
+            // Booking adalah induk dari Cashier
+            BookingSeeder::class,   
             
-            // Tabel Anak/Detail
+            // --- TRANSAKSI & DETAIL ---
             CartItemSeeder::class,
             OrderSeeder::class,
             ShippingProgresSeeder::class,
             ReviewSeeder::class,
-            CashierSeeder::class,
-            // WorkshopScheduleSeeder::class (Jika ada)
+            CashierSeeder::class, // Paling bawah karena merujuk ke Booking dan Product
+            
+            // Note: Hapus ServiceSeeder jika tabel 'services' tidak lagi digunakan
         ]);
 
         // 2. AKTIFKAN Kembali Foreign Key Checks
         DB::statement('SET FOREIGN_KEY_CHECKS=1;'); 
-
-        // Hapus kode redundan factory di bawah ini karena sudah ada di UserSeeder
-        // User::factory()->create([
-        //     'name' => 'Test User',
-        //     'email' => 'test@example.com',
-        // ]);
     }
 }

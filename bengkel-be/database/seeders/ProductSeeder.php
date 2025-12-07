@@ -8,30 +8,32 @@ use Illuminate\Support\Str;
 
 class ProductSeeder extends Seeder
 {
+    // database/seeders/ProductSeeder.php
+
+// ...
     public function run(): void
     {
         Product::create([
-            'name' => 'Contoh Produk 1',
-            'slug' => Str::slug('Contoh Produk 1'),
-            'description' => 'Ini adalah contoh produk pertama.',
-            'price' => 150000,
-            'stock' => 10,
-            'img_url' => 'images/product1.jpg',
-            'category_id' => 1, // pastikan kategori id 1 sudah ada
-            'create_at' => now(),
-            'update_at' => now(),
+            'name' => 'Busi Iridium NGK',
+            'slug' => 'busi-iridium-ngk',
+            'description' => 'Busi performa tinggi untuk motor.',
+            'price' => 75000,
+            'stock' => 150,
+            'img_url' => 'products/busi.jpg',
+            'jenis_barang' => 'Sparepart', // <-- GANTI KE ENUM
+            // ...
         ]);
-
+        
         Product::create([
-            'name' => 'Contoh Produk 2',
-            'slug' => Str::slug('Contoh Produk 2'),
-            'description' => 'Ini adalah contoh produk kedua.',
-            'price' => 250000,
-            'stock' => 20,
-            'img_url' => 'images/product2.jpg',
-            'category_id' => 1,
-            'create_at' => now(),
-            'update_at' => now(),
+            'name' => 'Helm Full Face Zeus',
+            'slug' => 'helm-full-face-zeus',
+            'description' => 'Helm dengan standar SNI.',
+            'price' => 850000,
+            'stock' => 50,
+            'img_url' => 'products/helm.jpg',
+            'jenis_barang' => 'Aksesoris', // <-- GANTI KE ENUM
+            // ...
         ]);
+        // ...
     }
 }
