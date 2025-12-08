@@ -23,7 +23,7 @@ class Booking extends Model
     // Relasi User
     public function user()
     {
-        return $this->belongsTo(User::class);
+          return $this->belongsTo(User::class, 'user_id', 'id');
     }
 
     // Hapus relasi service karena tidak ada lagi kolom services_id

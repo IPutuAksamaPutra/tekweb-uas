@@ -20,7 +20,9 @@ export default function CreateProductPage() {
         jenis_barang: "",
     });
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const handleChange = (
+        e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+    ) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
@@ -33,19 +35,20 @@ export default function CreateProductPage() {
         e.preventDefault();
         setLoading(true);
 
-        if (!imageFile) return alert("Gambar wajib diupload!");
-
-        const token = localStorage.getItem("token"); // sesuai login kamu
+        if (!imageFile) {
+            alert("Gambar wajib diupload!");
+            setLoading(false);
+            return;
+        }
 
         const payload = new FormData();
         Object.entries(formData).forEach(([key, value]) => payload.append(key, value));
         payload.append("img_url", imageFile);
 
         try {
-            const res = await fetch("http://localhost:8000/api/products", {
+            const res = await fetch("http://localhost:8000/api/admin/products", {
                 method: "POST",
-                headers: { Authorization: `Bearer ${token}` },
-                body: payload
+                body: payload,
             });
 
             const data = await res.json();
@@ -61,9 +64,9 @@ export default function CreateProductPage() {
 
             alert("Produk berhasil ditambahkan!");
             router.push("/admin/produk");
-
         } catch (err) {
             alert("Tidak dapat terhubung ke server!");
+            console.error(err);
         } finally {
             setLoading(false);
         }
@@ -75,18 +78,41 @@ export default function CreateProductPage() {
                 <h1 className="text-2xl font-semibold mb-4">Tambah Produk</h1>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    
-                    <Input label="Nama Produk" name="name" type="text"
-                        value={formData.name} onChange={handleChange} required />
 
-                    <Textarea label="Deskripsi" name="description"
-                        value={formData.description} onChange={handleChange} required />
+                    <Input
+                        label="Nama Produk"
+                        name="name"
+                        type="text"
+                        value={formData.name}
+                        onChange={handleChange}
+                        required
+                    />
 
-                    <Input label="Harga" name="price" type="number"
-                        value={formData.price} onChange={handleChange} required />
+                    <Textarea
+                        label="Deskripsi"
+                        name="description"
+                        value={formData.description}
+                        onChange={handleChange}
+                        required
+                    />
 
-                    <Input label="Stok" name="stock" type="number"
-                        value={formData.stock} onChange={handleChange} required />
+                    <Input
+                        label="Harga"
+                        name="price"
+                        type="number"
+                        value={formData.price}
+                        onChange={handleChange}
+                        required
+                    />
+
+                    <Input
+                        label="Stok"
+                        name="stock"
+                        type="number"
+                        value={formData.stock}
+                        onChange={handleChange}
+                        required
+                    />
 
                     {/* ENUM */}
                     <div>
@@ -99,7 +125,7 @@ export default function CreateProductPage() {
                             className="border rounded px-3 py-2 w-full"
                         >
                             <option value="">-- Pilih --</option>
-                            {productTypes.map(type => (
+                            {productTypes.map((type) => (
                                 <option key={type} value={type}>{type}</option>
                             ))}
                         </select>
@@ -108,10 +134,13 @@ export default function CreateProductPage() {
                     {/* Upload Gambar */}
                     <div>
                         <label className="block text-sm font-medium mb-1">Upload Gambar</label>
-                        <input type="file" accept="image/*"
+                        <input
+                            type="file"
+                            accept="image/*"
                             onChange={handleImageChange}
                             required
-                            className="border rounded px-3 py-2 w-full" />
+                            className="border rounded px-3 py-2 w-full"
+                        />
 
                         {imageFile && (
                             <img
@@ -122,8 +151,11 @@ export default function CreateProductPage() {
                         )}
                     </div>
 
-                    <button type="submit" disabled={loading}
-                        className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 disabled:bg-gray-400">
+                    <button
+                        type="submit"
+                        disabled={loading}
+                        className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 disabled:bg-gray-400"
+                    >
                         {loading ? "Menyimpan..." : "Simpan Produk"}
                     </button>
                 </form>
@@ -132,7 +164,7 @@ export default function CreateProductPage() {
     );
 }
 
-// ======== COMPONENT INPUT/ TEXTAREA (Agar rapi) =========
+// ======== COMPONENT INPUT / TEXTAREA =========
 
 function Input(props: any) {
     return (

@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Booking;
 use Illuminate\Support\Facades\Validator;
-use App\Models\User; 
+use App\Models\User;
 
 class BookingController extends Controller
 {
@@ -23,15 +23,14 @@ class BookingController extends Controller
     public function index(Request $request)
     {
         $user = $request->user();
-        
-        // Admin, Super Admin, dan Kasir melihat semua booking
+        if (!$user) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
         if (in_array($user->role, ['admin', 'super_admin', 'kasir'])) {
-            $bookings = Booking::with('user:id,name,email')->latest()->get();
+            $bookings = Booking::with('user:name')->latest()->get();
         } else {
-            // Customer hanya melihat booking milik mereka
-            $bookings = Booking::where('user_id', $user->id)
-                                ->latest()
-                                ->get();
+            $bookings = Booking::where('user_id', $user->id)->latest()->get();
         }
 
         return response()->json([
@@ -47,15 +46,16 @@ class BookingController extends Controller
     public function store(Request $request)
     {
         $user = $request->user();
+        if (!$user) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
 
-        // Pengecekan Otorisasi: Hanya Customer
         if ($user->role !== 'customer') {
             return response()->json([
                 'message' => 'Hanya pengguna customer yang dapat membuat booking.'
             ], 403);
         }
 
-        // Aturan validasi
         $validator = Validator::make($request->all(), [
             'jenis_kendaraan' => 'required|string|in:Matic,Manual',
             'nama_kendaraan' => 'required|string|max:100',
@@ -69,7 +69,6 @@ class BookingController extends Controller
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-        // Buat Booking
         $booking = Booking::create([
             'user_id' => $user->id,
             'jenis_kendaraan' => $request->jenis_kendaraan,
@@ -94,19 +93,19 @@ class BookingController extends Controller
     public function show(Request $request, Booking $booking)
     {
         $user = $request->user();
+        if (!$user) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
 
-        // Diizinkan jika: Staf (Admin/Super Admin/Kasir) ATAU pemilik booking
         $allowedToView = in_array($user->role, ['admin', 'super_admin', 'kasir']) || $booking->user_id === $user->id;
 
         if (!$allowedToView) {
-            return response()->json([
-                'message' => 'Anda tidak diizinkan melihat detail booking ini.'
-            ], 403);
+            return response()->json(['message' => 'Anda tidak diizinkan melihat detail booking ini.'], 403);
         }
 
         return response()->json([
             'message' => 'Detail booking berhasil diambil.',
-            'booking' => $booking->load('user:id,name,email') 
+            'booking' => $booking->load('user:id,name,email')
         ]);
     }
 
@@ -116,14 +115,17 @@ class BookingController extends Controller
      */
     public function update(Request $request, Booking $booking)
     {
-        // Pengecekan Otorisasi: HANYA Admin dan Super Admin
-        if (!in_array($request->user()->role, $this->managementRoles)) {
+        $user = $request->user();
+        if (!$user) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
+        if (!in_array($user->role, $this->managementRoles)) {
             return response()->json([
                 'message' => 'Anda tidak memiliki izin (Hanya Admin atau Super Admin) untuk memperbarui booking.'
             ], 403);
         }
 
-        // Aturan validasi
         $validator = Validator::make($request->all(), [
             'status' => 'nullable|string|in:Pending,Confirmed,Canceled,Completed',
             'booking_date' => 'nullable|date|after_or_equal:today',
@@ -151,13 +153,17 @@ class BookingController extends Controller
      */
     public function destroy(Request $request, Booking $booking)
     {
-        // Pengecekan Otorisasi: HANYA Admin dan Super Admin
-        if (!in_array($request->user()->role, $this->managementRoles)) {
+        $user = $request->user();
+        if (!$user) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
+        if (!in_array($user->role, $this->managementRoles)) {
             return response()->json([
                 'message' => 'Anda tidak memiliki izin (Hanya Admin atau Super Admin) untuk menghapus booking.'
             ], 403);
         }
-        
+
         $booking->delete();
 
         return response()->json([

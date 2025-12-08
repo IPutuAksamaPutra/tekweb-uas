@@ -35,7 +35,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('cart', CartController::class);
     Route::apiResource('orders', OrderController::class);
     Route::apiResource('reviews', ReviewController::class)->except(['destroy']);
-    Route::apiResource('bookings', BookingController::class)->only(['store', 'update', 'destroy']);
+    Route::apiResource('bookings', BookingController::class)->only(['store', 'update', 'destroy', 'index', 'show']);
+    
 });
 
 

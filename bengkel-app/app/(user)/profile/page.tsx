@@ -10,51 +10,64 @@ interface UserData {
     role?: string;
 }
 
+// Fungsi helper ambil cookie
+const getCookie = (name: string) => {
+    const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+    if (match) return decodeURIComponent(match[2]);
+    return null;
+};
+
 export default function ProfilePage() {
     const [user, setUser] = useState<UserData | null>(null);
     const [editing, setEditing] = useState(false);
     const [formData, setFormData] = useState<UserData>({ name: "Guest", email: "guest@example.com" });
     const [loading, setLoading] = useState(true);
 
-    // ================================ FETCH USER TANPA WAJIB LOGIN ================================
     useEffect(() => {
-        const token = localStorage.getItem("token");
+        const cookieUser = getCookie("user");
+        const token = getCookie("token");
 
-        // Jika tidak ada token → tampil mode guest, tanpa redirect login
-        if (!token) {
+        if (cookieUser) {
+            const parsedUser = JSON.parse(cookieUser);
+            setUser(parsedUser);
+            setFormData(parsedUser);
+        } else if (token) {
+            // Jika token ada tapi cookie user belum ada, fetch dari API
+            fetch("http://localhost:8000/api/user", {
+                headers: { "Authorization": `Bearer ${token}` }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.user) {
+                    setUser(data.user);
+                    setFormData(data.user);
+                } else {
+                    setUser({ name: "Guest", email: "guest@example.com" });
+                }
+            })
+            .catch(() => setUser({ name: "Guest", email: "guest@example.com" }));
+        } else {
+            // Mode Guest
             setUser({ name: "Guest User", email: "No Login Detected" });
-            setLoading(false);
-            return;
         }
 
-        fetch("http://localhost:8000/api/user", {
-            headers: { "Authorization": `Bearer ${token}` }
-        })
-        .then(res => res.json())
-        .then(data => {
-            if (data.user) {
-                setUser(data.user);
-                setFormData(data.user);
-            } else {
-                setUser({ name: "Guest", email: "guest@example.com" });
-            }
-        })
-        .catch(() => setUser({ name: "Guest", email: "guest@example.com" }))
-        .finally(() => setLoading(false));
+        setLoading(false);
     }, []);
 
-    // =========================== SIMPAN EDIT (LOCAL SAJA) ===========================
     const handleSave = () => {
         setUser(formData);
-        localStorage.setItem("profileUser", JSON.stringify(formData));
         alert("Profil disimpan lokal! (Tidak update DB)");
         setEditing(false);
     };
 
     const handleLogout = () => {
-        localStorage.clear();
+        // Hapus cookie dan reload
+        document.cookie = "token=; path=/; max-age=0";
+        document.cookie = "user=; path=/; max-age=0";
+        setUser({ name: "Guest User", email: "No Login Detected" });
+        setFormData({ name: "Guest", email: "guest@example.com" });
+        setEditing(false);
         alert("Logout berhasil!");
-        location.reload();       // kembali ke Guest Mode
     };
 
     if (loading) return <p className="text-center py-20 text-lg">Memuat profil...</p>;
@@ -111,7 +124,6 @@ export default function ProfilePage() {
                         </>
                     )}
 
-                    {/* Logout juga aman meski tidak login */}
                     <button onClick={handleLogout} className="text-gray-600 hover:text-red-600 flex justify-center gap-2 py-3">
                         <LogOut size={18}/> Logout
                     </button>
