@@ -3,46 +3,39 @@
 import { LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-// Hapus cookie dengan benar
+// Hapus cookie manual di browser
 const deleteCookie = (name: string) => {
-  document.cookie = `${name}=; path=/; max-age=0; SameSite=Lax;`;
+  document.cookie = `${name}=; Max-Age=0; path=/;`;
 };
 
 export default function AdminNavbar() {
   const router = useRouter();
 
-  // Ganti dengan URL API Laravel kamu
-  const API_LOGOUT_URL = "http://localhost:8000/api/logout";
+  const API_LOGOUT_URL = "http://localhost:8000/api/auth/logout";
 
-  // --- Membersihkan client state ---
-  const cleanUpClientState = () => {
-    console.log("CLIENT CLEANUP...");
+  const cleanUpClient = () => {
+    console.log("Membersihkan semua session client...");
 
     // Hapus localStorage
-    localStorage.removeItem("authToken");
     localStorage.removeItem("token");
     localStorage.removeItem("user");
 
-    // Hapus cookie penting
+    // Hapus cookies yang mungkin tersisa
     deleteCookie("laravel_session");
     deleteCookie("XSRF-TOKEN");
     deleteCookie("token");
-    deleteCookie("authToken");
+    deleteCookie("access_token");
 
-    // Redirect
+    // Redirect ke login
     router.replace("/auth/login");
   };
 
-  // --- LOGOUT UTAMA ---
   const handleLogout = async () => {
-    // Cek token: gunakan salah satu yang ada
-    const token =
-      localStorage.getItem("authToken") ||
-      localStorage.getItem("token");
+    const token = localStorage.getItem("token");
 
     if (!token) {
-      console.warn("Token tidak ditemukan! AUTO CLEANUP.");
-      cleanUpClientState();
+      console.warn("Tidak ada token → langsung bersihkan client");
+      cleanUpClient();
       return;
     }
 
@@ -51,19 +44,23 @@ export default function AdminNavbar() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,  // TOKEN DIKIRIM BENAR
+          "Authorization": `Bearer ${token}`, // WAJIB
+          Accept: "application/json",
         },
-        credentials: "include", // WAJIB jika pakai sanctum/cookie
+        credentials: "include",
       });
 
-      console.log("Logout response:", res.status);
-
-      // Kalau logout gagal, tetap lakukan cleanup di client
-      cleanUpClientState();
+      if (!res.ok) {
+        console.error("Logout Server Error:", res.status);
+      } else {
+        console.log("Logout Server OK");
+      }
     } catch (err) {
-      console.error("Error logout:", err);
-      cleanUpClientState();
+      console.error("Logout Network Error:", err);
     }
+
+    // Tetap cleanup meskipun error
+    cleanUpClient();
   };
 
   return (

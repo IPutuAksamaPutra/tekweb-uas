@@ -13,41 +13,35 @@ use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\ReviewController;
 
 // ====================
-// ROUTE PUBLIC (NO LOGIN SEMUA BEBAS)
+// PUBLIC ROUTES
 // ====================
 
-// User Auth (opsional, bisa dipakai jika nanti ingin aktifkan lagi)
-Route::post('register', [AuthController::class, 'register']);
-Route::post('login', [AuthController::class, 'login']);
+Route::post('auth/register', [AuthController::class, 'register']);
+Route::post('auth/login', [AuthController::class, 'login']);
 
-// Produk bebas CRUD tanpa login
+// Produk bebas
 Route::apiResource('products', ProductController::class);
-
-// Category bebas
 Route::apiResource('categories', CategoryController::class);
-
-// Promo bebas
 Route::apiResource('promotions', PromotionController::class);
-
-// Booking bebas
 Route::apiResource('bookings', BookingController::class);
-
-// Cashier bebas
 Route::apiResource('cashier', CashierController::class);
-
-// Cart bebas
 Route::apiResource('cart', CartController::class);
-
-// Order bebas
 Route::apiResource('orders', OrderController::class);
-
-// Review bebas
 Route::apiResource('reviews', ReviewController::class);
 
-// Staff bebas
 Route::post('staff/register', [AdminUserController::class, 'storeStaff']);
 Route::get('staff', [AdminUserController::class, 'index']);
 
-// User info bebas (opsional)
-Route::get('user', [AuthController::class, 'user']);
-Route::post('logout', [AuthController::class, 'logout']);
+
+// =============================
+// PROTECTED ROUTES (auth token)
+// =============================
+
+Route::middleware('auth:sanctum')->group(function () {
+
+    // ambil data user login
+    Route::get('auth/user', [AuthController::class, 'user']);
+
+    // LOGOUT
+    Route::post('auth/logout', [AuthController::class, 'logout']);
+});
