@@ -11,24 +11,21 @@ return new class extends Migration
         Schema::create('bookings', function (Blueprint $table) {
             $table->id();
 
-            // MENGGANTI: Menggunakan user_id sebagai foreign key
+            // Relasi ke users
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
             
-            $table->string('jenis_kendaraan');
-            $table->string('nama_kendaraan');
-            
-            // Foreign Key ke services
-            $table->foreignId('services_id')->constrained('services')->onDelete('cascade');
-            
-            $table->date('booking_date');
-            
-            // MEMPERTAHANKAN: Kolom no_wa tetap ada
-            $table->string('no_wa'); 
-            
-            $table->text('notes')->nullable();
-            $table->string('status')->default('pending');
+            $table->string('jenis_kendaraan'); // Matic / Manual
+            $table->string('nama_kendaraan');  // Nama motor/mobil
 
-            $table->timestamps(); // created_at & updated_at
+            // Perbaikan: DIGANTI DARI "services_id" ke "jenis_service"
+            $table->string('jenis_service'); // Service Ringan, Ganti Oli, dll
+            
+            $table->date('booking_date');     // Tanggal booking
+            $table->string('no_wa');          // No WhatsApp customer
+            $table->text('notes')->nullable();// Catatan tambahan
+            $table->string('status')->default('Pending');
+
+            $table->timestamps();
         });
     }
 

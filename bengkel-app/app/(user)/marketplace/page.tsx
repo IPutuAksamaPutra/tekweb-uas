@@ -1,6 +1,5 @@
 "use client";
 
-import type React from "react";
 import { useEffect, useState } from "react";
 import {
   ShoppingCart,
@@ -13,7 +12,25 @@ import {
 } from "lucide-react";
 
 // ===============================
-// HELPER DISKON – dipakai di card & detail
+// TIPE DATA PRODUK
+// ===============================
+interface Product {
+  id: number;
+  name: string;
+  price: number;
+  stock: number;
+  jenis_barang: string;
+  img_url: string;
+  description?: string;
+  isPromo?: boolean;
+  discountPercent?: number;
+  promoTag?: string;
+  promoSubtitle?: string;
+  promoImageUrl?: string;
+}
+
+// ===============================
+// HELPER DISKON
 // ===============================
 function getPriceInfo(product: {
   price: number;
@@ -25,41 +42,20 @@ function getPriceInfo(product: {
 
   const originalPrice = product.price;
   const finalPrice = hasDiscount
-    ? Math.round(
-        product.price * (1 - (product.discountPercent as number) / 100)
-      )
+    ? Math.round(product.price * (1 - (product.discountPercent as number) / 100))
     : product.price;
 
   return { hasDiscount, originalPrice, finalPrice };
 }
 
 // ===============================
-// TIPE DATA PRODUK
-// ===============================
-interface Product {
-  id: number;
-  name: string;
-  price: number; // harga normal (sebelum diskon)
-  category: { name: string; slug: string };
-  image_url: string;
-
-  // Field terkait promo
-  isPromo?: boolean;
-  discountPercent?: number;
-  promoTag?: string;
-  promoSubtitle?: string;
-  promoImageUrl?: string;
-}
-
-// ===============================
-// Fungsi Add Cart (Simulasi localStorage)
+// FUNGSI ADD TO CART
 // ===============================
 const addToCart = (product: Product, updateCount: () => void) => {
   const saved = localStorage.getItem("cart");
   const cartItems = saved ? JSON.parse(saved) : [];
 
   const exist = cartItems.findIndex((i: any) => i.id === product.id);
-
   if (exist >= 0) cartItems[exist].qty++;
   else cartItems.push({ ...product, qty: 1, isSelected: true });
 
@@ -83,7 +79,7 @@ const addToCart = (product: Product, updateCount: () => void) => {
 };
 
 // ===============================
-// TIPE PROPS UNTUK PRODUCT CARD
+// PRODUCT CARD COMPONENT
 // ===============================
 interface ProductCardProps {
   product: Product;
@@ -93,9 +89,6 @@ interface ProductCardProps {
   onProductClick: (product: Product) => void;
 }
 
-// ===============================
-// KOMPONEN LOKAL: ProductCard
-// ===============================
 const ProductCardComponent = ({
   product,
   addToCart,
@@ -111,9 +104,7 @@ const ProductCardComponent = ({
 
   const handleCardClick = (e: React.MouseEvent) => {
     const targetElement = e.target as Element;
-    if (targetElement.closest("button")) {
-      return;
-    }
+    if (targetElement.closest("button")) return;
     onProductClick(product);
   };
 
@@ -129,7 +120,7 @@ const ProductCardComponent = ({
     >
       <div className="block relative">
         <img
-          src={product.image_url}
+          src={product.img_url}
           alt={product.name}
           className="w-full h-44 object-cover transition duration-300 group-hover:scale-[1.03] relative z-0"
           onError={(e) => {
@@ -153,8 +144,8 @@ const ProductCardComponent = ({
           </h2>
 
           <p className="text-xs text-gray-500 capitalize mt-1">
-            {getCategoryIcon(product.category.slug)}
-            {product.category.name}
+            {getCategoryIcon(product.jenis_barang)}
+            {product.jenis_barang}
           </p>
         </div>
 
@@ -185,7 +176,7 @@ const ProductCardComponent = ({
 };
 
 // ===============================
-// KOMPONEN UTAMA MARKETPLACE
+// MAIN COMPONENT
 // ===============================
 export default function MarketplacePage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -195,51 +186,27 @@ export default function MarketplacePage() {
   const [currentPromoIndex, setCurrentPromoIndex] = useState(0);
   const [hasLatestOrder, setHasLatestOrder] = useState(false);
 
-  // ================== Dummy Produk (price = harga normal) ==================
-  const dummyData: Product[] = [
-    {
-      id: 1,
-      name: "Oli Mesin Yamalube Power Matic",
-      price: 50000, // harga normal, 30% → 35.000
-      category: { name: "Suku Cadang", slug: "suku-cadang" },
-      image_url:
-        "https://placehold.co/700x700/234C6A/FFFFFF/png?text=Oli+Mesin",
-      isPromo: true,
-      discountPercent: 30,
-      promoTag: "Promo Spesial",
-      promoSubtitle: "Hemat besar untuk servis berkala motor kamu.",
-      promoImageUrl:
-        "https://images.pexels.com/photos/4489732/pexels-photo-4489732.jpeg?auto=compress&cs=tinysrgb&w=1200",
-    },
-    {
-      id: 2,
-      name: "Kampas Rem Cakram Depan Motor",
-      price: 26000, // harga normal, 15% → 22.100
-      category: { name: "Suku Cadang", slug: "suku-cadang" },
-      image_url:
-        "https://placehold.co/700x700/FF6D1F/FFFFFF/png?text=Kampas+Rem",
-      isPromo: true,
-      discountPercent: 15,
-      promoTag: "Produk Baru",
-      promoSubtitle: "Kampas lebih pakem, aman di jalan.",
-    },
-    {
-      id: 3,
-      name: "Sarung Tangan Full Finger Racing",
-      price: 45000,
-      category: { name: "Aksesoris", slug: "aksesoris" },
-      image_url:
-        "https://placehold.co/700x700/234C6A/FFFFFF/png?text=Sarung+Tangan",
-    },
-    {
-      id: 4,
-      name: "Helm Bogo Retro Classic",
-      price: 160000,
-      category: { name: "Aksesoris", slug: "aksesoris" },
-      image_url:
-        "https://placehold.co/700x700/FF6D1F/FFFFFF/png?text=Helm+Bogo",
-    },
-  ];
+  // ================= FETCH PRODUK =================
+  const fetchProducts = async () => {
+    try {
+      const res = await fetch("http://localhost:8000/api/products");
+      const data = await res.json();
+
+      if (!res.ok) throw new Error(data.message || "Gagal fetch produk");
+
+      // Tambahkan promo flag jika diskon ada
+      const productsWithPromo = data.products.map((p: Product) => ({
+        ...p,
+        isPromo: p.discountPercent && p.discountPercent > 0 ? true : false,
+        promoImageUrl: p.img_url,
+      }));
+
+      setProducts(productsWithPromo);
+    } catch (err: any) {
+      console.error("Gagal fetch produk:", err);
+      alert("Gagal fetch produk. Pastikan API Laravel jalan di localhost:8000");
+    }
+  };
 
   const updateCartCount = () => {
     const saved = localStorage.getItem("cart");
@@ -252,36 +219,28 @@ export default function MarketplacePage() {
   };
 
   useEffect(() => {
-    setProducts(dummyData);
+    fetchProducts();
     updateCartCount();
 
-    if (localStorage.getItem("latestOrder")) {
-      setHasLatestOrder(true);
-    }
+    if (localStorage.getItem("latestOrder")) setHasLatestOrder(true);
   }, []);
 
-  // ================== Bikin daftar promo otomatis dari products ==================
+  // ================== PROMO BANNER ==================
   const promoBanners = products
     .filter((p) => p.isPromo)
     .map((p) => ({
       productId: p.id,
-      title: p.discountPercent
-        ? `Diskon ${p.discountPercent}% ${p.name}`
-        : p.name,
-      subtitle:
-        p.promoSubtitle ?? "Dapatkan penawaran menarik untuk produk ini.",
+      title: p.discountPercent ? `Diskon ${p.discountPercent}% ${p.name}` : p.name,
+      subtitle: p.promoSubtitle ?? "Dapatkan penawaran menarik untuk produk ini.",
       tag: p.promoTag ?? "Promo",
-      imageUrl: p.promoImageUrl ?? p.image_url,
+      imageUrl: p.promoImageUrl ?? p.img_url,
     }));
 
-  // Auto slide promo tiap 5 detik (kalau ada promo)
   useEffect(() => {
     if (promoBanners.length === 0) return;
 
     const interval = setInterval(() => {
-      setCurrentPromoIndex(
-        (prevIndex) => (prevIndex + 1) % promoBanners.length
-      );
+      setCurrentPromoIndex((prev) => (prev + 1) % promoBanners.length);
     }, 5000);
 
     return () => clearInterval(interval);
@@ -290,14 +249,14 @@ export default function MarketplacePage() {
   const filtered = products.filter(
     (p) =>
       p.name.toLowerCase().includes(search.toLowerCase()) &&
-      (filter === "all" ? true : p.category.slug === filter)
+      (filter === "all" ? true : p.jenis_barang === filter)
   );
 
-  const getCategoryIcon = (slug: string) => {
-    switch (slug) {
-      case "suku-cadang":
+  const getCategoryIcon = (jenis: string) => {
+    switch (jenis) {
+      case "Sparepart":
         return <Wrench size={16} className="inline mr-1 text-gray-500" />;
-      case "aksesoris":
+      case "Aksesoris":
         return <Shirt size={16} className="inline mr-1 text-gray-500" />;
       default:
         return null;
@@ -321,7 +280,7 @@ export default function MarketplacePage() {
       <div id="message-box" className="fixed top-4 right-4 z-50 hidden"></div>
 
       <div className="max-w-6xl mx-auto space-y-8">
-        {/* ==================== Title + Cart + Order Button ==================== */}
+        {/* Title + Cart */}
         <div className="flex items-center justify-between border-b pb-4">
           <h1 className="text-4xl font-extrabold text-[#234C6A]">
             Marketplace Produk 🛒
@@ -332,7 +291,7 @@ export default function MarketplacePage() {
               <a
                 href="/marketplace/pesanan"
                 className="flex items-center gap-2 bg-[#234C6A] text-white p-3 rounded-full text-sm font-semibold 
-                                            hover:bg-[#FF6D1F] transition transform hover:scale-105 shadow-md"
+                  hover:bg-[#FF6D1F] transition transform hover:scale-105 shadow-md"
                 title="Lihat Status Pesanan Terakhir Anda"
               >
                 <Package size={20} /> Pesanan Saya
@@ -348,7 +307,6 @@ export default function MarketplacePage() {
                 color="#FF6D1F"
                 className="cursor-pointer hover:scale-105 transition"
               />
-
               {cartCount > 0 && (
                 <span className="absolute -top-1 -right-1 bg-red-600 text-white text-sm font-bold rounded-full w-6 h-6 flex items-center justify-center border-2 border-white">
                   {cartCount}
@@ -358,7 +316,7 @@ export default function MarketplacePage() {
           </div>
         </div>
 
-        {/* ==================== PROMO / BERITA SLIDER DENGAN FOTO ==================== */}
+        {/* Promo Banner */}
         {currentPromo && (
           <div className="rounded-2xl shadow-xl overflow-hidden relative group cursor-pointer">
             <img
@@ -367,7 +325,7 @@ export default function MarketplacePage() {
               className="w-full h-40 md:h-56 lg:h-64 object-cover transition-transform duration-500 group-hover:scale-[1.03]"
             />
 
-            <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/50 to-transparent" />
+            <div className="absolute inset-0 bg-linear-to-r from-black/70 via-black/50 to-transparent" />
 
             <div className="absolute inset-0 flex items-center justify-between px-6 md:px-10">
               <div className="text-white max-w-xl">
@@ -415,7 +373,7 @@ export default function MarketplacePage() {
           </div>
         )}
 
-        {/* ==================== Search + Filter ==================== */}
+        {/* Search + Filter */}
         <div className="flex flex-col sm:flex-row items-center gap-4 w-full bg-white p-4 rounded-xl shadow-md border border-gray-100">
           <div className="flex items-center border border-gray-300 rounded-full px-4 py-2 w-full sm:w-2/3 shadow-inner">
             <Search size={20} className="text-[#234C6A] mr-2 shrink-0" />
@@ -434,12 +392,12 @@ export default function MarketplacePage() {
             className="border-2 border-gray-300 p-2.5 rounded-full shadow-sm cursor-pointer text-gray-700 font-medium transition w-full sm:w-1/3 appearance-none bg-white"
           >
             <option value="all">Semua Kategori</option>
-            <option value="suku-cadang">Suku Cadang</option>
-            <option value="aksesoris">Aksesoris</option>
+            <option value="Sparepart">Sparepart</option>
+            <option value="Aksesoris">Aksesoris</option>
           </select>
         </div>
 
-        {/* ================= Grid Produk ================= */}
+        {/* Grid Produk */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {filtered.length === 0 && (
             <p className="text-center col-span-full text-gray-600 py-10 bg-white rounded-xl shadow border border-gray-200">

@@ -1,57 +1,84 @@
 "use client";
 
-import { useState } from "react";
-// Catatan: Ikon di sini hanya sebagai placeholder visual dalam kode. 
-// Anda perlu menginstal library ikon (misalnya, Lucide, React Icons) untuk menggunakannya.
-// import { Calendar, Car, Wrench, Phone, User, Info, Loader } from 'lucide-react'; 
+import { useState, useEffect } from "react";
+
+interface User {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+  token: string;
+}
 
 export default function BookingPage() {
   const [loading, setLoading] = useState<boolean>(false);
+  const [user, setUser] = useState<User | null>(null);
+
+  // Ambil user login dari localStorage
+  useEffect(() => {
+    const storedUser = localStorage.getItem("user");
+    if (storedUser) setUser(JSON.parse(storedUser));
+  }, []);
 
   async function handleBooking(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+
+    if (!user) {
+      alert("Anda harus login terlebih dahulu.");
+      return;
+    }
+
     setLoading(true);
 
     const form = new FormData(e.currentTarget);
     const payload = {
-      name: form.get("name"),
-      vehicle: form.get("vehicle"),
+      jenis_kendaraan: form.get("jenis_kendaraan"),
+      nama_kendaraan: form.get("nama_kendaraan"),
       booking_date: form.get("booking_date"),
-      service_type: form.get("service_type"),
-      phone: form.get("phone"),
+      jenis_service: form.get("jenis_service"),
+      no_wa: form.get("no_wa"),
       notes: form.get("notes"),
     };
 
     try {
-      // Langkah CSRF (asumsi backend Laravel Sanctum)
-      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/sanctum/csrf-cookie`, {
-        credentials: "include",
-      });
-
-      // Langkah POST Booking
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/booking`, {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/bookings`, {
         method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${user.token}`,
+        },
         body: JSON.stringify(payload),
       });
 
+      // Cek content type sebelum parse
+      const contentType = res.headers.get("content-type");
+      let data: any;
+      if (contentType && contentType.includes("application/json")) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        console.error("Response bukan JSON:", text);
+        alert("Terjadi error server. Silakan hubungi admin.");
+        return;
+      }
+
       if (!res.ok) {
-        alert("Booking gagal! Mohon periksa kembali data Anda.");
+        alert(data.message || "Booking gagal! Mohon periksa data Anda.");
         return;
       }
 
       alert("Booking berhasil! Kami akan segera menghubungi Anda.");
       e.currentTarget.reset();
-    } catch {
+    } catch (err) {
+      console.error(err);
       alert("Terjadi kesalahan server saat memproses booking.");
     } finally {
       setLoading(false);
     }
   }
 
-  // Kelas dasar untuk input dan select agar konsisten
-  const BASE_INPUT_CLASSES = "w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg outline-none transition duration-150 focus:border-[#FF6D1F] focus:ring-1 focus:ring-[#FF6D1F]";
+  const BASE_INPUT_CLASSES =
+    "w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg outline-none transition duration-150 focus:border-[#FF6D1F] focus:ring-1 focus:ring-[#FF6D1F]";
 
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
@@ -66,34 +93,26 @@ export default function BookingPage() {
         </header>
 
         <div className="grid md:grid-cols-2 gap-10">
-          {/* ================= FORM KIRI ================= */}
           <div className="bg-white p-8 rounded-2xl shadow-2xl border-t-8 border-[#FF6D1F]">
             <h2 className="text-2xl font-bold mb-6 text-[#234C6A]">
               Isi Detail Booking
             </h2>
 
             <form onSubmit={handleBooking} className="grid gap-5">
-              
-              {/* === FIELD NAMA === */}
               <div className="relative">
-                {/* <User className="absolute top-1/2 left-3 -translate-y-1/2 text-gray-400 w-5 h-5" /> */}
                 <input
-                  name="name"
+                  name="nama_kendaraan"
                   type="text"
                   required
-                  placeholder="Nama Lengkap"
-                  // DITINGKATKAN: Tambahkan text-gray-800 & placeholder-gray-600
-                  className={`${BASE_INPUT_CLASSES} text-gray-800 placeholder-gray-600`} 
+                  placeholder="Nama Kendaraan (Ex: Vario, Scoopy)"
+                  className={`${BASE_INPUT_CLASSES} text-gray-800 placeholder-gray-600`}
                 />
               </div>
 
-              {/* === FIELD JENIS KENDARAAN === */}
               <div className="relative">
-                {/* <Car className="absolute top-1/2 left-3 -translate-y-1/2 text-gray-400 w-5 h-5" /> */}
                 <select
-                  name="vehicle"
+                  name="jenis_kendaraan"
                   required
-                  // DITINGKATKAN: Ubah text-gray-700 menjadi text-gray-800
                   className={`${BASE_INPUT_CLASSES} text-gray-800 appearance-none`}
                 >
                   <option value="" disabled>
@@ -102,29 +121,22 @@ export default function BookingPage() {
                   <option value="Matic">🛵 Matic</option>
                   <option value="Manual">⚙️ Manual</option>
                 </select>
-                {/* Placeholder untuk ikon dropdown */}
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">▼</span> 
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">▼</span>
               </div>
 
-              {/* === FIELD TANGGAL BOOKING === */}
               <div className="relative">
-                {/* <Calendar className="absolute top-1/2 left-3 -translate-y-1/2 text-gray-400 w-5 h-5" /> */}
                 <input
                   name="booking_date"
                   type="datetime-local"
                   required
-                  // DITINGKATKAN: Ubah text-gray-700 menjadi text-gray-800
                   className={`${BASE_INPUT_CLASSES} text-gray-800`}
                 />
               </div>
 
-              {/* === FIELD JENIS SERVICE === */}
               <div className="relative">
-                {/* <Wrench className="absolute top-1/2 left-3 -translate-y-1/2 text-gray-400 w-5 h-5" /> */}
                 <select
+                  name="jenis_service"
                   required
-                  name="service_type"
-                  // DITINGKATKAN: Ubah text-gray-700 menjadi text-gray-800
                   className={`${BASE_INPUT_CLASSES} text-gray-800 appearance-none`}
                 >
                   <option value="" disabled>
@@ -136,60 +148,37 @@ export default function BookingPage() {
                   <option value="Perbaikan Rem">🛑 Perbaikan Rem</option>
                   <option value="Tune Up">⚡ Tune Up</option>
                 </select>
-                {/* Placeholder untuk ikon dropdown */}
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">▼</span>
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">▼</span>
               </div>
 
-              {/* === FIELD NOMOR WHATSAPP === */}
               <div className="relative">
-                {/* <Phone className="absolute top-1/2 left-3 -translate-y-1/2 text-gray-400 w-5 h-5" /> */}
                 <input
-                  name="phone"
+                  name="no_wa"
                   type="text"
                   required
                   placeholder="Nomor WhatsApp Aktif"
-                  // DITINGKATKAN: Tambahkan text-gray-800 & placeholder-gray-600
                   className={`${BASE_INPUT_CLASSES} text-gray-800 placeholder-gray-600`}
                 />
               </div>
 
-              {/* === FIELD CATATAN === */}
               <div className="relative">
-                {/* <Info className="absolute top-4 left-3 text-gray-400 w-5 h-5" /> */}
                 <textarea
                   name="notes"
                   placeholder="Catatan khusus (opsional): Keluhan utama, dll."
                   rows={3}
-                  // DITINGKATKAN: Gunakan padding yang normal (pl-4) untuk textarea
                   className="w-full pl-4 pr-4 py-3 border border-gray-300 rounded-lg outline-none transition duration-150 focus:border-[#FF6D1F] focus:ring-1 focus:ring-[#FF6D1F] text-gray-800 placeholder-gray-600"
                 />
               </div>
 
-              {/* === TOMBOL SUBMIT === */}
               <button
                 disabled={loading}
-                className="
-                  w-full py-3 rounded-lg text-white font-bold tracking-wider 
-                  bg-[#FF6D1F] 
-                  hover:bg-[#E05B1B] 
-                  shadow-lg shadow-[#FF6D1F]/50
-                  transition duration-300 ease-in-out transform hover:scale-[1.01]
-                  disabled:bg-gray-400 disabled:shadow-none disabled:transform-none
-                "
+                className="w-full py-3 rounded-lg text-white font-bold tracking-wider bg-[#FF6D1F] hover:bg-[#E05B1B] shadow-lg shadow-[#FF6D1F]/50 transition duration-300 transform hover:scale-[1.01] disabled:bg-gray-400 disabled:shadow-none"
               >
-                {loading ? (
-                    // {loading ? <Loader className="animate-spin inline mr-2" /> : null}
-                    "Memproses Booking..."
-                ) : (
-                    "Jadwalkan Booking Sekarang"
-                )}
+                {loading ? "Memproses Booking..." : "Jadwalkan Booking Sekarang"}
               </button>
             </form>
           </div>
 
-          {/* --- */}
-
-          {/* ================= INFORMASI SERVIS KANAN ================= */}
           <div className="bg-[#234C6A] text-white p-8 rounded-2xl shadow-2xl">
             <h2 className="text-3xl font-bold mb-6 border-b border-white/20 pb-3">
               Informasi Layanan Kami 🌟
@@ -205,42 +194,14 @@ export default function BookingPage() {
             </h3>
 
             <ul className="space-y-4">
-              <li className="bg-white/10 p-4 rounded-lg hover:bg-white/20 transition duration-200 cursor-default">
-                <strong className="text-lg">Servis Ringan 💨</strong>
-                <p className="text-sm opacity-85 mt-1">
-                  Pengecekan dan penyetelan dasar: filter, busi, karburator/injeksi ringan.
-                </p>
-              </li>
-
-              <li className="bg-white/10 p-4 rounded-lg hover:bg-white/20 transition duration-200 cursor-default">
-                <strong className="text-lg">Servis Berat 🏗️</strong>
-                <p className="text-sm opacity-85 mt-1">
-                  Perbaikan mesin kompleks, turun mesin, atau penggantian komponen utama.
-                </p>
-              </li>
-
-              <li className="bg-white/10 p-4 rounded-lg hover:bg-white/20 transition duration-200 cursor-default">
-                <strong className="text-lg">Ganti Oli Optimal ⛽</strong>
-                <p className="text-sm opacity-85 mt-1">
-                  Penggantian oli mesin dan gardan dengan pilihan pelumas berkualitas.
-                </p>
-              </li>
-
-              <li className="bg-white/10 p-4 rounded-lg hover:bg-white/20 transition duration-200 cursor-default">
-                <strong className="text-lg">Perbaikan Rem 🛑</strong>
-                <p className="text-sm opacity-85 mt-1">
-                  Perawatan komprehensif sistem pengereman (kampas, cakram, minyak).
-                </p>
-              </li>
-
-              <li className="bg-white/10 p-4 rounded-lg hover:bg-white/20 transition duration-200 cursor-default">
-                <strong className="text-lg">Tune Up Performa ✨</strong>
-                <p className="text-sm opacity-85 mt-1">
-                  Optimasi kinerja mesin, pembersihan ruang bakar, dan setelan presisi.
-                </p>
-              </li>
+              <li className="bg-white/10 p-4 rounded-lg hover:bg-white/20 transition">Servis Ringan 💨</li>
+              <li className="bg-white/10 p-4 rounded-lg hover:bg-white/20 transition">Servis Berat 🏗️</li>
+              <li className="bg-white/10 p-4 rounded-lg hover:bg-white/20 transition">Ganti Oli ⛽</li>
+              <li className="bg-white/10 p-4 rounded-lg hover:bg-white/20 transition">Perbaikan Rem 🛑</li>
+              <li className="bg-white/10 p-4 rounded-lg hover:bg-white/20 transition">Tune Up ✨</li>
             </ul>
           </div>
+
         </div>
       </div>
     </div>
