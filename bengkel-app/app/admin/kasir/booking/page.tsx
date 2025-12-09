@@ -1,53 +1,56 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation"; // <<< tambahkan ini
+import { useEffect, useState } from "react";
 
-const bookingDummy = [
-  { id:1, nama:"Rangga", jenis:"Service Ringan", biaya:75000 },
-  { id:2, nama:"Doni", jenis:"Ganti Oli", biaya:45000 },
-];
+export default function KasirBookingPage() {
+  const [bookings, setBookings] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-export default function KasirBooking(){
-  const [select, setSelect] = useState<number>(1);
-  const router = useRouter(); // <<< inisiasi router
+  const API_URL = "http://localhost:8000/api";
 
-  const data = bookingDummy.find(b=>b.id===select);
+  const fetchBookings = async () => {
+    try {
+      const res = await fetch(`${API_URL}/bookings`, {
+        method: "GET",
+        credentials: "include", // WAJIB untuk Sanctum
+      });
 
-  return(
-    <div className="p-8 space-y-6">
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
 
-      <h1 className="text-2xl font-bold text-[#234C6A]">🔧 Kasir - Booking Service</h1>
+      const data = await res.json();
+      setBookings(data.bookings || []);
+    } catch (err) {
+      console.error("Error:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-      <div className="bg-white p-6 rounded-xl shadow space-y-4">
+  useEffect(() => {
+    fetchBookings();
+  }, []);
 
-        <select 
-          className="border p-2 rounded-lg"
-          onChange={(e)=>setSelect(Number(e.target.value))}
-        >
-          {bookingDummy.map(b=>(
-            <option key={b.id} value={b.id}>{b.nama} - {b.jenis}</option>
-          ))}
-        </select>
+  return (
+    <div className="p-4">
+      <h1>Daftar Booking</h1>
 
-        {data && (
-          <div className="mt-3 space-y-2">
-            <p>Nama: <b>{data.nama}</b></p>
-            <p>Jenis Servis: <b>{data.jenis}</b></p>
-            <p className="text-lg font-bold text-[#FF6D1F]">
-              Biaya: Rp {data.biaya.toLocaleString()}
-            </p>
-          </div>
-        )}
+      {loading && <p>Loading...</p>}
 
-        <button 
-          onClick={()=> router.push(`/admin/kasir/pembayaran?bookingID=${data?.id}`)} // <<< mengirim id ke pembayaran
-          className="bg-[#234C6A] text-white px-4 py-2 rounded-lg hover:bg-[#1A374A]"
-        >
-          Proses Pembayaran
-        </button>
+      {!loading && bookings.length === 0 && (
+        <p>Tidak ada booking yang bisa diproses.</p>
+      )}
 
-      </div>
+      <ul>
+        {bookings.map((b: any) => (
+          <li key={b.id} className="border p-3 my-2">
+            <p><b>Nama:</b> {b.user?.name}</p>
+            <p><b>Service:</b> {b.jenis_service}</p>
+            <p><b>Status:</b> {b.status}</p>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
