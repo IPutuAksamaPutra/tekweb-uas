@@ -143,7 +143,7 @@ export default function AdminBookingPage() {
     <div className="bg-white rounded-2xl shadow-lg hover:shadow-2xl transition duration-300 border border-gray-200 p-6 relative overflow-hidden">
 
       {/* Highlight strip */}
-      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-400 to-amber-600"></div>
+      <div className="absolute top-0 left-0 w-full h-1 bg-linear-to-r from-amber-400 to-amber-600"></div>
 
       <div className="flex justify-between items-start mb-4">
         <h3 className="text-lg font-bold text-gray-800 flex items-center gap-3">
@@ -202,7 +202,7 @@ export default function AdminBookingPage() {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-6 lg:p-10">
+    <div className="min-h-screen bg-linear-to-br from-gray-50 to-gray-100 p-6 lg:p-10">
       <header className="mb-10 p-6 bg-white shadow-lg rounded-xl border-l-4 border-amber-500">
         <h1 className="text-4xl font-extrabold text-gray-900 flex items-center gap-3">
           ⚙️ Admin Booking Panel

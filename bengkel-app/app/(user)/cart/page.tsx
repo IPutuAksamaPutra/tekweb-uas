@@ -4,12 +4,11 @@ import { useEffect, useState } from "react";
 import { Trash2, Plus, Minus, ShoppingCart } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-// ================= TYPE =================
 interface CartItem {
-  product_id: number;
+  id: number;
   quantity: number;
-  isSelected: boolean;
   product: {
+    id: number;
     name: string;
     price: number;
     image_url: string;
@@ -18,209 +17,138 @@ interface CartItem {
 
 export default function CartPage() {
   const router = useRouter();
+
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // ================= LOAD CART =================
-  useEffect(() => {
-    loadCart();
-  }, []);
+  const token = typeof document !== "undefined"
+    ? document.cookie.match(/token=([^;]+)/)?.[1]
+    : null;
 
-  const loadCart = () => {
-    const saved = localStorage.getItem("cart");
-    if (!saved) return;
+  // ====================== FETCH CART ======================
+  const fetchCart = async () => {
+    if (!token) return router.push("/login");
 
-    const parsed = JSON.parse(saved);
+    try {
+      const res = await fetch("http://localhost:8000/api/cart", {
+        headers: { "Authorization": `Bearer ${token}` },
+      });
 
-    // NORMALISASI agar cart lama/baru tetap terbaca
-    const formatted: CartItem[] = parsed.map((i: any) => ({
-      product_id: i.product_id ?? i.id,
-      quantity: i.quantity ?? i.qty ?? 1,
-      isSelected: i.isSelected ?? true,
-      product: {
-        name: i.product?.name ?? i.name ?? "Produk",
-        price: i.product?.price ?? i.price ?? 0,
-        image_url:
-          i.product?.image_url ??
-          i.img_url ??
-          i.image_url ??
-          "https://placehold.co/200x200?text=No+Image",
-      },
-    }));
+      const data = await res.json();
+      if (res.ok) setCart(data.cart_items);
+      else console.log(data);
 
-    setCart(formatted);
-    localStorage.setItem("cart", JSON.stringify(formatted));
-  };
-
-  // ================= QUANTITY =================
-  const increment = (id: number) => {
-    const updated = cart.map((item) =>
-      item.product_id === id
-        ? { ...item, quantity: item.quantity + 1 }
-        : item
-    );
-    setCart(updated);
-    localStorage.setItem("cart", JSON.stringify(updated));
-  };
-
-  const decrement = (id: number) => {
-    const updated = cart
-      .map((item) =>
-        item.product_id === id && item.quantity > 1
-          ? { ...item, quantity: item.quantity - 1 }
-          : item
-      )
-      .filter((item) => item.quantity > 0);
-
-    setCart(updated);
-    localStorage.setItem("cart", JSON.stringify(updated));
-  };
-
-  // ================= REMOVE =================
-  const removeItem = (id: number) => {
-    const updated = cart.filter((i) => i.product_id !== id);
-    setCart(updated);
-    localStorage.setItem("cart", JSON.stringify(updated));
-  };
-
-  // ================= SELECT ITEM =================
-  const toggleSelect = (id: number) => {
-    const updated = cart.map((item) =>
-      item.product_id === id
-        ? { ...item, isSelected: !item.isSelected }
-        : item
-    );
-    setCart(updated);
-    localStorage.setItem("cart", JSON.stringify(updated));
-  };
-
-  const selectAll = (checked: boolean) => {
-    const updated = cart.map((i) => ({ ...i, isSelected: checked }));
-    setCart(updated);
-    localStorage.setItem("cart", JSON.stringify(updated));
-  };
-
-  // ================= TOTAL =================
-  const total = cart
-    .filter((i) => i.isSelected)
-    .reduce((sum, item) => sum + item.product.price * item.quantity, 0);
-
-  // ================= GO CHECKOUT =================
-  const goCheckout = () => {
-    if (cart.filter((i) => i.isSelected).length === 0) {
-      alert("Pilih produk terlebih dahulu!");
-      return;
+    } catch (err) {
+      console.log(err);
     }
-    router.push("/checkout");
+    setLoading(false);
   };
+
+  useEffect(() => { fetchCart(); }, []);
+
+  // ====================== UPDATE QTY ======================
+  const updateQty = async (id:number, qty:number) => {
+    if(qty < 1) return;
+
+    await fetch(`http://localhost:8000/api/cart/${id}`, {
+      method:"PUT",
+      headers:{
+        "Authorization":`Bearer ${token}`,
+        "Content-Type":"application/json"
+      },
+      body:JSON.stringify({ quantity:qty })
+    });
+
+    fetchCart();
+  };
+
+  // ====================== DELETE ITEM ======================
+  const removeItem = async (id:number) =>{
+    await fetch(`http://localhost:8000/api/cart/${id}`,{
+      method:"DELETE",
+      headers:{ "Authorization":`Bearer ${token}` }
+    });
+
+    fetchCart();
+  };
+
+  // ====================== TOTAL ======================
+  const total = cart.reduce((sum,item)=> sum + item.product.price * item.quantity ,0);
+
+  if(loading) return <p className="text-center mt-10">Memuat keranjang...</p>
 
   return (
-    <div className="min-h-screen bg-gray-50 py-10 px-4 md:px-0">
-      <div className="max-w-6xl mx-auto grid md:grid-cols-3 gap-6">
-        <div className="md:col-span-2 space-y-4">
-          <h1 className="text-3xl font-bold text-[#234C6A] flex items-center gap-3">
-            <ShoppingCart size={32} className="text-[#FF6D1F]" />
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-5xl mx-auto">
+
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-8 border-b pb-3">
+          <ShoppingCart size={32} className="text-[#FF6D1F]" />
+          <h1 className="text-3xl font-extrabold text-[#234C6A]">
             Keranjang Belanja
           </h1>
+          <span className="ml-auto text-gray-500">({cart.length} item)</span>
+        </div>
 
-          {/* Empty Cart */}
-          {cart.length === 0 && (
-            <div className="bg-white p-10 rounded-xl shadow text-center text-gray-500">
-              Keranjang masih kosong.
-              <br />
-              <a href="/marketplace" className="text-[#FF6D1F] font-semibold">
-                Belanja Sekarang
-              </a>
-            </div>
-          )}
+        {cart.length === 0 && (
+          <div className="text-center bg-white p-10 rounded-xl shadow">
+            <p className="text-gray-600 mb-4">Keranjang masih kosong</p>
+            <button
+              onClick={()=>router.push("/marketplace")}
+              className="bg-[#FF6D1F] px-6 py-2 rounded-full text-white font-bold">
+              Belanja Sekarang
+            </button>
+          </div>
+        )}
 
-          {/* Select All */}
-          {cart.length > 0 && (
-            <div className="bg-white p-4 rounded-xl shadow flex items-center gap-3 border">
-              <input
-                type="checkbox"
-                checked={cart.every((i) => i.isSelected)}
-                onChange={(e) => selectAll(e.target.checked)}
-                className="w-5 h-5"
-              />
-              <span className="font-semibold">Pilih Semua</span>
-              <span className="ml-auto text-gray-500">
-                {cart.filter((i) => i.isSelected).length} item terpilih
-              </span>
-            </div>
-          )}
+        {/* Cart Items */}
+        <div className="space-y-4">
+          {cart.map(item=>(
+            <div key={item.id} className="flex bg-white p-4 rounded-xl shadow gap-4 items-center border">
 
-          {/* Cart Items */}
-          {cart.map((item) => (
-            <div
-              key={item.product_id}
-              className={`flex gap-3 bg-white p-4 rounded-xl shadow border-l-4 ${
-                item.isSelected ? "border-[#FF6D1F]" : "border-gray-200"
-              }`}
-            >
-              <input
-                type="checkbox"
-                checked={item.isSelected}
-                onChange={() => toggleSelect(item.product_id)}
-                className="w-5 h-5 mt-2"
-              />
+              <img src={item.product.image_url} className="w-24 h-24 rounded object-cover"/>
 
-              <img
-                src={item.product.image_url}
-                className="w-24 h-24 object-cover rounded"
-              />
-
-              <div className="flex justify-between w-full">
-                <div>
-                  <p className="font-bold text-lg">{item.product.name}</p>
-                  <p className="text-[#FF6D1F] font-bold text-xl">
-                    Rp {item.product.price.toLocaleString("id-ID")}
-                  </p>
-                </div>
-
-                <div className="flex flex-col items-end">
-                  <div className="flex border rounded-full overflow-hidden">
-                    <button
-                      onClick={() => decrement(item.product_id)}
-                      className="px-3 py-1 text-lg"
-                    >
-                      <Minus size={14} />
-                    </button>
-                    <span className="px-4 font-bold">{item.quantity}</span>
-                    <button
-                      onClick={() => increment(item.product_id)}
-                      className="px-3 py-1 text-lg"
-                    >
-                      <Plus size={14} />
-                    </button>
-                  </div>
-
-                  <button
-                    onClick={() => removeItem(item.product_id)}
-                    className="flex gap-1 text-red-500 text-sm mt-2"
-                  >
-                    <Trash2 size={16} /> Hapus
-                  </button>
-                </div>
+              <div className="flex-1">
+                <h2 className="font-bold text-lg">{item.product.name}</h2>
+                <p className="text-[#FF6D1F] font-bold text-xl">
+                  Rp {item.product.price.toLocaleString("id-ID")}
+                </p>
               </div>
+
+              <div className="flex items-center gap-3">
+                <button onClick={()=>updateQty(item.id,item.quantity-1)} className="p-2 bg-gray-200 rounded-full">
+                  <Minus size={18}/>
+                </button>
+
+                <span className="font-bold text-lg">{item.quantity}</span>
+
+                <button onClick={()=>updateQty(item.id,item.quantity+1)} className="p-2 bg-gray-200 rounded-full">
+                  <Plus size={18}/>
+                </button>
+              </div>
+
+              <button onClick={()=>removeItem(item.id)} className="text-red-500">
+                <Trash2 size={22}/>
+              </button>
             </div>
           ))}
         </div>
 
-        {/* SUMMARY */}
-        <div className="h-fit bg-white rounded-xl p-6 shadow border-t-8 border-[#234C6A]">
-          <p className="text-xl font-bold text-[#234C6A]">Total Bayar</p>
-          <p className="text-[#FF6D1F] text-3xl font-extrabold mt-2">
-            Rp {total.toLocaleString("id-ID")}
-          </p>
+        {/* Summary */}
+        {cart.length > 0 && (
+          <div className="mt-10 bg-white p-5 rounded-xl shadow flex justify-between items-center">
+            <p className="text-xl font-bold text-[#234C6A]">
+              Total: <span className="text-[#FF6D1F]">Rp {total.toLocaleString('id-ID')}</span>
+            </p>
 
-          <button
-            onClick={goCheckout}
-            className="mt-6 w-full bg-[#FF6D1F] text-white py-3 rounded-full font-bold disabled:bg-gray-300"
-            disabled={total === 0}
-          >
-            Checkout ({cart.filter((i) => i.isSelected).length})
-          </button>
-        </div>
+            <button
+              onClick={()=>router.push("/checkout")}
+              className="bg-[#FF6D1F] text-white px-6 py-3 rounded-full font-bold text-lg">
+              Checkout
+            </button>
+          </div>
+        )}
+
       </div>
     </div>
   );
