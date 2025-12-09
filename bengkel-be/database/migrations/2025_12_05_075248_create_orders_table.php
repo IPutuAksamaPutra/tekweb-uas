@@ -11,24 +11,19 @@ return new class extends Migration
         Schema::create('orders', function (Blueprint $table) {
             $table->id();
 
-            // Foreign Key ke cart_items
-            $table->unsignedBigInteger('cart_items_id');
-            $table->foreign('cart_items_id')
-                ->references('id')
-                ->on('cart_items')
-                ->onDelete('cascade');
+            $table->foreignId('user_id')->constrained()->onDelete('cascade');
 
             $table->string('name');
             $table->string('no_tlp');
-            $table->text('address')->nullable();
-            $table->string('delivery')->nullable(); // contoh: jne / cod / pickup
-            $table->string('payment')->nullable();  // contoh: transfer / cod
+            $table->text('address');
+            $table->enum('delivery', ['ambil_di_tempat', 'kurir']);
+            $table->enum('payment', ['tunai', 'transfer']);
 
-            $table->integer('subtotal')->default(0);
-            $table->integer('postage')->default(0);
-            $table->integer('grandTotal')->default(0); // pakai snake_case
+            $table->integer('total'); // total / grand total
+            $table->enum('status', ['pending', 'processing', 'shipped', 'completed', 'cancelled'])
+                  ->default('pending');
 
-            $table->timestamps(); // otomatis bikin created_at & updated_at
+            $table->timestamps();
         });
     }
 

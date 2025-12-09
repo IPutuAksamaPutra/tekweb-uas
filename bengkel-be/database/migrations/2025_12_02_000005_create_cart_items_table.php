@@ -9,23 +9,29 @@ return new class extends Migration
     /**
      * Run the migrations.
      */
-    public function up(): void {
-        Schema::create('cart_items', function (Blueprint $table) {
-        $table->id();
-        $table->foreignId('product_id')->constrained()->cascadeOnDelete();
-        $table->integer('quantity');
-        $table->timestamps(); // penting banget!
-    });
+    public function up(): void
+    {
+        Schema::create('carts', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('user_id');
+            $table->unsignedBigInteger('product_id');
+            $table->integer('quantity')->default(1);
+            $table->timestamps();
 
+            // Foreign key constraints
+            $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
+            $table->foreign('product_id')->references('id')->on('products')->onDelete('cascade');
 
-}
-
+            // Optional: agar user tidak bisa memasukkan produk yang sama lebih dari sekali
+            $table->unique(['user_id', 'product_id']);
+        });
+    }
 
     /**
      * Reverse the migrations.
      */
     public function down(): void
     {
-        Schema::dropIfExists('cart_items');
+        Schema::dropIfExists('carts');
     }
 };

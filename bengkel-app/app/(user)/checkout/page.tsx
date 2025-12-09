@@ -2,269 +2,183 @@
 
 import { useEffect, useState } from "react";
 import { MapPin, Phone, User, CreditCard, Truck, ShoppingBag, Send } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 interface CartItem {
-    id: number;
+  id: number;
+  product_id: number;
+  quantity: number;
+  product: {
     name: string;
     price: number;
-    qty: number;
     image_url?: string;
+  };
 }
 
-// Tambahkan Tipe Data Order/Pesanan
-interface Order {
-    orderId: string;
-    date: string;
-    status: 'Menunggu Pembayaran' | 'Diproses' | 'Dikirim' | 'Selesai';
-    items: CartItem[];
-    subtotal: number;
-    shippingMethod: string;
-    shippingCost: number;
-    paymentMethod: string;
-    total: number;
-    recipientName: string;
-    address: string;
-}
+const getToken = () => {
+  if (typeof document === "undefined") return null;
+  const match = document.cookie.match(/(?:^| )token=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
+};
 
 export default function CheckoutPage() {
-    const [cart, setCart] = useState<CartItem[]>([]);
-    const [shipping, setShipping] = useState("reguler");
-    const [paymentMethod, setPaymentMethod] = useState("transfer");
+  const router = useRouter();
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
-    // State untuk data form
-    const [recipientName, setRecipientName] = useState("");
-    const [phone, setPhone] = useState("");
-    const [address, setAddress] = useState("");
+  const [recipientName, setRecipientName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
+  const [shipping, setShipping] = useState("reguler");
+  const [paymentMethod, setPaymentMethod] = useState("transfer");
 
+  const token = getToken();
 
-    // === DATA DUMMY UNTUK SIMULASI KERANJANG ===
-    const dummyCart: CartItem[] = [
-        { id: 101, name: "Oli Mesin Matic Premium", price: 65000, qty: 2 },
-        { id: 102, name: "Filter Udara Kualitas Tinggi", price: 85000, qty: 1 },
-    ];
-    // ==========================================
+  // Load cart from backend
+  const fetchCart = async () => {
+    try {
+      const res = await fetch("http://localhost:8000/api/cart", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-    // Load cart from localStorage / Set dummy data if cart is empty
-    useEffect(() => {
-        const saved = localStorage.getItem("cart");
-        let initialCart = [];
-        try {
-            initialCart = saved ? JSON.parse(saved) : dummyCart;
-        } catch {
-            initialCart = dummyCart;
-        }
+      const data = await res.json();
+      setCart(data.cart_items || []);
+    } catch (err) {
+      console.log("Error load cart:", err);
+      setCart([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-        if (initialCart.length === 0) {
-            initialCart = dummyCart;
-        }
-        
-        setCart(initialCart);
-        localStorage.setItem("cart", JSON.stringify(initialCart)); // Save dummy data if storage was empty
-    }, []);
+  useEffect(() => {
+    if (!token) router.push("/login");
+    fetchCart();
+  }, []);
 
-    // Hitung total barang
-    const subtotal = cart.reduce(
-        (sum, item) => sum + item.price * item.qty,
-        0
-    );
+  const subtotal = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+  const shippingCost = shipping === "express" ? 25000 : 10000;
+  const total = subtotal + shippingCost;
 
-    // Ongkir dummy
-    const shippingCost =
-        shipping === "express" ? 25000 : 10000;
+  // ================= Checkout =================
+  const handleCheckout = async () => {
+    if (!recipientName || !phone || !address) return alert("Isi data lengkap!");
 
-    const total = subtotal + shippingCost;
+    if (cart.length === 0) return alert("Keranjang kosong!");
 
-    // ===============================
-    // FUNGSI CHECKOUT & NAVIGASI
-    // ===============================
-    const handleCheckout = () => {
-        // Validasi sederhana
-        if (!recipientName || !phone || !address || cart.length === 0) {
-            alert("Mohon lengkapi semua data pengiriman dan pastikan keranjang tidak kosong!");
-            return;
-        }
-
-        const newOrder: Order = {
-            orderId: "INV-" + Date.now().toString().slice(-6), // ID pesanan sederhana
-            date: new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
-            status: 'Menunggu Pembayaran', // Status awal
-            items: cart,
-            subtotal: subtotal,
-            shippingMethod: shipping,
-            shippingCost: shippingCost,
-            paymentMethod: paymentMethod,
-            total: total,
-            recipientName: recipientName,
-            address: address,
-        };
-
-        // 1. Simpan pesanan terbaru ke localStorage
-        localStorage.setItem("latestOrder", JSON.stringify(newOrder));
-        
-        // 2. Kosongkan keranjang (opsional, tapi umum setelah checkout)
-        localStorage.removeItem("cart");
-
-        // 3. Arahkan ke halaman detail pesanan
-        window.location.href = `/marketplace/pesanan`;
+    // Backend hanya menerima satu item cart
+    const payload = {
+      cart_items_id: cart[0].id,
+      name: recipientName,
+      no_tlp: phone,
+      address,
+      delivery: shipping === "express" ? "kurir" : "ambil_di_tempat",
+      payment: paymentMethod,
+      subtotal: subtotal,
+      postage: shippingCost,
+      grandTotal: total,
     };
 
-    // Kelas dasar untuk input
-    const BASE_INPUT_CLASSES = "w-full border-2 rounded-xl p-3 outline-none transition duration-200 text-gray-800 placeholder-gray-500 focus:border-[#FF6D1F] focus:bg-white";
+    try {
+      const res = await fetch("http://localhost:8000/api/orders", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
 
+      const data = await res.json();
 
-    return (
-        <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-            <div className="max-w-6xl mx-auto flex flex-col md:flex-row gap-10">
+      if (!res.ok) {
+        console.log(data);
+        return alert("Checkout gagal, cek console log!");
+      }
 
-                {/* ================= LEFT — FORM DATA PENGIRIMAN ================= */}
-                <div className="flex-1">
-                    <div className="bg-white p-8 shadow-2xl rounded-2xl border-t-8 border-[#234C6A]">
-                    
-                        <h1 className="text-3xl font-bold text-[#234C6A] mb-8 flex items-center gap-3">
-                            <ShoppingBag size={30} className="text-[#FF6D1F]" /> Konfirmasi Checkout
-                        </h1>
+      alert("Pesanan berhasil dibuat!");
+      router.push("/marketplace/pesanan");
 
-                        {/* FORM PEMBELI */}
-                        <div className="space-y-6">
-                            <h2 className="text-xl font-bold text-gray-700 border-b pb-2">Detail Penerima</h2>
-                            
-                            {/* NAMA */}
-                            <div>
-                                <label className="font-semibold flex items-center gap-2 text-gray-700 mb-2">
-                                    <User size={18} className="text-[#FF6D1F]" /> Nama Penerima
-                                </label>
-                                <input
-                                    type="text"
-                                    placeholder="Nama lengkap"
-                                    required
-                                    value={recipientName}
-                                    onChange={(e) => setRecipientName(e.target.value)}
-                                    className={BASE_INPUT_CLASSES}
-                                />
-                            </div>
+    } catch (err) {
+      console.log(err);
+      alert("Terjadi kesalahan server.");
+    }
+  };
 
-                            {/* NO HP */}
-                            <div>
-                                <label className="font-semibold flex items-center gap-2 text-gray-700 mb-2">
-                                    <Phone size={18} className="text-[#FF6D1F]" /> Nomor Telepon
-                                </label>
-                                <input
-                                    type="tel"
-                                    placeholder="08xxxxxxxxxx"
-                                    required
-                                    value={phone}
-                                    onChange={(e) => setPhone(e.target.value)}
-                                    className={BASE_INPUT_CLASSES}
-                                />
-                            </div>
+  const BASE_INPUT = "w-full border-2 rounded-xl p-3 outline-none transition duration-200 text-gray-800 placeholder-gray-500 focus:border-[#FF6D1F]";
 
-                            {/* ALAMAT */}
-                            <div>
-                                <label className="font-semibold flex items-center gap-2 text-gray-700 mb-2">
-                                    <MapPin size={18} className="text-[#FF6D1F]" /> Alamat Lengkap
-                                </label>
-                                <textarea
-                                    placeholder="Nama jalan, RT/RW, Kelurahan, Kecamatan..."
-                                    required
-                                    value={address}
-                                    onChange={(e) => setAddress(e.target.value)}
-                                    className={`${BASE_INPUT_CLASSES} h-24`}
-                                ></textarea>
-                            </div>
+  if (loading) return <p className="text-center py-20 text-lg">Memuat keranjang...</p>;
 
-                            {/* PENGIRIMAN */}
-                            <div className="pt-4">
-                                <h2 className="text-xl font-bold text-gray-700 border-b pb-2 mb-3">Metode Pengiriman</h2>
-                                
-                                <label className="font-semibold flex items-center gap-2 text-gray-700 mb-2">
-                                    <Truck size={18} className="text-[#234C6A]" /> Pilihan Kurir
-                                </label>
+  return (
+    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-6xl mx-auto flex flex-col md:flex-row gap-10">
+        
+        {/* FORM INPUT */}
+        <div className="flex-1">
+          <div className="bg-white p-8 shadow-2xl rounded-2xl border-t-8 border-[#234C6A]">
+            <h1 className="text-3xl font-bold text-[#234C6A] mb-8 flex items-center gap-3">
+              <ShoppingBag size={30} className="text-[#FF6D1F]" /> Konfirmasi Checkout
+            </h1>
 
-                                <select
-                                    value={shipping}
-                                    onChange={(e) => setShipping(e.target.value)}
-                                    className={BASE_INPUT_CLASSES}
-                                >
-                                    <option value="reguler">Reguler (3-5 hari kerja) - Rp {10000..toLocaleString("id-ID")}</option>
-                                    <option value="express">Express (1-2 hari kerja) - Rp {25000..toLocaleString("id-ID")}</option>
-                                </select>
-                            </div>
+            <div className="space-y-6">
+              <div>
+                <label className="font-semibold flex items-center gap-2"><User/>Nama</label>
+                <input className={BASE_INPUT} value={recipientName} onChange={(e)=>setRecipientName(e.target.value)} placeholder="Nama lengkap"/>
+              </div>
 
-                            {/* PEMBAYARAN */}
-                            <div className="pt-4">
-                                <h2 className="text-xl font-bold text-gray-700 border-b pb-2 mb-3">Metode Pembayaran</h2>
+              <div>
+                <label className="font-semibold flex items-center gap-2"><Phone/>No Telp</label>
+                <input className={BASE_INPUT} type="tel" value={phone} onChange={(e)=>setPhone(e.target.value)} placeholder="08xxxxxxxxxx"/>
+              </div>
 
-                                <label className="font-semibold flex items-center gap-2 text-gray-700 mb-2">
-                                    <CreditCard size={18} className="text-[#234C6A]" /> Opsi Pembayaran
-                                </label>
+              <div>
+                <label className="font-semibold flex items-center gap-2"><MapPin/>Alamat</label>
+                <textarea className={`${BASE_INPUT} h-24`} value={address} onChange={(e)=>setAddress(e.target.value)} placeholder="Alamat lengkap"/>
+              </div>
 
-                                <select
-                                    value={paymentMethod}
-                                    onChange={(e) => setPaymentMethod(e.target.value)}
-                                    className={BASE_INPUT_CLASSES}
-                                >
-                                    <option value="transfer">Transfer Bank (BCA/Mandiri)</option>
-                                    <option value="cod">COD (Bayar di Tempat)</option>
-                                    <option value="ewallet">E-Wallet (Dana, OVO, GOPAY)</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+              <div>
+                <h2 className="font-bold mb-2">Pengiriman</h2>
+                <select value={shipping} onChange={(e)=>setShipping(e.target.value)} className={BASE_INPUT}>
+                  <option value="reguler">Reguler (10.000)</option>
+                  <option value="express">Express (25.000)</option>
+                </select>
+              </div>
 
-                {/* ================= RIGHT — SUMMARY ================= */}
-                <div className="w-full md:w-96">
-                    <div className="bg-white p-6 shadow-2xl rounded-2xl border-t-8 border-[#FF6D1F] md:sticky md:top-6">
-                        
-                        <h2 className="text-2xl font-bold text-[#234C6A] border-b pb-3 mb-5">
-                            Ringkasan Order
-                        </h2>
-
-                        {/* DETAIL ITEMS */}
-                        <div className="space-y-3 text-sm mb-4 max-h-48 overflow-y-auto pr-2">
-                            <h3 className="text-gray-600 font-semibold mb-2">Item ({cart.length})</h3>
-                            {cart.map(item => (
-                                <div key={item.id} className="flex justify-between text-gray-700 border-b border-dashed pb-2">
-                                    <span className="truncate pr-2">{item.name} ({item.qty}x)</span>
-                                    <span>Rp {(item.price * item.qty).toLocaleString("id-ID")}</span>
-                                </div>
-                            ))}
-                        </div>
-                        
-                        <hr className="my-4" />
-
-                        {/* DETAIL HARGA */}
-                        <div className="space-y-3">
-                            {/* SUBTOTAL */}
-                            <div className="flex justify-between text-gray-700 font-medium">
-                                <span>Harga Produk</span>
-                                <span>Rp {subtotal.toLocaleString("id-ID")}</span>
-                            </div>
-
-                            {/* ONGKIR */}
-                            <div className="flex justify-between text-gray-700 font-medium">
-                                <span>Ongkos Kirim ({shipping === 'express' ? 'Express' : 'Reguler'})</span>
-                                <span>Rp {shippingCost.toLocaleString("id-ID")}</span>
-                            </div>
-
-                            {/* TOTAL */}
-                            <div className="flex justify-between font-bold text-xl pt-3 border-t-2 border-dashed border-gray-300">
-                                <span className="text-[#234C6A]">TOTAL BAYAR</span>
-                                <span className="text-[#FF6D1F]">Rp {total.toLocaleString("id-ID")}</span>
-                            </div>
-                        </div>
-
-                        {/* BUTTON */}
-                        <button
-                            onClick={handleCheckout} // Panggil fungsi checkout di sini
-                            className="w-full mt-6 flex items-center justify-center gap-2 bg-[#FF6D1F] hover:bg-[#E05B1B] text-white 
-                            font-bold py-3 rounded-full shadow-lg shadow-[#FF6D1F]/40 transition transform hover:scale-[1.01]"
-                        >
-                            <Send size={20} /> Bayar Sekarang
-                        </button>
-                    </div>
-                </div>
+              <div>
+                <h2 className="font-bold mb-2">Pembayaran</h2>
+                <select value={paymentMethod} onChange={(e)=>setPaymentMethod(e.target.value)} className={BASE_INPUT}>
+                  <option value="transfer">Transfer Bank</option>
+                  <option value="tunai">Bayar di tempat</option>
+                </select>
+              </div>
             </div>
+          </div>
         </div>
-    );
+
+        {/* RINGKASAN */}
+        <div className="w-full md:w-96">
+          <div className="bg-white p-6 shadow-2xl rounded-2xl border-t-8 border-[#FF6D1F] md:sticky md:top-6">
+            <h2 className="text-2xl font-bold mb-4">Ringkasan Order</h2>
+
+            {cart.map((item)=>(
+              <div key={item.id} className="flex justify-between border-b py-2 text-gray-700">
+                <span>{item.product.name} ({item.quantity}x)</span>
+                <span>Rp {(item.product.price * item.quantity).toLocaleString()}</span>
+              </div>
+            ))}
+
+            <div className="mt-5 space-y-2 text-gray-700">
+              <p className="flex justify-between"><span>Subtotal</span><span>Rp {subtotal.toLocaleString()}</span></p>
+              <p className="flex justify-between"><span>Ongkir</span><span>Rp {shippingCost.toLocaleString()}</span></p>
+              <p className="flex justify-between font-bold text-lg pt-2 border-t"><span>Total</span><span className="text-[#FF6D1F]">Rp {total.toLocaleString()}</span></p>
+            </div>
+
+            <button onClick={handleCheckout} className="w-full mt-6 bg-[#FF6D1F] text-white py-3 rounded-full font-bold flex justify-center gap-2 hover:bg-[#E05B1B]">
+              <Send/> Bayar Sekarang
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
