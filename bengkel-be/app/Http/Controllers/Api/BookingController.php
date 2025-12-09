@@ -27,14 +27,21 @@ class BookingController extends Controller
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
+        // Kunci: Eager load relasi 'user' untuk mendapatkan 'user_name' via Accessor
+        // Wajib menyertakan 'id' dan 'name' di with()
+        $query = Booking::query();
+
         if (in_array($user->role, ['admin', 'super_admin', 'kasir'])) {
-            $bookings = Booking::with('user:name')->latest()->get();
+            // Staf/Admin melihat semua
+            $bookings = $query->with('user:id,name')->latest()->get(); 
         } else {
-            $bookings = Booking::where('user_id', $user->id)->latest()->get();
+            // Customer hanya melihat milik sendiri
+            $bookings = $query->where('user_id', $user->id)->with('user:id,name')->latest()->get(); 
         }
 
         return response()->json([
             'message' => 'Daftar booking berhasil diambil.',
+            // Properti 'user_name' akan ditambahkan ke setiap objek booking
             'bookings' => $bookings
         ]);
     }
@@ -80,6 +87,9 @@ class BookingController extends Controller
             'status' => 'Pending',
         ]);
 
+        // Muat relasi user setelah disimpan untuk response (termasuk user_name)
+        $booking->load('user:id,name');
+
         return response()->json([
             'message' => 'Booking berhasil dibuat. Menunggu konfirmasi.',
             'booking' => $booking
@@ -103,6 +113,7 @@ class BookingController extends Controller
             return response()->json(['message' => 'Anda tidak diizinkan melihat detail booking ini.'], 403);
         }
 
+        // Muat relasi user untuk Accessor 'user_name'
         return response()->json([
             'message' => 'Detail booking berhasil diambil.',
             'booking' => $booking->load('user:id,name,email')
@@ -141,6 +152,7 @@ class BookingController extends Controller
 
         $booking->update($request->all());
 
+        // Muat relasi user setelah diperbarui untuk response (termasuk user_name)
         return response()->json([
             'message' => 'Booking berhasil diperbarui.',
             'booking' => $booking->load('user:id,name,email')
