@@ -38,10 +38,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('orders', OrderController::class);
     Route::apiResource('reviews', ReviewController::class)->except(['destroy']);
     Route::apiResource('bookings', BookingController::class)->only(['store', 'update', 'destroy', 'index', 'show']);
-<<<<<<< Updated upstream
     
-=======
->>>>>>> Stashed changes
 });
 
 
@@ -76,12 +73,6 @@ Route::middleware(['auth:sanctum', 'role:admin,super_admin'])->group(function ()
     Route::post('staff/register', [AdminUserController::class, 'storeStaff']);
     Route::get('staff', [AdminUserController::class, 'index']);
 
-<<<<<<< Updated upstream
         Route::get('bookings/manage', [BookingController::class, 'indexAdmin']);
         Route::delete('reviews/{review}', [ReviewController::class, 'destroy']);
-=======
-    // MANAJEMEN BOOKING/REVIEW
-    Route::get('bookings/manage', [BookingController::class, 'indexAdmin']);
-    Route::delete('reviews/{review}', [ReviewController::class, 'destroy']);
->>>>>>> Stashed changes
 });

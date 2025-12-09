@@ -2,12 +2,13 @@
 
 import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import type { InputHTMLAttributes, TextareaHTMLAttributes, ChangeEvent, FormEvent } from "react"; // Tambahkan impor tipe yang eksplisit untuk kejelasan
 
 // ENUM Produk
 const productTypes = ["Sparepart", "Aksesoris"];
 
 // --- Input Components (Dipertahankan) ---
-interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
     label: string;
 }
 function Input({ label, ...props }: InputProps) {
@@ -19,7 +20,7 @@ function Input({ label, ...props }: InputProps) {
     );
 }
 
-interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
+interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
     label: string;
 }
 function Textarea({ label, ...props }: TextareaProps) {
@@ -49,11 +50,11 @@ export default function CreateProductPage() {
         jenis_barang: "",
     });
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
-    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
         if (e.target.files?.[0]) {
             setImageFile(e.target.files[0]);
         }
@@ -66,17 +67,29 @@ export default function CreateProductPage() {
 
 
     // =================== SUBMIT ===================
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
         setLoading(true);
 
-        if (!imageFile) return alert("Gambar wajib diupload!");
+        if (!imageFile) {
+            alert("Gambar wajib diupload!");
+            setLoading(false);
+            return;
+        }
 
-        const token = localStorage.getItem("token"); // sesuai login kamu
+        const token = typeof window !== 'undefined' ? localStorage.getItem("token") : null; 
+
+        if (!token) {
+            alert("Token tidak ditemukan. Silakan login ulang.");
+            router.push('/login');
+            setLoading(false);
+            return;
+        }
 
         const payload = new FormData();
         payload.append("name", formData.name);
         payload.append("description", formData.description);
+        // Pastikan konversi ke string untuk FormData (walaupun input type="number" menghasilkan string)
         payload.append("price", formData.price.toString()); 
         payload.append("stock", formData.stock.toString());
         payload.append("jenis_barang", formData.jenis_barang);
@@ -94,7 +107,7 @@ export default function CreateProductPage() {
             const data = await res.json();
 
             if (!res.ok) {
-                // Jika 401/403: Hapus token dan redirect ke login
+                // ... (Logika error handling sudah benar)
                 if (res.status === 401 || res.status === 403) {
                     alert("Akses ditolak atau sesi berakhir. Silakan login ulang.");
                     localStorage.removeItem("token");
@@ -113,6 +126,7 @@ export default function CreateProductPage() {
             alert("Produk berhasil ditambahkan!");
             router.push("/admin/produk");
         } catch (err) {
+            // Error handling untuk masalah koneksi
             alert("Tidak dapat terhubung ke server!");
         } finally {
             setLoading(false);
@@ -187,26 +201,6 @@ export default function CreateProductPage() {
                     </button>
                 </form>
             </div>
-        </div>
-    );
-}
-
-// ======== COMPONENT INPUT/ TEXTAREA (Agar rapi) =========
-
-function Input(props: any) {
-    return (
-        <div>
-            <label className="block text-sm font-medium mb-1">{props.label}</label>
-            <input {...props} className="border rounded px-3 py-2 w-full" />
-        </div>
-    );
-}
-
-function Textarea(props: any) {
-    return (
-        <div>
-            <label className="block text-sm font-medium mb-1">{props.label}</label>
-            <textarea {...props} className="border rounded px-3 py-2 w-full h-24" />
         </div>
     );
 }

@@ -30,13 +30,8 @@ class ProductController extends Controller
             'description' => 'required|string',
             'price' => 'required|numeric|min:0',
             'stock' => 'required|integer|min:0',
-<<<<<<< Updated upstream
             'img_url' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
             'jenis_barang' => 'required|in:Sparepart,Aksesoris',
-=======
-            'img_url' => 'required|image|mimes:jpg,jpeg,png,webp|max:2048',
-            'jenis_barang' => 'required|in:Sparepart,Aksesoris', 
->>>>>>> Stashed changes
         ]);
 
         if ($validator->fails()) {
@@ -46,7 +41,6 @@ class ProductController extends Controller
         try {
             $fileName = null;
 
-<<<<<<< Updated upstream
             if ($request->hasFile('img_url')) {
                 $file = $request->file('img_url');
 
@@ -79,30 +73,6 @@ class ProductController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
-=======
-        if($request->hasFile('img_url')){
-            $file = $request->file('img_url');
-            $fileName = time().'_'.Str::slug($request->name).'.'.$file->getClientOriginalExtension();
-            
-            $file->storeAs($folder, $fileName, 'public'); 
-            $imagePath = $folder.'/'.$fileName; 
-        }
-
-        $product = Product::create([
-            'name' => $request->name,
-            'slug' => Str::slug($request->name),
-            'description' => $request->description,
-            'price' => $request->price,
-            'stock' => $request->stock,
-            'img_url' => $imagePath,
-            'jenis_barang' => $request->jenis_barang,
-        ]);
-
-        return response()->json([
-            'message' => 'Produk berhasil dibuat.',
-            'product' => $product
-        ], 201);
->>>>>>> Stashed changes
     }
 
     // ======================= DETAIL PRODUCT =======================
@@ -123,18 +93,13 @@ class ProductController extends Controller
             'price' => 'required|numeric|min:0',
             'stock' => 'required|integer|min:0',
             'img_url' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
-<<<<<<< Updated upstream
             'jenis_barang' => 'required|in:Sparepart,Aksesoris',
-=======
-            'jenis_barang' => 'required|in:Sparepart,Aksesoris', 
->>>>>>> Stashed changes
         ]);
 
         if ($validator->fails()) {
             return response()->json(['errors' => $validator->errors()], 422);
         }
 
-<<<<<<< Updated upstream
         try {
             if ($request->hasFile('img_url')) {
                 if($product->img_url){
@@ -166,43 +131,11 @@ class ProductController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
-=======
-        // 1. Proses Gambar
-        if ($request->hasFile('img_url')) {
-            if($product->img_url){
-                Storage::disk('public')->delete($product->img_url);
-            }
-
-            $file = $request->file('img_url');
-            $fileName = time().'_'.Str::slug($request->name).'.'.$file->getClientOriginalExtension();
-            $file->storeAs($folder, $fileName, 'public');
-
-            // Set properti img_url pada objek $product
-            $product->img_url = $folder.'/'.$fileName; 
-        }
-
-        // 2. PROSES DATA TEKSTUAL (FIX KRUSIAL: Manual Assignment)
-        $product->name = $request->name;
-        $product->slug = Str::slug($request->name);
-        $product->description = $request->description;
-        $product->price = $request->price;
-        $product->stock = $request->stock;
-        $product->jenis_barang = $request->jenis_barang;
-
-        // 3. SIMPAN SEMUA PERUBAHAN KE DATABASE
-        $product->save(); 
-
-        return response()->json([
-            'message' => 'Produk berhasil diperbarui.',
-            'product' => $product 
-        ], 200);
->>>>>>> Stashed changes
     }
 
     // ======================= DELETE PRODUCT =======================
     public function destroy(Product $product)
     {
-<<<<<<< Updated upstream
         try {
             if($product->img_url){
                 Storage::disk('public')->delete('products/'.$product->img_url);
@@ -218,10 +151,6 @@ class ProductController extends Controller
                 'message' => 'Terjadi error saat menghapus produk.',
                 'error' => $e->getMessage()
             ], 500);
-=======
-        if($product->img_url){
-            Storage::disk('public')->delete($product->img_url);
->>>>>>> Stashed changes
         }
     }
 }
