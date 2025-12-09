@@ -5,12 +5,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Database\Eloquent\Casts\Attribute; // <-- Pastikan ini diimpor!
 
 class Product extends Model
 {
     use HasFactory;
 
-    // Kolom-kolom yang dapat diisi secara massal
     protected $fillable = [
         'name',
         'slug',
@@ -18,32 +18,32 @@ class Product extends Model
         'price',
         'stock',
         'jenis_barang',
-        'img_url',
+        'img_url', // Ini akan menyimpan hanya NAMA FILE
     ];
 
-    // Casting untuk memastikan jenis data kolom
     protected $casts = [
-        'price' => 'decimal:2', // Harga disimpan sebagai desimal dengan 2 angka di belakang koma
-        'stock' => 'integer',   // Stok disimpan sebagai integer
-        // 'jenis_barang' => 'string', // Opsional, jenis barang sudah string secara default
+        'price' => 'decimal:2',
+        'stock' => 'integer',
     ];
 
     /**
-     * Accessor untuk mendapatkan URL penuh gambar produk.
-     * Menggunakan konvensi get[NamaKolomCamelCase]Attribute.
-     * Diakses melalui $product->img_url (meskipun kolomnya bernama img_url, Accessor menimpanya)
-     * * @param string|null $value Nilai img_url yang tersimpan di database (misal: 'products/file.jpg')
-     * @return string URL gambar yang siap diakses browser
+     * Accessor untuk mendapatkan URL gambar penuh.
+     * Nama method harus getImgUrlAttribute
      */
-    public function getImgUrlAttribute(?string $value): string
+    public function getImgUrlAttribute(string $value = null): string
     {
-        // $this->attributes['img_url'] digunakan untuk mengakses nilai asli kolom dari database.
-        if ($value && Storage::disk('public')->exists($value)) {
-            // Mengembalikan URL penuh: http://app.test/storage/products/file.jpg
-            return asset('storage/' . $value); 
+        // Jika kolom img_url di database memiliki nilai (bukan NULL)
+        if ($value) {
+            $pathWithFolder = 'products/' . $value;
+
+            // Cek apakah file benar-benar ada di storage/app/public/products/
+            if (Storage::disk('public')->exists($pathWithFolder)) {
+                // Gunakan asset() untuk mendapatkan base URL + storage/path
+                return asset('storage/' . $pathWithFolder);
+            }
         }
 
-        // URL fallback jika tidak ada gambar atau gambar tidak ditemukan
+        // URL fallback (default) jika tidak ada gambar atau file tidak ditemukan
         return asset('images/default_product.png'); 
     }
 }

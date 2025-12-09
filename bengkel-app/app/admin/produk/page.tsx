@@ -9,7 +9,18 @@ export interface Product {
   name: string;
   price: number;
   description: string;
-  img_url: string; // Sekarang menerima URL lengkap dari Laravel Accessor
+  img_url: string;
+}
+
+// =======================
+//   AMBIL TOKEN DARI COOKIE
+// =======================
+function getCookie(name: string) {
+  if (typeof document === "undefined") return null;
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop()?.split(";").shift() || null;
+  return null;
 }
 
 export default function AdminProductsPage() {
@@ -22,24 +33,23 @@ export default function AdminProductsPage() {
   async function fetchProducts() {
     setLoading(true);
     try {
-      const token = localStorage.getItem("token");
+      const token = getCookie("token"); // 🔥 PENTING: dari cookies!
 
       const res = await fetch(`http://localhost:8000/api/products`, {
         method: "GET",
         headers: {
-          "Authorization": `Bearer ${token}`,
-          "Accept": "application/json"
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json"
         }
       });
 
-      if (!res.ok) throw new Error('Failed to fetch');
-
-      // Respons Laravel: { message: '...', products: [...] }
       const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Gagal memuat produk");
+
       setProducts(data.products ?? []);
+
     } catch (err) {
-      // Lebih baik log error sebenarnya
-      console.error(err); 
+      console.error(err);
       alert("Gagal memuat produk");
     } finally {
       setLoading(false);
@@ -51,29 +61,30 @@ export default function AdminProductsPage() {
     if (!confirm("Yakin ingin menghapus produk ini?")) return;
 
     try {
-      const token = localStorage.getItem("token");
+      const token = getCookie("token"); // 🔥 PENTING: dari cookies!
 
       const res = await fetch(`http://localhost:8000/api/products/${id}`, {
         method: "DELETE",
         headers: {
-          "Authorization": `Bearer ${token}`,
-          "Accept": "application/json"
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json"
         }
       });
-      
-      if (!res.ok) throw new Error('Failed to delete');
 
-      fetchProducts(); // Muat ulang daftar setelah berhasil hapus
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Gagal menghapus produk");
+
+      fetchProducts();
+
     } catch (err) {
       console.error(err);
       alert("Gagal menghapus produk");
     }
   }
 
-  useEffect(() => { fetchProducts(); }, []);
-
-  // Hapus fungsi getImage karena Laravel sudah mengembalikan URL lengkap.
-  // Jika Anda ingin menggunakan fallback, gunakan || sebagai pengganti if(!img)
+  useEffect(() => {
+    fetchProducts();
+  }, []);
 
   return (
     <div className="bg-white p-6 rounded-xl shadow max-w-5xl mx-auto">
@@ -106,16 +117,15 @@ export default function AdminProductsPage() {
             {products.map((p) => (
               <tr key={p.id} className="border-b hover:bg-gray-50">
                 <td className="p-3">
-                  <img 
-                    // ✅ Langsung gunakan p.img_url dari API
-                    src={p.img_url} 
+                  <img
+                    src={p.img_url}
                     alt={p.name}
                     className="w-16 h-16 object-cover rounded"
                   />
                 </td>
 
                 <td className="p-3">{p.name}</td>
-                <td className="p-3">Rp {p.price.toLocaleString('id-ID')}</td>
+                <td className="p-3">Rp {Number(p.price).toLocaleString("id-ID")}</td>
                 <td className="p-3">{p.description}</td>
 
                 <td className="p-3 space-x-2">

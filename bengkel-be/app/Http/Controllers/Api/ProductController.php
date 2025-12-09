@@ -1,4 +1,4 @@
-<?php 
+<?php
 
 namespace App\Http\Controllers\Api;
 
@@ -15,7 +15,6 @@ class ProductController extends Controller
     public function index()
     {
         $products = Product::all(); 
-
         return response()->json([
             'message' => 'Daftar produk berhasil diambil.',
             'products' => $products
@@ -30,7 +29,7 @@ class ProductController extends Controller
             'description' => 'required|string',
             'price' => 'required|numeric|min:0',
             'stock' => 'required|integer|min:0',
-            'img_url' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
+            'img_url' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048', 
             'jenis_barang' => 'required|in:Sparepart,Aksesoris',
         ]);
 
@@ -39,7 +38,7 @@ class ProductController extends Controller
         }
 
         try {
-            $fileName = null;
+            $fileNameToSave = null; 
 
             if ($request->hasFile('img_url')) {
                 $file = $request->file('img_url');
@@ -48,26 +47,27 @@ class ProductController extends Controller
                     Storage::disk('public')->makeDirectory('products');
                 }
 
-                $fileName = time() . '_' . Str::slug($request->name) . '.' . $file->getClientOriginalExtension();
-                $file->storeAs('products', $fileName, 'public');
+                $fileNameToSave = time() . '_' . Str::slug($request->name) . '.' . $file->getClientOriginalExtension();
+                $file->storeAs('products', $fileNameToSave, 'public'); 
             }
 
             $product = Product::create([
                 'name' => $request->name,
-                'slug' => Str::slug($request->name) . "-" . time(),
+                'slug' => Str::slug($request->name) . "-" . time(), 
                 'description' => $request->description,
                 'price' => $request->price,
                 'stock' => $request->stock,
-                'img_url' => $fileName,
                 'jenis_barang' => $request->jenis_barang,
+                'img_url' => $fileNameToSave,
             ]);
 
             return response()->json([
                 'message' => 'Produk berhasil dibuat.',
-                'product' => $product
+                'product' => $product 
             ], 201);
 
         } catch (\Exception $e) {
+            \Log::error("Product creation failed: " . $e->getMessage()); 
             return response()->json([
                 'message' => 'Terjadi error saat menyimpan produk.',
                 'error' => $e->getMessage()
@@ -76,17 +76,33 @@ class ProductController extends Controller
     }
 
     // ======================= DETAIL PRODUCT =======================
-    public function show(Product $product)
+    public function show($id)
     {
+        $product = Product::find($id);
+
+        if (!$product) {
+            return response()->json([
+                'message' => 'Produk tidak ditemukan.'
+            ], 404);
+        }
+
         return response()->json([
             'message' => 'Detail produk berhasil diambil.',
-            'product' => $product 
+            'product' => $product
         ]);
     }
 
     // ======================= UPDATE PRODUCT =======================
-    public function update(Request $request, Product $product)
+    public function update(Request $request, $id)
     {
+        $product = Product::find($id);
+
+        if (!$product) {
+            return response()->json([
+                'message' => 'Produk tidak ditemukan.'
+            ], 404);
+        }
+
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255|unique:products,name,' . $product->id,
             'description' => 'required|string',
@@ -102,14 +118,14 @@ class ProductController extends Controller
 
         try {
             if ($request->hasFile('img_url')) {
-                if($product->img_url){
-                    Storage::disk('public')->delete('products/'.$product->img_url);
+                if ($product->img_url && Storage::disk('public')->exists('products/' . $product->img_url)) {
+                    Storage::disk('public')->delete('products/' . $product->img_url);
                 }
 
                 $file = $request->file('img_url');
-                $fileName = time().'_'.Str::slug($request->name).'.'.$file->getClientOriginalExtension();
-                $file->storeAs('products', $fileName, 'public');
-                $product->img_url = $fileName;
+                $fileNameToSave = time().'_'.Str::slug($request->name).'.'.$file->getClientOriginalExtension();
+                $file->storeAs('products', $fileNameToSave, 'public');
+                $product->img_url = $fileNameToSave; 
             }
 
             $product->update([
@@ -121,11 +137,15 @@ class ProductController extends Controller
                 'jenis_barang' => $request->jenis_barang,
             ]);
 
+            $product->save();
+
             return response()->json([
                 'message' => 'Produk berhasil diperbarui.',
                 'product' => $product 
             ]);
+
         } catch (\Exception $e) {
+            \Log::error("Product update failed: " . $e->getMessage()); 
             return response()->json([
                 'message' => 'Terjadi error saat memperbarui produk.',
                 'error' => $e->getMessage()
@@ -134,10 +154,18 @@ class ProductController extends Controller
     }
 
     // ======================= DELETE PRODUCT =======================
-    public function destroy(Product $product)
+    public function destroy($id)
     {
+        $product = Product::find($id);
+
+        if (!$product) {
+            return response()->json([
+                'message' => 'Produk tidak ditemukan.'
+            ], 404);
+        }
+
         try {
-            if($product->img_url){
+            if ($product->img_url && Storage::disk('public')->exists('products/'.$product->img_url)) {
                 Storage::disk('public')->delete('products/'.$product->img_url);
             }
 
@@ -146,7 +174,9 @@ class ProductController extends Controller
             return response()->json([
                 'message' => 'Produk berhasil dihapus.'
             ]);
+
         } catch (\Exception $e) {
+            \Log::error("Product deletion failed: " . $e->getMessage()); 
             return response()->json([
                 'message' => 'Terjadi error saat menghapus produk.',
                 'error' => $e->getMessage()
