@@ -17,25 +17,31 @@ interface Promotion {
 export default function PromotionPage(){
 
   const [list,setList]=useState<Promotion[]>([]);
-  const token = typeof document!=="undefined" 
-      ? document.cookie.match(/token=([^;]+)/)?.[1] : null;
+  const [loading,setLoading]=useState(true);
 
-  // ===== GET PROMO LIST =====
-  const getPromo=async()=>{
-    const res = await fetch("http://localhost:8000/api/promotions",{
-      headers:{ Authorization:`Bearer ${token}` }
-    });
+  // ================= GET PROMO (PUBLIK BISA AMBIL) =================
+  const getPromo = async () => {
+    try{
+      const res = await fetch("http://localhost:8000/api/promotions");
 
-    const data = await res.json();
+      const data = await res.json();
+      console.log("PROMO RESPONSE =>",data);
 
-    // API mu return `promotions`
-    setList(data.promotions ?? data.data ?? []);
+      setList(Array.isArray(data.promotions) ? data.promotions : []);
+    }catch(e){
+      console.log(e);
+    }
+    setLoading(false);
   };
 
   useEffect(()=>{ getPromo(); },[]);
 
-  // ===== Hapus promo =====
-  const deletePromo=async(id:number)=>{
+  // ================= DELETE (HANYA ADMIN) =================
+  const deletePromo= async(id:number)=>{
+    const token = document.cookie.match(/token=([^;]+)/)?.[1];
+
+    if(!token) return alert("Login admin dulu!");
+
     if(!confirm("Yakin hapus promo?")) return;
 
     const res = await fetch(`http://localhost:8000/api/promotions/${id}`,{
@@ -46,8 +52,13 @@ export default function PromotionPage(){
     if(res.ok){
       alert("Promo berhasil dihapus");
       getPromo();
+    }else{
+      alert("Tidak punya akses hapus!");
     }
   };
+
+  // ================= UI =================
+  if(loading) return <p className="text-center p-10 text-gray-500">Memuat promo...</p>
 
   return(
     <div className="max-w-5xl mx-auto p-8">
@@ -64,64 +75,65 @@ export default function PromotionPage(){
       </div>
 
       {list.length === 0 ? (
-        <div className="bg-white p-10 text-center rounded-xl shadow">
-          <p className="text-gray-500">Belum ada promo tersedia</p>
+        <div className="bg-white p-10 text-center rounded-xl shadow text-gray-500">
+          Belum ada promo tersedia
         </div>
       ):(
         <div className="space-y-4">
-        {list.map(p=>(
-          <div key={p.id} 
-            className="bg-white p-5 rounded-xl shadow hover:shadow-lg transition border-l-4
-            border-[#FF6D1F]">
 
-            <div className="flex justify-between items-center">
+          {list.map(p=>(
+            <div key={p.id} 
+              className="bg-white p-5 rounded-xl shadow hover:shadow-lg border-l-4 border-[#FF6D1F] transition">
 
-              <div>
-                <h2 className="font-bold text-xl text-[#234C6A]">{p.name}</h2>
-                <p className="text-gray-600 text-sm">
-                  {p.discount_type === 'percentage' 
-                    ? `Diskon ${p.discount_value}%`
-                    : `Potongan Rp ${p.discount_value.toLocaleString()}`
-                  }
-                </p>
+              <div className="flex justify-between">
 
-                <p className="text-xs mt-1 text-gray-500">
-                  {new Date(p.start_date).toLocaleDateString("id-ID")}
-                  {" "} - {" "}
-                  {new Date(p.end_date).toLocaleDateString("id-ID")}
-                </p>
+                <div>
+                  <h2 className="font-bold text-xl text-[#234C6A]">{p.name}</h2>
 
-                <div className="mt-2 text-[13px]">
-                  Produk terkait:
-                  <ul className="list-disc ml-6">
-                    {p.products?.map(pr=>(
-                      <li key={pr.id}>{pr.name}</li>
-                    ))}
-                  </ul>
+                  <p className="text-gray-700 text-sm">
+                    {p.discount_type==="percentage"
+                      ? `Diskon ${p.discount_value}%`
+                      : `Potongan Rp ${p.discount_value.toLocaleString("id-ID")}`}
+                  </p>
+
+                  <p className="text-xs mt-1 text-gray-500">
+                    {new Date(p.start_date).toLocaleDateString("id-ID")} -{" "}
+                    {new Date(p.end_date).toLocaleDateString("id-ID")}
+                  </p>
+
+                  <div className="mt-2 text-sm">
+                    Produk Terkait:
+                    <ul className="list-disc ml-6 text-gray-700">
+                      {p.products?.map(pr=>(
+                        <li key={pr.id}>{pr.name}</li>
+                      ))}
+                    </ul>
+                  </div>
                 </div>
+
+                <div className="flex flex-col gap-2 justify-center">
+                  <a 
+                    href={`/admin/promotion/edit/${p.id}`}
+                    className="px-3 py-1 border rounded-lg text-blue-700 hover:bg-blue-50 flex items-center gap-1"
+                  >
+                    <Edit size={16}/> Edit
+                  </a>
+
+                  <button
+                    onClick={()=>deletePromo(p.id)}
+                    className="px-3 py-1 border rounded-lg text-red-600 hover:bg-red-50 flex items-center gap-1"
+                  >
+                    <Trash2 size={16}/> Hapus
+                  </button>
+                </div>
+
               </div>
-
-              <div className="flex flex-col gap-2">
-                <a 
-                  href={`/admin/promotions/edit/${p.id}`}
-                  className="flex items-center gap-1 px-3 py-1 border rounded text-blue-600 hover:bg-blue-50"
-                >
-                  <Edit size={16}/> Edit
-                </a>
-
-                <button
-                  onClick={()=>deletePromo(p.id)}
-                  className="flex items-center gap-1 px-3 py-1 border rounded text-red-600 hover:bg-red-50"
-                >
-                  <Trash2 size={16}/> Hapus
-                </button>
-              </div>
-
             </div>
-          </div>
-        ))}
+          ))}
+
         </div>
       )}
+
     </div>
   );
 }

@@ -40,7 +40,8 @@ export default function MarketplacePage(){
   const prevSlide = ()=> setSlide((p)=>(p-1+promoImages.length)%promoImages.length);
   useEffect(()=>{ const auto=setInterval(nextSlide,3000); return()=>clearInterval(auto); },[]);
 
-  // =================== FETCH PRODUK + PROMO ====================
+
+  // =================== FETCH PRODUK ====================
   const fetchProducts=async()=>{
     const res=await fetch("http://localhost:8000/api/products");
     const data=await res.json();
@@ -48,12 +49,15 @@ export default function MarketplacePage(){
     setFiltered(data.products);
   };
 
-  const fetchPromotions=async()=>{
-    const res=await fetch("http://localhost:8000/api/promotions");
-    const data=await res.json();
-    setPromotions(data.promotions||[]);
-  };
+  // =================== FETCH PROMO (PUBLIC) ====================
+ const fetchPromotions = async () => {
+    const res = await fetch("http://localhost:8000/api/promotions/public"); // <-- penting
+    const data = await res.json();
+    console.log("PROMO PUBLIC => ", data);
+    setPromotions(data.promotions ?? []); 
+};
 
+  // =================== CART COUNT ====================
   const updateCartCount=async()=>{
     const token=document?.cookie.match(/token=([^;]+)/)?.[1];
     if(!token) return;
@@ -64,7 +68,7 @@ export default function MarketplacePage(){
 
   useEffect(()=>{ fetchProducts(); fetchPromotions(); updateCartCount(); },[]);
 
-  // =================== FILTER ============
+  // =================== FILTER ====================
   useEffect(()=>{
     let result=[...products];
 
@@ -74,24 +78,22 @@ export default function MarketplacePage(){
     setFiltered(result);
   },[search,category,products]);
 
+
   const handleAddToCart=async(id:number)=>{
     const ok=await addToCart(id);
     if(ok){ updateCartCount(); alert("Produk ditambahkan ke keranjang!"); }
   };
+
 
   return(
     <div className="max-w-6xl mx-auto p-6">
 
 {/* ================= HEADER ================= */}
 <div className="flex justify-between mb-6 items-center">
-
   <h1 className="text-3xl font-bold text-[#234C6A]">Marketplace Produk</h1>
 
   <div className="flex items-center gap-4">
-    <a href="/marketplace/pesanan"
-      className="px-4 py-2 bg-[#234C6A] text-white rounded-lg hover:bg-[#17374f] transition font-semibold shadow">
-      Pesanan
-    </a>
+    <a href="/marketplace/pesanan" className="px-4 py-2 bg-[#234C6A] text-white rounded-lg hover:bg-[#17374f] transition font-semibold shadow">Pesanan</a>
 
     <a href="/cart" className="relative">
       <ShoppingCart size={32} className="text-[#FF6D1F] hover:scale-110 transition"/>
@@ -119,6 +121,7 @@ export default function MarketplacePage(){
 </div>
 
 
+
 {/* ==================== PROMO SECTION ==================== */}
 {promotions.length>0 && (
   <div className="mb-10">
@@ -126,6 +129,7 @@ export default function MarketplacePage(){
 
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
       {promotions.map(promo=> promo.products.map(product=>(
+
          <ProductCard
            key={`promo-${product.id}`}
            product={{
@@ -140,10 +144,12 @@ export default function MarketplacePage(){
              window.location.href="/marketplace/detailProduk";
            }}
          />
+
       )))}
     </div>
   </div>
 )}
+
 
 
 {/* ================= PRODUCT GRID NORMAL ================= */}
@@ -163,9 +169,12 @@ export default function MarketplacePage(){
 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
   {filtered.length>0 ? filtered.map(p=>(
 
-    <ProductCard key={p.id} product={p}
+    <ProductCard
+      key={p.id}
+      product={p}
       onAdd={handleAddToCart}
-      onClick={()=>{localStorage.setItem("selectedProduct",JSON.stringify(p)); window.location.href="/marketplace/detailProduk";}}/>
+      onClick={()=>{localStorage.setItem("selectedProduct",JSON.stringify(p)); window.location.href="/marketplace/detailProduk";}}
+    />
 
   )): <p className="text-gray-500 col-span-full text-center">Produk tidak ditemukan...</p>}
 </div>

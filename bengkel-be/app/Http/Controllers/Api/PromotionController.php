@@ -11,132 +11,110 @@ class PromotionController extends Controller
 {
     private $allowedRoles = ['admin','super_admin'];
 
-    /* ====================== 1. SHOW ALL (ADMIN ONLY) ====================== */
-    public function index(Request $request)
+    // ==============================
+    // GET PROMO (SEMUA ORANG BISA)
+    // ==============================
+    public function index()
     {
-        if (!in_array($request->user()->role, $this->allowedRoles)) {
-            return response()->json(['message'=>'Tidak punya akses.'],403);
-        }
-
         return response()->json([
-            'status'=>true,
-            'promotions'=>Promotion::with('products:id,name,price,img_url')->get()
+            'promotions' => Promotion::with('products:id,name,price')->get()
         ]);
     }
 
-    /* ====================== 2. STORE PROMO ====================== */
+    // ==============================
+    // GET PROMO UNTUK MARKETPLACE USER
+    // ==============================
+    public function public()
+    {
+        $promotions = Promotion::with('products:id,name,price')
+            ->where('is_active',1)
+            ->where('start_date','<=',now())
+            ->where('end_date','>=',now())
+            ->get();
+
+        return response()->json([
+            'message'=>'Promo aktif berhasil diambil',
+            'promotions'=>$promotions
+        ]);
+    }
+
+    // ==============================
+    // CREATE PROMO (HANYA ADMIN)
+    // ==============================
     public function store(Request $request)
     {
-        if (!in_array($request->user()->role,$this->allowedRoles)) {
-            return response()->json(['message'=>'Tidak punya akses.'],403);
-        }
+        if(!in_array($request->user()->role,$this->allowedRoles))
+            return response()->json(['message'=>'Forbidden'],403);
 
         $validator = Validator::make($request->all(),[
-            'name'=>'required|string|max:255|unique:promotions,name',
+            'name'=>'required|unique:promotions',
             'discount_type'=>'required|in:percentage,fixed',
             'discount_value'=>'required|numeric|min:0',
             'start_date'=>'required|date',
             'end_date'=>'required|date|after:start_date',
             'is_active'=>'boolean',
             'product_ids'=>'nullable|array',
-            'product_ids.*'=>'exists:products,id'
+            'product_ids.*'=>'exists:products,id',
         ]);
 
-        if($validator->fails()) return response()->json($validator->errors(),422);
+        if($validator->fails()) return response()->json(['errors'=>$validator->errors()],422);
 
-        $promotion = Promotion::create($request->except('product_ids'));
+        $promo = Promotion::create($request->except('product_ids'));
 
-        if($request->product_ids) $promotion->products()->attach($request->product_ids);
+        if($request->has('product_ids'))
+            $promo->products()->attach($request->product_ids);
 
-        return response()->json([
-            'message'=>'Promo berhasil dibuat',
-            'promotion'=> $promotion->load('products')
-        ]);
+        return response()->json(['message'=>'Promo dibuat','promo'=>$promo],201);
     }
 
-    /* ====================== 3. SHOW DETAIL ====================== */
-    public function show(Request $request, Promotion $promotion)
+    // ==============================
+    // SHOW DETAIL PROMO
+    // ==============================
+    public function show(Promotion $promotion)
     {
-        if(!in_array($request->user()->role,$this->allowedRoles)) 
-            return response()->json(['message'=>'Tidak punya akses.'],403);
-
         return response()->json([
-            'promotion'=>$promotion->load('products')
+            'promotion'=>$promotion->load('products:id,name,price')
         ]);
     }
 
-    /* ====================== 4. UPDATE ====================== */
+    // ==============================
+    // UPDATE PROMO (HANYA ADMIN)
+    // ==============================
     public function update(Request $request, Promotion $promotion)
     {
-        if (!in_array($request->user()->role,$this->allowedRoles)) {
-            return response()->json(['message'=>'Tidak punya akses.'],403);
-        }
+        if(!in_array($request->user()->role,$this->allowedRoles))
+            return response()->json(['message'=>'Forbidden'],403);
 
         $validator = Validator::make($request->all(),[
-            'name'=>'required|string|max:255|unique:promotions,name,'.$promotion->id,
+            'name'=>'required|unique:promotions,name,'.$promotion->id,
             'discount_type'=>'required|in:percentage,fixed',
             'discount_value'=>'required|numeric|min:0',
             'start_date'=>'required|date',
             'end_date'=>'required|date|after:start_date',
             'is_active'=>'boolean',
             'product_ids'=>'nullable|array',
-            'product_ids.*'=>'exists:products,id'
+            'product_ids.*'=>'exists:products,id',
         ]);
 
-        if($validator->fails()) return response()->json($validator->errors(),422);
+        if($validator->fails()) return response()->json(['errors'=>$validator->errors()],422);
 
         $promotion->update($request->except('product_ids'));
 
-        $request->product_ids ? 
-            $promotion->products()->sync($request->product_ids) :
-            $promotion->products()->sync([]);
+        if($request->has('product_ids'))
+            $promotion->products()->sync($request->product_ids);
 
-        return response()->json(['message'=>'Promo diperbarui','promotion'=>$promotion->load('products')]);
+        return response()->json(['message'=>'Promo diupdate']);
     }
 
-    /* ====================== 5. DELETE ====================== */
+    // ==============================
+    // DELETE PROMO (HANYA ADMIN)
+    // ==============================
     public function destroy(Request $request, Promotion $promotion)
     {
-        if (!in_array($request->user()->role,$this->allowedRoles)) {
-            return response()->json(['message'=>'Tidak punya akses.'],403);
-        }
+        if(!in_array($request->user()->role,$this->allowedRoles))
+            return response()->json(['message'=>'Forbidden'],403);
 
         $promotion->delete();
-        return response()->json(['message'=>'Promo berhasil dihapus']);
-    }
-
-    /* ====================== 6. PUBLIC MARKETPLACE ====================== */
-    public function public()
-    {
-        $now = now();
-
-        $promo = Promotion::with('products:id,name,price,img_url')
-            ->where('is_active',true)
-            ->where('start_date','<=',$now)
-            ->where('end_date','>=',$now)
-            ->get()
-            ->map(function($p){
-                return [
-                    'id'=>$p->id,
-                    'name'=>$p->name,
-                    'type'=>$p->discount_type,
-                    'value'=>$p->discount_value,
-                    'products'=>$p->products->map(function($prod)use($p){
-                        $disc = $p->discount_type == "percentage"
-                            ? $prod->price - ($prod->price * $p->discount_value / 100)
-                            : $prod->price - $p->discount_value;
-
-                        return [
-                            'id'=>$prod->id,
-                            'name'=>$prod->name,
-                            'price_before'=>$prod->price,
-                            'price_after'=>max($disc,0),
-                            'img_url'=>$prod->img_url
-                        ];
-                    })
-                ];
-        });
-
-        return response()->json(['promotions'=>$promo]);
+        return response()->json(['message'=>'Promo dihapus']);
     }
 }
