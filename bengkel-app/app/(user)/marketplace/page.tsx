@@ -51,7 +51,7 @@ export default function MarketplacePage(){
 
   // =================== FETCH PROMO (PUBLIC) ====================
  const fetchPromotions = async () => {
-    const res = await fetch("http://localhost:8000/api/promotions/public"); // <-- penting
+    const res = await fetch("http://localhost:8000/api/promotions"); // <-- penting
     const data = await res.json();
     console.log("PROMO PUBLIC => ", data);
     setPromotions(data.promotions ?? []); 

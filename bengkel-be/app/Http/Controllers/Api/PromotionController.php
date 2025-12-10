@@ -6,10 +6,15 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Promotion;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\DB; // Tambahkan jika perlu DB::statement
 
 class PromotionController extends Controller
 {
     private $allowedRoles = ['admin','super_admin'];
+
+    // Daftar kolom produk yang dibutuhkan frontend
+    private $productColumns = 'id,name,price,stock,jenis_barang,img_url'; 
+    // ^^^^^^^^^^^^^^^^^^^^^^^^^^ INI PERBAIKAN UTAMA ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     // ==============================
     // GET PROMO (SEMUA ORANG BISA)
@@ -17,16 +22,17 @@ class PromotionController extends Controller
     public function index()
     {
         return response()->json([
-            'promotions' => Promotion::with('products:id,name,price')->get()
+            // Menggunakan variabel $this->productColumns yang lengkap
+            'promotions' => Promotion::with('products:'.$this->productColumns)->get() 
         ]);
     }
 
     // ==============================
-    // GET PROMO UNTUK MARKETPLACE USER
+    // GET PROMO UNTUK MARKETPLACE USER (PUBLIK)
     // ==============================
     public function public()
     {
-        $promotions = Promotion::with('products:id,name,price')
+        $promotions = Promotion::with('products:'.$this->productColumns) // <--- PERBAIKAN DI SINI
             ->where('is_active',1)
             ->where('start_date','<=',now())
             ->where('end_date','>=',now())
@@ -73,7 +79,8 @@ class PromotionController extends Controller
     public function show(Promotion $promotion)
     {
         return response()->json([
-            'promotion'=>$promotion->load('products:id,name,price')
+            // Menggunakan variabel $this->productColumns yang lengkap
+            'promotion'=>$promotion->load('products:'.$this->productColumns)
         ]);
     }
 
