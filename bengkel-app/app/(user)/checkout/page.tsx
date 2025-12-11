@@ -115,21 +115,21 @@ export default function CheckoutPage() {
                         <div className="space-y-6">
 
                             <div>
-                                <label className="font-semibold flex items-center gap-2">
+                                <label className="font-bold text-[#234C6A] flex items-center gap-2 ">
                                     <User size={18} className="text-[#FF6D1F]" /> Nama Penerima
                                 </label>
                                 <input className={inputBase} value={recipientName} onChange={e => setRecipientName(e.target.value)} />
                             </div>
 
                             <div>
-                                <label className="font-semibold flex items-center gap-2">
+                                <label className="font-bold text-[#234C6A] flex items-center gap-2">
                                     <Phone size={18} className="text-[#FF6D1F]" /> Nomor Telepon
                                 </label>
                                 <input className={inputBase} value={phone} onChange={e => setPhone(e.target.value)} />
                             </div>
 
                             <div>
-                                <label className="font-semibold flex items-center gap-2">
+                                <label className="font-bold text-[#234C6A] flex items-center gap-2">
                                     <MapPin size={18} className="text-[#FF6D1F]" /> Alamat Lengkap
                                 </label>
                                 <textarea className={`${inputBase} h-24`} value={address} onChange={e => setAddress(e.target.value)} />
@@ -137,7 +137,7 @@ export default function CheckoutPage() {
 
                             {/* PENGIRIMAN */}
                             <div>
-                                <label className="font-semibold">Metode Pengiriman</label>
+                                <label className="font-bold text-[#234C6A]">Metode Pengiriman</label>
                                 <select className={inputBase} value={shipping} onChange={e => setShipping(e.target.value)}>
                                     <option value="reguler">Reguler (Rp 10.000)</option>
                                     <option value="express">Express (Rp 25.000)</option>
@@ -146,7 +146,7 @@ export default function CheckoutPage() {
 
                             {/* PEMBAYARAN + BANK */}
                             <div className="space-y-3">
-                                <label className="font-semibold">Metode Pembayaran</label>
+                                <label className="font-bold text-[#234C6A]">Metode Pembayaran</label>
                                 <select className={inputBase} value={paymentMethod} onChange={(e)=>setPaymentMethod(e.target.value)}>
                                     <option value="transfer">Transfer Bank</option>
                                     <option value="tunai">Tunai (COD)</option>

@@ -115,7 +115,7 @@ export default function MarketplacePage() {
       </div>
 
       {/* Search Filter */}
-      <div className="flex gap-3 mb-8 flex-col sm:flex-row">
+      <div className="flex gap-3 mb-8 flex-col sm:flex-row font-bold text-[#234C6A]">
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
