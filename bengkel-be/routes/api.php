@@ -57,6 +57,7 @@ Route::middleware(['auth:sanctum', 'role:admin,super_admin,kasir'])->group(funct
     // Rute terotentikasi untuk mencari/melihat produk (untuk POS)
     Route::get('products', [ProductController::class, 'index']);
     Route::get('products/{id}', [ProductController::class, 'show']);
+    Route::get('kasir/products/search', [ProductController::class, 'searchForCashier']);
     
     // === BOOKING SEARCH & KASIR TRANSAKSI ===
     // FIX: Rute pencarian booking untuk kasir (Menyelesaikan 404 Not Found)

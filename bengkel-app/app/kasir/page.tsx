@@ -1,8 +1,8 @@
 // app/kasir/page.tsx
 'use client'; 
 
-import React, { useState, useMemo, useEffect, FormEvent } from 'react'; // IMPORT SEMUA HOOKS DARI REACT
-import { useRef } from 'react'; // useRef juga perlu diimpor
+import React, { useState, useMemo, useEffect, FormEvent } from 'react'; 
+import { useRef } from 'react'; 
 
 // --- Tipe Data (Interface) ---
 interface CartItem {
@@ -118,7 +118,9 @@ const ItemSearchInput: React.FC<{ onSelect: (item: CartItem) => void }> = ({ onS
         
         try {
             const [productsRes, bookingsRes] = await Promise.all([
-                fetch(`${API_URL}/products?search=${query}`, { headers: { 'Authorization': `Bearer ${token}` } }),
+                // Menggunakan endpoint /kasir/products/search yang lebih unik
+                fetch(`${API_URL}/kasir/products/search?search=${query}`, { headers: { 'Authorization': `Bearer ${token}` } }),
+                
                 fetch(`${API_URL}/bookings/pending/search?search=${query}`, { headers: { 'Authorization': `Bearer ${token}` } })
             ]);
 
@@ -330,17 +332,36 @@ const CashierPage: React.FC = () => {
 
         setIsProcessing(true);
         
+        // --- PENYESUAIAN DATA UNTUK CONTROLLER LARAVEL LAMA (product_id/booking_id tunggal) ---
+        const primaryItem = cartItems[0] || null;
+        let productId = null;
+        let bookingId = null;
+
+        if (primaryItem && primaryItem.originalId !== null) {
+            if (primaryItem.type === 'product' || primaryItem.type === 'service_manual') {
+                productId = primaryItem.originalId; 
+            } else if (primaryItem.type === 'booking_pelunasan') {
+                bookingId = primaryItem.originalId;
+            }
+        }
+        
+        // Format tanggal yang diharapkan Laravel (YYYY-MM-DD HH:MM:SS)
+        const formattedDate = new Date().toISOString().replace('T', ' ').substring(0, 19);
+
+        // Data yang dikirim ke API (HANYA MENGIRIM SATU SET FK + KOLOM WAJIB)
         const transactionData = {
-          items: cartItems.map(item => ({
-              id: item.originalId,
-              type: item.type,
-              name: item.name,
-              price: item.price,
-              quantity: item.quantity,
-          })),
-          total: total,
-          payment_method: paymentMethod,
+            'total': total,
+            'payment_method': paymentMethod,
+            'transaction_date': formattedDate, // FIX: Menambahkan transaction_date
+            'is_valid': 1, // FIX: Menambahkan is_valid (untuk required_without_all)
+            
+            'product_id': productId,
+            'booking_id': bookingId,
+            
+            // CATATAN: Array 'items' tidak dikirim karena Controller Laravel yang Anda miliki tidak dirancang untuknya.
         };
+        // --- AKHIR PENYESUAIAN ---
+
         
         const API_URL = process.env.NEXT_PUBLIC_LARAVEL_API_URL || 'http://localhost:8000/api'; 
         const token = getTokenFromCookies();

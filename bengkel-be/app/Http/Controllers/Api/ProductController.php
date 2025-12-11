@@ -8,16 +8,54 @@ use App\Models\Product;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB; // Diperlukan untuk Raw Query
 
 class ProductController extends Controller 
 {
-    // ======================= LIST PRODUCT =======================
+    // ======================= LIST PRODUCT (Original - No Search) =======================
     public function index()
     {
         $products = Product::all(); 
         return response()->json([
             'message' => 'Daftar produk berhasil diambil.',
             'products' => $products
+        ]);
+    }
+
+    // ======================= PENCARIAN UNTUK KASIR (BARU DITAMBAHKAN) =======================
+    /**
+     * Menampilkan daftar produk dengan filter pencarian untuk kebutuhan Kasir.
+     * Menggunakan format respons yang diharapkan oleh Next.js ('data').
+     */
+    public function searchForCashier(Request $request) 
+    {
+        $query = Product::query();
+
+        // Logika Pencarian
+        if ($request->has('search')) {
+            $search = strtolower($request->input('search'));
+            $searchTerm = "%{$search}%";
+
+            // Implementasi filter NULL-safe, case-insensitive, dan multi-kolom
+            $query->where(function ($q) use ($searchTerm) {
+                
+                // Mencari di 'name'
+                $q->whereRaw('LOWER(COALESCE(name, "")) LIKE ?', [$searchTerm]);
+                
+                // Mencari di 'description'
+                $q->orWhereRaw('LOWER(COALESCE(description, "")) LIKE ?', [$searchTerm]);
+                
+                // Mencari di 'jenis_barang'
+                $q->orWhereRaw('LOWER(COALESCE(jenis_barang, "")) LIKE ?', [$searchTerm]);
+            });
+        }
+        
+        $products = $query->latest()->get(); 
+        
+        // FIX: Menggunakan KEY 'data' agar frontend kasir dapat membaca
+        return response()->json([
+            'message' => 'Daftar produk berhasil diambil.',
+            'data' => $products 
         ]);
     }
 

@@ -24,9 +24,8 @@ interface ProductData {
 
 interface BookingData {
     id: number;
-    // Asumsi: Kita perlu kolom yang relevan untuk identifikasi
-    customer_name?: string;
-    // Tambahkan properti lain dari Booking jika diperlukan (e.g., code, jenis_service)
+    // Asumsi: customer_name didapatkan dari relasi user di BookingController
+    customer_name?: string; 
 }
 
 interface Transaksi {
@@ -37,7 +36,7 @@ interface Transaksi {
     total: string;
     transaction_date: string;
     
-    // Relasi
+    // Relasi dari Eager Loading CashierController@index
     product: ProductData | null;
     booking: BookingData | null;
 
@@ -58,8 +57,6 @@ export default function TransaksiPage() {
         const loadTransactions = async () => {
             try {
                 setError(null);
-
-                // 🔥 Ambil token dari cookies
                 const token = getCookie("token");
 
                 if (!token) {
@@ -89,20 +86,19 @@ export default function TransaksiPage() {
 
                 const data = await res.json();
                 
-                // FIX: Penanganan respons API Laravel (terutama untuk Pagination)
+                // FIX: Penanganan respons Laravel Pagination (data.data)
                 let rawData: any[];
 
                 if (data.data && Array.isArray(data.data)) {
-                    // Jika menggunakan Laravel Pagination ({ data: [...] })
+                    // Kasus 1: Menggunakan Laravel Pagination ({ data: [...] })
                     rawData = data.data;
                 } else if (Array.isArray(data.transactions)) {
-                    // Jika menggunakan key 'transactions'
+                    // Kasus 2: Key custom 'transactions'
                     rawData = data.transactions;
                 } else if (Array.isArray(data)) {
-                    // Jika root response langsung berupa array
+                    // Kasus 3: Respons root adalah array
                     rawData = data;
                 } else {
-                    // Default jika format tidak sesuai
                     rawData = [];
                 }
                 
@@ -114,11 +110,12 @@ export default function TransaksiPage() {
                     let itemDescription = '';
 
                     if (isProduct) {
+                        // Membaca relasi produk yang dimuat oleh CashierController@index
                         itemDescription = t.product?.name || `Produk ID ${t.product_id}`;
                     } else if (isBooking) {
-                        itemDescription = t.booking?.customer_name || `Booking ID ${t.booking_id}`;
+                        // Membaca relasi booking yang dimuat oleh CashierController@index
+                        itemDescription = t.booking?.customer_name || `Booking ID ${t.booking_id}`; 
                     } else {
-                        // Kasus transaksi service manual / campuran tanpa product_id/booking_id tunggal
                         itemDescription = 'Transaksi Service/Campuran'; 
                     }
 
@@ -127,7 +124,6 @@ export default function TransaksiPage() {
                         jenis: isProduct ? "Produk" : (isBooking ? "Booking" : "Campuran"),
                         nama_item: itemDescription,
                         status:
-                            // Asumsi status Lunas jika payment_method Cash atau ada flag is_paid=1
                             (t.payment_method === "Cash" || t.is_paid === 1 || t.status === 'Lunas')
                                 ? "Lunas"
                                 : "Pending",
