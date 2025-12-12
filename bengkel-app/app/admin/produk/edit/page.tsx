@@ -1,23 +1,23 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 
-// Definisi tipe Product
+const DEFAULT_IMAGE_URL = "/no-image.png";
+
 interface Product {
   id: number;
   name: string;
   price: number;
   description: string;
-  img_url: string | null;
+  img_url: string[];
   jenis_barang: string;
   stock: number;
 }
 
 const productTypes = ["Sparepart", "Aksesoris"];
 
-// Helper ambil cookie
 function getCookie(name: string): string | null {
   if (typeof document === "undefined") return null;
   const value = `; ${document.cookie}`;
@@ -34,10 +34,11 @@ export default function EditProductPage() {
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
-  const [newImageFile, setNewImageFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string>("/no-image.png");
 
-  // ================= Fetch produk =================
+  const [newImageFiles, setNewImageFiles] = useState<File[]>([]);
+  const [existingImageUrls, setExistingImageUrls] = useState<string[]>([]);
+  const [previewUrl, setPreviewUrl] = useState<string>(DEFAULT_IMAGE_URL);
+
   useEffect(() => {
     if (!productId) {
       setLoading(false);
@@ -65,8 +66,11 @@ export default function EditProductPage() {
 
         const data = await res.json();
         const prod: Product = data.product;
+
         setProduct(prod);
-        setPreviewUrl(prod.img_url ?? "/no-image.png");
+        const urls = prod.img_url || [DEFAULT_IMAGE_URL];
+        setExistingImageUrls(urls);
+        setPreviewUrl(urls[0] ?? DEFAULT_IMAGE_URL);
       } catch (err) {
         console.error(err);
         alert("Tidak dapat terhubung ke server.");
@@ -78,8 +82,13 @@ export default function EditProductPage() {
     fetchProduct();
   }, [productId, router]);
 
-  // ================= Handlers =================
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+  const newImagePreviewUrls = useMemo(() => {
+    return newImageFiles.map((file) => URL.createObjectURL(file));
+  }, [newImageFiles]);
+
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+  ) => {
     if (!product) return;
     const name = e.target.name;
     let value: string | number = e.target.value;
@@ -88,11 +97,28 @@ export default function EditProductPage() {
   };
 
   const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      const filesArray = Array.from(files);
+
+      if (filesArray.length > 5) {
+        alert("Maksimal 5 gambar yang diperbolehkan.");
+        e.target.value = "";
+        setNewImageFiles([]);
+        return;
+      }
+
       if (previewUrl.startsWith("blob:")) URL.revokeObjectURL(previewUrl);
-      setNewImageFile(file);
-      setPreviewUrl(URL.createObjectURL(file));
+      newImagePreviewUrls.forEach((url) => {
+        if (url.startsWith("blob:")) URL.revokeObjectURL(url);
+      });
+
+      setNewImageFiles(filesArray);
+      setPreviewUrl(URL.createObjectURL(filesArray[0]));
+    } else {
+      if (previewUrl.startsWith("blob:")) URL.revokeObjectURL(previewUrl);
+      setNewImageFiles([]);
+      setPreviewUrl(existingImageUrls[0] ?? DEFAULT_IMAGE_URL);
     }
   };
 
@@ -101,6 +127,7 @@ export default function EditProductPage() {
     if (!product) return;
 
     setIsUpdating(true);
+
     const token = getCookie("token");
     if (!token) {
       alert("Sesi berakhir. Silakan login ulang.");
@@ -115,13 +142,17 @@ export default function EditProductPage() {
     form.append("description", product.description);
     form.append("jenis_barang", product.jenis_barang);
     form.append("stock", product.stock.toString());
-    form.append("_method", "PUT"); // method spoofing Laravel
+    form.append("_method", "PUT");
 
-    if (newImageFile) form.append("img_url", newImageFile);
+    if (newImageFiles.length > 0) {
+      newImageFiles.forEach((file) => {
+        form.append("images[]", file);
+      });
+    }
 
     try {
       const res = await fetch(`http://localhost:8000/api/products/${product.id}`, {
-        method: "POST", // Laravel PUT via FormData
+        method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: form,
       });
@@ -144,18 +175,22 @@ export default function EditProductPage() {
       alert("Tidak dapat terhubung ke server.");
     } finally {
       setIsUpdating(false);
-      if (previewUrl.startsWith("blob:")) URL.revokeObjectURL(previewUrl);
+      newImagePreviewUrls.forEach((url) => {
+        if (url.startsWith("blob:")) URL.revokeObjectURL(url);
+      });
     }
   };
 
-  // ================= Render =================
   if (loading) return <p className="text-center mt-10">Memuat data produk...</p>;
   if (!product) return <p className="text-center mt-10 text-red-500">Produk tidak ditemukan.</p>;
 
   return (
-    <div className="max-w-2xl mx-auto p-8 bg-white shadow-lg rounded-xl mt-10">
-      <h1 className="text-3xl font-bold mb-6 text-center text-gray-800">Edit Produk: {product.name}</h1>
-      <form onSubmit={updateProduct} className="space-y-5">
+    <div className="max-w-2xl mx-auto p-5 bg-white shadow-lg rounded-xl mt-6">
+      <h1 className="text-2xl font-bold mb-4 text-center text-gray-800">
+        Edit Produk: {product.name}
+      </h1>
+
+      <form onSubmit={updateProduct} className="space-y-3">
         {/* Nama */}
         <div>
           <label className="block text-sm font-medium text-gray-700">Nama Produk</label>
@@ -163,7 +198,7 @@ export default function EditProductPage() {
             name="name"
             value={product?.name ?? ""}
             onChange={handleChange}
-            className="w-full border p-2 rounded mt-1 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full border p-2 rounded mt-1"
             required
           />
         </div>
@@ -177,12 +212,12 @@ export default function EditProductPage() {
             step="0.01"
             value={product?.price ?? 0}
             onChange={handleChange}
-            className="w-full border p-2 rounded mt-1 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full border p-2 rounded mt-1"
             required
           />
         </div>
 
-        {/* Stock */}
+        {/* Stok */}
         <div>
           <label className="block text-sm font-medium text-gray-700">Stok</label>
           <input
@@ -190,7 +225,7 @@ export default function EditProductPage() {
             type="number"
             value={product?.stock ?? 0}
             onChange={handleChange}
-            className="w-full border p-2 rounded mt-1 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full border p-2 rounded mt-1"
             required
           />
         </div>
@@ -202,7 +237,7 @@ export default function EditProductPage() {
             name="jenis_barang"
             value={product?.jenis_barang ?? ""}
             onChange={handleChange}
-            className="w-full border p-2 rounded mt-1 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full border p-2 rounded mt-1"
             required
           >
             <option value="" disabled>
@@ -223,25 +258,35 @@ export default function EditProductPage() {
             name="description"
             value={product?.description ?? ""}
             onChange={handleChange}
-            className="w-full border p-2 rounded mt-1 h-24 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full border p-2 rounded mt-1 h-24"
             required
           />
         </div>
 
         {/* Gambar */}
-        <div className="flex gap-4 items-center border p-4 rounded-lg bg-gray-50">
+        <div className="flex gap-3 items-center border p-3 rounded-lg bg-gray-50">
           <Image
-            src={previewUrl ?? "/no-image.png"}
+            src={previewUrl ?? DEFAULT_IMAGE_URL}
             alt="Preview Produk"
             width={100}
             height={100}
             className="rounded-lg shadow-md object-cover shrink-0"
             unoptimized
           />
+
           <div className="grow">
             <label className="block text-sm font-medium text-gray-700 mb-1">Ganti Gambar</label>
-            <input type="file" name="img_url" accept="image/*" onChange={handleUpload} className="w-full text-sm text-gray-500" />
-            <p className="text-xs text-gray-500 mt-1">Biarkan kosong jika tidak ingin mengganti gambar.</p>
+            <input
+              type="file"
+              name="images"
+              multiple
+              accept="image/*"
+              onChange={handleUpload}
+              className="w-full text-sm text-gray-500"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Biarkan kosong jika tidak ingin mengganti gambar. Anda dapat memilih banyak file.
+            </p>
           </div>
         </div>
 

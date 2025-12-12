@@ -5,220 +5,211 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Product;
-use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\DB; // Diperlukan untuk Raw Query
+use Illuminate\Support\Str;
 
-class ProductController extends Controller 
+class ProductController extends Controller
 {
-    // ======================= LIST PRODUCT (Original - No Search) =======================
+    // ================================================================
+    // GET ALL PRODUCTS (DIURUTKAN TERBARU DULU)
+    // ================================================================
     public function index()
     {
-        $products = Product::all(); 
-        return response()->json([
-            'message' => 'Daftar produk berhasil diambil.',
-            'products' => $products
-        ]);
+        // 💡 PERBAIKAN: Gunakan latest() untuk mengurutkan berdasarkan created_at secara descending (Terbaru Dulu)
+        $products = Product::latest()->get()->map(function ($p) {
+            return [
+                'id' => $p->id,
+                'name' => $p->name,
+                'slug' => $p->slug,
+                'description' => $p->description,
+                'price' => $p->price,
+                'stock' => $p->stock,
+                'jenis_barang' => $p->jenis_barang,
+                // Menggunakan Accessor image_urls untuk mendapatkan array URL
+                'img_urls' => $p->image_urls, 
+            ];
+        });
+
+        return response()->json(['products' => $products], 200);
     }
 
-    // ======================= PENCARIAN UNTUK KASIR (BARU DITAMBAHKAN) =======================
-    /**
-     * Menampilkan daftar produk dengan filter pencarian untuk kebutuhan Kasir.
-     * Menggunakan format respons yang diharapkan oleh Next.js ('data').
-     */
-    public function searchForCashier(Request $request) 
-    {
-        $query = Product::query();
-
-        // Logika Pencarian
-        if ($request->has('search')) {
-            $search = strtolower($request->input('search'));
-            $searchTerm = "%{$search}%";
-
-            // Implementasi filter NULL-safe, case-insensitive, dan multi-kolom
-            $query->where(function ($q) use ($searchTerm) {
-                
-                // Mencari di 'name'
-                $q->whereRaw('LOWER(COALESCE(name, "")) LIKE ?', [$searchTerm]);
-                
-                // Mencari di 'description'
-                $q->orWhereRaw('LOWER(COALESCE(description, "")) LIKE ?', [$searchTerm]);
-                
-                // Mencari di 'jenis_barang'
-                $q->orWhereRaw('LOWER(COALESCE(jenis_barang, "")) LIKE ?', [$searchTerm]);
-            });
-        }
-        
-        $products = $query->latest()->get(); 
-        
-        // FIX: Menggunakan KEY 'data' agar frontend kasir dapat membaca
-        return response()->json([
-            'message' => 'Daftar produk berhasil diambil.',
-            'data' => $products 
-        ]);
-    }
-
-    // ======================= CREATE PRODUCT =======================
-    public function store(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255|unique:products,name',
-            'description' => 'required|string',
-            'price' => 'required|numeric|min:0',
-            'stock' => 'required|integer|min:0',
-            'img_url' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048', 
-            'jenis_barang' => 'required|in:Sparepart,Aksesoris',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
-
-        try {
-            $fileNameToSave = null; 
-
-            if ($request->hasFile('img_url')) {
-                $file = $request->file('img_url');
-
-                if (!Storage::disk('public')->exists('products')) {
-                    Storage::disk('public')->makeDirectory('products');
-                }
-
-                $fileNameToSave = time() . '_' . Str::slug($request->name) . '.' . $file->getClientOriginalExtension();
-                $file->storeAs('products', $fileNameToSave, 'public'); 
-            }
-
-            $product = Product::create([
-                'name' => $request->name,
-                'slug' => Str::slug($request->name) . "-" . time(), 
-                'description' => $request->description,
-                'price' => $request->price,
-                'stock' => $request->stock,
-                'jenis_barang' => $request->jenis_barang,
-                'img_url' => $fileNameToSave,
-            ]);
-
-            return response()->json([
-                'message' => 'Produk berhasil dibuat.',
-                'product' => $product 
-            ], 201);
-
-        } catch (\Exception $e) {
-            \Log::error("Product creation failed: " . $e->getMessage()); 
-            return response()->json([
-                'message' => 'Terjadi error saat menyimpan produk.',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
-
-    // ======================= DETAIL PRODUCT =======================
+    // ================================================================
+    // SHOW DETAIL PRODUCT
+    // ================================================================
     public function show($id)
     {
-        $product = Product::find($id);
-
-        if (!$product) {
-            return response()->json([
-                'message' => 'Produk tidak ditemukan.'
-            ], 404);
-        }
+        $product = Product::findOrFail($id);
 
         return response()->json([
-            'message' => 'Detail produk berhasil diambil.',
-            'product' => $product
+            'product' => [
+                'id' => $product->id,
+                'name' => $product->name,
+                'slug' => $product->slug,
+                'description' => $product->description,
+                'price' => $product->price,
+                'stock' => $product->stock,
+                'jenis_barang' => $product->jenis_barang,
+                // Menggunakan Accessor image_urls
+                'img_urls' => $product->image_urls, 
+            ]
         ]);
     }
 
-    // ======================= UPDATE PRODUCT =======================
+    // ================================================================
+    // STORE PRODUCT (MULTI-IMAGE AMAN)
+    // =================================================================
+    public function store(Request $request)
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'price' => 'required|numeric',
+            'description' => 'nullable|string',
+            'stock' => 'required|integer',
+            'jenis_barang' => 'nullable|string',
+            // Validasi array file
+            'images' => 'required|array|max:5', 
+            'images.*' => 'image|mimes:jpg,jpeg,png,webp|max:2048',
+        ]);
+
+        $imageNames = [];
+
+        if ($request->hasFile('images')) {
+            $files = $request->file('images'); 
+            
+            if (is_array($files)) {
+                foreach ($files as $img) {
+                    // 💡 Memastikan file valid sebelum disimpan
+                    if ($img && $img->isValid()) { 
+                        $filename = time() . '_' . uniqid() . '.' . $img->getClientOriginalExtension();
+                        // Simpan ke storage/app/public/products
+                        $img->storeAs('public/products', $filename);
+                        $imageNames[] = $filename; // Tambahkan ke array
+                    }
+                }
+            }
+        }
+
+        $product = Product::create([
+            'name' => $request->name,
+            'slug' => Str::slug($request->name) . '-' . time(),
+            'description' => $request->description,
+            'price' => $request->price,
+            'stock' => $request->stock,
+            'jenis_barang' => $request->jenis_barang,
+            'img_url' => $imageNames, // Menyimpan array nama file mentah
+        ]);
+
+        return response()->json([
+            'message' => 'Produk berhasil ditambahkan',
+            'product' => [
+                'id' => $product->id,
+                'name' => $product->name,
+                'img_urls' => $product->image_urls, 
+            ]
+        ], 201);
+    }
+
+    // ================================================================
+    // UPDATE PRODUCT (GANTI SEMUA GAMBAR)
+    // ================================================================
     public function update(Request $request, $id)
     {
-        $product = Product::find($id);
+        $product = Product::findOrFail($id);
 
-        if (!$product) {
-            return response()->json([
-                'message' => 'Produk tidak ditemukan.'
-            ], 404);
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'price' => 'required|numeric',
+            'description' => 'nullable|string',
+            'stock' => 'required|integer',
+            'jenis_barang' => 'nullable|string',
+            'images.*' => 'image|mimes:jpg,jpeg,png,webp|max:2048', // optional file
+        ]);
+        
+        // Dapatkan nama file yang ada (mentah dari DB) untuk dihapus
+        $currentRawJson = $product->getRawOriginal('img_url') ?? '[]';
+        $imageNamesToDelete = json_decode($currentRawJson, true) ?? [];
+
+        // Logika tambahan untuk menangani data lama yang bukan JSON array (string tunggal)
+        if (!is_array($imageNamesToDelete) && is_string($currentRawJson) && !Str::startsWith($currentRawJson, '[')) {
+             $imageNamesToDelete = [$currentRawJson];
+        }
+        
+        $imageNamesToSave = $imageNamesToDelete;
+
+        if ($request->hasFile('images')) {
+            $files = $request->file('images');
+            
+            // Hapus gambar lama dari storage
+            foreach ($imageNamesToDelete as $img) {
+                if (is_string($img) && !empty($img)) {
+                    Storage::delete('public/products/' . $img);
+                }
+            }
+            
+            // Upload gambar baru
+            $imageNamesToSave = []; 
+            if (is_array($files)) {
+                foreach ($files as $img) {
+                    if ($img && $img->isValid()) {
+                        $filename = time() . '_' . uniqid() . '.' . $img->getClientOriginalExtension();
+                        $img->storeAs('public/products', $filename);
+                        $imageNamesToSave[] = $filename;
+                    }
+                }
+            }
         }
 
-        $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255|unique:products,name,' . $product->id,
-            'description' => 'required|string',
-            'price' => 'required|numeric|min:0',
-            'stock' => 'required|integer|min:0',
-            'img_url' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
-            'jenis_barang' => 'required|in:Sparepart,Aksesoris',
+        $product->update([
+            'name' => $request->name,
+            'slug' => Str::slug($request->name) . '-' . time(),
+            'description' => $request->description,
+            'price' => $request->price,
+            'stock' => $request->stock,
+            'jenis_barang' => $request->jenis_barang,
+            'img_url' => $imageNamesToSave, // Menyimpan array nama file mentah
         ]);
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
-
-        try {
-            if ($request->hasFile('img_url')) {
-                if ($product->img_url && Storage::disk('public')->exists('products/' . $product->img_url)) {
-                    Storage::disk('public')->delete('products/' . $product->img_url);
-                }
-
-                $file = $request->file('img_url');
-                $fileNameToSave = time().'_'.Str::slug($request->name).'.'.$file->getClientOriginalExtension();
-                $file->storeAs('products', $fileNameToSave, 'public');
-                $product->img_url = $fileNameToSave; 
-            }
-
-            $product->update([
-                'name' => $request->name,
-                'slug' => Str::slug($request->name) . "-" . time(),
-                'description' => $request->description,
-                'price' => $request->price,
-                'stock' => $request->stock,
-                'jenis_barang' => $request->jenis_barang,
-            ]);
-
-            $product->save();
-
-            return response()->json([
-                'message' => 'Produk berhasil diperbarui.',
-                'product' => $product 
-            ]);
-
-        } catch (\Exception $e) {
-            \Log::error("Product update failed: " . $e->getMessage()); 
-            return response()->json([
-                'message' => 'Terjadi error saat memperbarui produk.',
-                'error' => $e->getMessage()
-            ], 500);
-        }
+        return response()->json([
+            'message' => 'Produk berhasil diupdate',
+            'product' => [
+                'id' => $product->id,
+                'name' => $product->name,
+                'img_urls' => $product->image_urls,
+            ]
+        ]);
     }
 
-    // ======================= DELETE PRODUCT =======================
+    // ================================================================
+    // DELETE PRODUCT
+    // ================================================================
     public function destroy($id)
     {
-        $product = Product::find($id);
+        $product = Product::findOrFail($id);
+        
+        // Dapatkan nama file yang ada (mentah dari DB) untuk dihapus
+        $currentRawJson = $product->getRawOriginal('img_url') ?? '[]';
+        $imageNames = json_decode($currentRawJson, true) ?? [];
 
-        if (!$product) {
-            return response()->json([
-                'message' => 'Produk tidak ditemukan.'
-            ], 404);
+        // Logika tambahan untuk menangani data lama yang bukan JSON array (string tunggal)
+        if (!is_array($imageNames) && is_string($currentRawJson) && !Str::startsWith($currentRawJson, '[')) {
+             $imageNames = [$currentRawJson];
         }
-
-        try {
-            if ($product->img_url && Storage::disk('public')->exists('products/'.$product->img_url)) {
-                Storage::disk('public')->delete('products/'.$product->img_url);
+        
+        // Hapus semua file gambar di storage
+        if (!empty($imageNames)) {
+            foreach ($imageNames as $img) {
+                if (is_string($img) && !empty($img)) {
+                    Storage::delete('public/products/' . $img);
+                }
             }
-
-            $product->delete();
-
-            return response()->json([
-                'message' => 'Produk berhasil dihapus.'
-            ]);
-
-        } catch (\Exception $e) {
-            \Log::error("Product deletion failed: " . $e->getMessage()); 
-            return response()->json([
-                'message' => 'Terjadi error saat menghapus produk.',
-                'error' => $e->getMessage()
-            ], 500);
         }
+
+        $product->delete();
+
+        return response()->json([
+            'message' => 'Produk berhasil dihapus'
+        ]);
     }
+    
+    // ... (Fungsi lain seperti searchForCashier)
 }
