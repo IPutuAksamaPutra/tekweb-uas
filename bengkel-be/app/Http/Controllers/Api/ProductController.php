@@ -7,69 +7,33 @@ use Illuminate\Http\Request;
 use App\Models\Product;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Illuminate\Support\Facades\File; // <-- tambahan untuk file ops
+use Illuminate\Support\Facades\File;
 
 class ProductController extends Controller
 {
     // ================================================================
-    // GET ALL PRODUCTS (DIURUTKAN TERBARU DULU)
+    // GET ALL PRODUCTS
     // ================================================================
-   public function index()
-{
-    // gunakan APP_URL jika di-set, fallback ke url('/') yang di-generate Laravel
-  $base = "http://localhost:8000"; // FORCE biar sesuai server kamu
+    public function index()
+    {
+        // Tetapkan base URL lokal
+        $base = "http://localhost:8000"; 
 
+        $products = Product::latest()->get()->map(function ($p) {
+             return [
+                 'id' => $p->id,
+                 'name' => $p->name,
+                 'slug' => $p->slug,
+                 'description' => $p->description,
+                 'price' => $p->price,
+                 'stock' => $p->stock,
+                 'jenis_barang' => $p->jenis_barang,
+                 'img_urls' => $p->image_urls, 
+             ];
+         });
 
-    $products = Product::latest()->get()->map(function ($p) use ($base) {
-        // ambil nilai asli dari kolom img_url (bisa berupa JSON array atau string)
-        $raw = $p->getRawOriginal('img_url') ?? '[]';
-        $names = json_decode($raw, true) ?? [];
-
-        // jika stored as single string (legacy), ubah jadi array
-        if (!is_array($names) && is_string($raw) && !\Illuminate\Support\Str::startsWith($raw, '[')) {
-            $names = [$raw];
-        }
-
-        // bangun URL penuh untuk tiap nama file
-        $urls = array_map(function ($name) use ($base) {
-            if (empty($name)) return null;
-
-            // jika sudah URL absolut, kembalikan apa adanya
-            if (strpos($name, 'http://') === 0 || strpos($name, 'https://') === 0) {
-                return $name;
-            }
-
-            $clean = ltrim($name, '/');
-
-            // jika sudah mengandung folder images/ atau storage/, gunakan apa adanya relatif ke base
-            if (strpos($clean, 'images/') === 0) {
-                return $base . '/' . $clean;
-            }
-            if (strpos($clean, 'storage/') === 0) {
-                return $base . '/' . $clean;
-            }
-
-            // default: anggap nama file berada di public/images
-            return $base . '/images/' . $clean;
-        }, $names);
-
-        // filter hasil kosong/null
-        $urls = array_values(array_filter($urls));
-
-        return [
-            'id' => $p->id,
-            'name' => $p->name,
-            'slug' => $p->slug,
-            'description' => $p->description,
-            'price' => $p->price,
-            'stock' => $p->stock,
-            'jenis_barang' => $p->jenis_barang,
-            'img_urls' => $urls,
-        ];
-    });
-
-    return response()->json(['products' => $products], 200);
-}
+        return response()->json(['products' => $products], 200);
+    }
 
     // ================================================================
     // SHOW DETAIL PRODUCT
@@ -87,14 +51,13 @@ class ProductController extends Controller
                 'price' => $product->price,
                 'stock' => $product->stock,
                 'jenis_barang' => $product->jenis_barang,
-                // Menggunakan Accessor image_urls
                 'img_urls' => $product->image_urls, 
             ]
         ]);
     }
 
     // ================================================================
-    // STORE PRODUCT (MULTI-IMAGE AMAN)
+    // STORE PRODUCT (DIPERBAIKI UNTUK MULTI-IMAGE)
     // =================================================================
     public function store(Request $request)
     {
@@ -104,33 +67,33 @@ class ProductController extends Controller
             'description' => 'nullable|string',
             'stock' => 'required|integer',
             'jenis_barang' => 'nullable|string',
-            // Validasi array file
-            'images' => 'required|array|max:5', 
+            'images' => 'required|array|min:1|max:5', 
             'images.*' => 'image|mimes:jpg,jpeg,png,webp|max:2048',
         ]);
 
         $imageNames = [];
+        
+        $files = $request->file('images'); 
 
-        if ($request->hasFile('images')) {
-            $files = $request->file('images'); 
-            
-            if (is_array($files)) {
-                // pastikan folder public/images ada
-                $publicImagesPath = public_path('images');
-                if (!is_dir($publicImagesPath)) {
-                    mkdir($publicImagesPath, 0755, true);
-                }
+        if (is_array($files)) {
+            $publicImagesPath = public_path('images');
+            if (!is_dir($publicImagesPath)) {
+                mkdir($publicImagesPath, 0755, true);
+            }
 
-                foreach ($files as $img) {
-                    // 💡 Memastikan file valid sebelum disimpan
-                    if ($img && $img->isValid()) { 
-                        $filename = time() . '_' . uniqid() . '.' . $img->getClientOriginalExtension();
-                        // Pindahkan ke public/images (bukan storage)
-                        $img->move($publicImagesPath, $filename);
-                        $imageNames[] = $filename; // Tambahkan ke array
-                    }
+            foreach ($files as $img) {
+                if ($img && $img->isValid()) { 
+                    // 🔥 PERUBAHAN: Menggunakan Str::random(10) untuk keunikan yang lebih baik
+                    $filename = time() . '_' . Str::random(10) . '.' . $img->getClientOriginalExtension();
+                    
+                    $img->move($publicImagesPath, $filename);
+                    $imageNames[] = $filename;
                 }
             }
+        }
+        
+        if (empty($imageNames)) {
+            return response()->json(['message' => 'Gagal menyimpan gambar. Pastikan format gambar benar.'], 422);
         }
 
         $product = Product::create([
@@ -140,7 +103,7 @@ class ProductController extends Controller
             'price' => $request->price,
             'stock' => $request->stock,
             'jenis_barang' => $request->jenis_barang,
-            'img_url' => $imageNames, // Menyimpan array nama file mentah
+            'img_url' => $imageNames,
         ]);
 
         return response()->json([
@@ -154,7 +117,7 @@ class ProductController extends Controller
     }
 
     // ================================================================
-    // UPDATE PRODUCT (GANTI SEMUA GAMBAR)
+    // UPDATE PRODUCT (DIPERBAIKI UNTUK MULTI-IMAGE)
     // ================================================================
     public function update(Request $request, $id)
     {
@@ -166,24 +129,24 @@ class ProductController extends Controller
             'description' => 'nullable|string',
             'stock' => 'required|integer',
             'jenis_barang' => 'nullable|string',
-            'images.*' => 'image|mimes:jpg,jpeg,png,webp|max:2048', // optional file
+            'images' => 'nullable|array|max:5', 
+            'images.*' => 'image|mimes:jpg,jpeg,png,webp|max:2048', 
         ]);
         
-        // Dapatkan nama file yang ada (mentah dari DB) untuk dihapus
         $currentRawJson = $product->getRawOriginal('img_url') ?? '[]';
         $imageNamesToDelete = json_decode($currentRawJson, true) ?? [];
 
-        // Logika tambahan untuk menangani data lama yang bukan JSON array (string tunggal)
         if (!is_array($imageNamesToDelete) && is_string($currentRawJson) && !Str::startsWith($currentRawJson, '[')) {
              $imageNamesToDelete = [$currentRawJson];
         }
         
         $imageNamesToSave = $imageNamesToDelete;
 
-        if ($request->hasFile('images')) {
-            $files = $request->file('images');
+        $files = $request->file('images');
+
+        if ($request->hasFile('images') && is_array($files)) {
             
-            // Hapus gambar lama dari public/images
+            // 1. Hapus gambar lama
             $publicImagesPath = public_path('images');
             foreach ($imageNamesToDelete as $img) {
                 if (is_string($img) && !empty($img)) {
@@ -194,20 +157,18 @@ class ProductController extends Controller
                 }
             }
             
-            // Upload gambar baru
+            // 2. Upload gambar baru
             $imageNamesToSave = []; 
-            if (is_array($files)) {
-                // pastikan folder public/images ada
-                if (!is_dir($publicImagesPath)) {
-                    mkdir($publicImagesPath, 0755, true);
-                }
+            if (!is_dir($publicImagesPath)) {
+                mkdir($publicImagesPath, 0755, true);
+            }
 
-                foreach ($files as $img) {
-                    if ($img && $img->isValid()) {
-                        $filename = time() . '_' . uniqid() . '.' . $img->getClientOriginalExtension();
-                        $img->move($publicImagesPath, $filename);
-                        $imageNamesToSave[] = $filename;
-                    }
+            foreach ($files as $img) {
+                if ($img && $img->isValid()) {
+                    // 🔥 PERUBAHAN: Menggunakan Str::random(10) untuk keunikan yang lebih baik
+                    $filename = time() . '_' . Str::random(10) . '.' . $img->getClientOriginalExtension();
+                    $img->move($publicImagesPath, $filename);
+                    $imageNamesToSave[] = $filename;
                 }
             }
         }
@@ -219,7 +180,7 @@ class ProductController extends Controller
             'price' => $request->price,
             'stock' => $request->stock,
             'jenis_barang' => $request->jenis_barang,
-            'img_url' => $imageNamesToSave, // Menyimpan array nama file mentah
+            'img_url' => $imageNamesToSave,
         ]);
 
         return response()->json([
@@ -233,22 +194,19 @@ class ProductController extends Controller
     }
 
     // ================================================================
-    // DELETE PRODUCT
+    // DELETE PRODUCT (TETAP SAMA, KARENA LOGIKA ANDA SUDAH BENAR)
     // ================================================================
     public function destroy($id)
     {
         $product = Product::findOrFail($id);
         
-        // Dapatkan nama file yang ada (mentah dari DB) untuk dihapus
         $currentRawJson = $product->getRawOriginal('img_url') ?? '[]';
         $imageNames = json_decode($currentRawJson, true) ?? [];
 
-        // Logika tambahan untuk menangani data lama yang bukan JSON array (string tunggal)
         if (!is_array($imageNames) && is_string($currentRawJson) && !Str::startsWith($currentRawJson, '[')) {
              $imageNames = [$currentRawJson];
         }
         
-        // Hapus semua file gambar di public/images
         if (!empty($imageNames)) {
             $publicImagesPath = public_path('images');
             foreach ($imageNames as $img) {
