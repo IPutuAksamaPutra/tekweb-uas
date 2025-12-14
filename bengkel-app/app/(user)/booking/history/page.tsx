@@ -144,7 +144,7 @@ export default function RiwayatBooking() {
             </div>
 
             {/* Detail */}
-            <div className="grid sm:grid-cols-2 gap-6">
+            <div className="grid sm:grid-cols-2 gap-6 text-gray-700 ">
               <Detail icon={<Car/>} title="Jenis Kendaraan" value={item.jenis_kendaraan}/>
               <Detail icon={<Tag/>} title="Jenis Servis" value={item.jenis_service}/>
               <Detail icon={<Calendar/>} title="Tanggal" value={formatDate(item.booking_date)}/>
