@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Search, Eye, Loader2, AlertTriangle, ChevronDown, FileText, Printer } from "lucide-react"; 
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
+import { alertSuccess, alertError, alertLoginRequired, alertConfirmDelete, alertValidation, alertValidate } from "@/components/Alert";
 
 // URL API Laravel Anda
 const API_URL = "http://localhost:8000/api"; 

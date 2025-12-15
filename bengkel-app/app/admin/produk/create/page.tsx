@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { alertSuccess, alertError, alertLoginRequired, alertConfirmDelete, alertValidation } from "@/components/Alert";
 
 const productTypes = ["Sparepart", "Aksesoris"];
 
@@ -43,7 +44,7 @@ export default function CreateProductPage() {
         const finalFiles = combinedFiles.slice(0, 5);
 
         if (combinedFiles.length > 5) {
-             alert(`Maksimal upload 5 gambar! Hanya 5 gambar pertama yang diambil.`);
+             alertError(`Maksimal upload 5 gambar! Hanya 5 gambar pertama yang diambil.`);
         }
         
         setImageFiles(finalFiles);
@@ -57,14 +58,14 @@ export default function CreateProductPage() {
         setLoading(true);
 
         if (imageFiles.length === 0) {
-            alert("Gambar wajib diupload!");
+            alertError("Gambar wajib diupload!");
             setLoading(false);
             return;
         }
 
         const token = getCookie("token");
         if (!token) { 
-            alert("Token tidak ditemukan"); 
+            alertError("Token tidak ditemukan"); 
             router.push("/auth/login"); 
             setLoading(false); 
             return; 
@@ -102,11 +103,11 @@ export default function CreateProductPage() {
                 return;
             }
 
-            alert("Produk berhasil ditambahkan!");
+            alertSuccess("Produk berhasil ditambahkan!");
             router.push("/admin/produk");
         } catch (err) {
             console.error(err);
-            alert("Gagal terhubung ke server");
+            alertError("Gagal terhubung ke server");
         } finally {
             setLoading(false);
         }

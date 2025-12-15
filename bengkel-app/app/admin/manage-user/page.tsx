@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Plus, X, Edit, Trash, Loader2 } from "lucide-react";
+import { alertSuccess, alertError, alertLoginRequired } from "@/components/Alert";
 
 function getCookie(name: string): string | null {
   if (typeof document === "undefined") return null;
@@ -49,7 +50,7 @@ export default function ManageUserPage() {
     try {
       const token = getCookie("token");
       if (!token) {
-        setError("Token tidak ditemukan di cookie.");
+        alertError("Token tidak ditemukan di cookie.");
         setLoading(false);
         return;
       }
@@ -70,7 +71,7 @@ export default function ManageUserPage() {
       setUsers(data.users || []);
     } catch (err: any) {
       console.error(err);
-      setError(err.message || "Gagal memuat data.");
+      alertError(err.message || "Gagal memuat data.");
     } finally {
       setLoading(false);
     }
@@ -126,21 +127,21 @@ export default function ManageUserPage() {
     e.preventDefault();
     const token = getCookie("token");
     if (!token) {
-      alert("Token tidak ditemukan. Silakan login ulang.");
+      alertError("Token tidak ditemukan. Silakan login ulang.");
       return;
     }
 
     // basic validation: passwords match when creating or when user changed it on edit
     if (!isEditing) {
       if (!form.password || form.password !== form.password_confirmation) {
-        alert("Password kosong atau konfirmasi password tidak cocok.");
+        alertError("Password kosong atau konfirmasi password tidak cocok.");
         return;
       }
     } else {
       // editing: if password fields filled, require match
       if (form.password || form.password_confirmation) {
         if (form.password !== form.password_confirmation) {
-          alert("Password dan konfirmasi tidak cocok.");
+          alertError("Password dan konfirmasi tidak cocok.");
           return;
         }
       }
@@ -163,7 +164,7 @@ export default function ManageUserPage() {
         // update: PUT /api/staff/{id}
         // NOTE: backend must implement this route. If not present, return error.
         if (!editingUser) {
-          alert("Tidak ada user yang diedit.");
+          alertError("Tidak ada user yang diedit.");
           return;
         }
         const payload: any = {
@@ -190,16 +191,16 @@ export default function ManageUserPage() {
       if (!res.ok) {
         // show server message if available
         const msg = data?.message || JSON.stringify(data) || `HTTP ${res.status}`;
-        alert("Gagal: " + msg);
+        alertError("Gagal: " + msg);
         return;
       }
 
-      alert(isEditing ? "User berhasil diperbarui." : "User berhasil dibuat.");
+      alertSuccess(isEditing ? "User berhasil diperbarui." : "User berhasil dibuat.");
       closeModal();
       loadUsers();
     } catch (err: any) {
       console.error(err);
-      alert("Terjadi kesalahan saat menyimpan user.");
+      alertError("Terjadi kesalahan saat menyimpan user.");
     }
   };
 
@@ -220,7 +221,7 @@ export default function ManageUserPage() {
     if (!toDelete) return;
     const token = getCookie("token");
     if (!token) {
-      alert("Token tidak ditemukan.");
+      alertError("Token tidak ditemukan.");
       return;
     }
     try {
@@ -233,15 +234,15 @@ export default function ManageUserPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        alert(data?.message || `Gagal hapus (HTTP ${res.status})`);
+        alertError(data?.message || `Gagal hapus (HTTP ${res.status})`);
         return;
       }
-      alert("User berhasil dihapus.");
+      alertSuccess("User berhasil dihapus.");
       cancelDelete();
       loadUsers();
     } catch (err) {
       console.error(err);
-      alert("Terjadi kesalahan saat menghapus.");
+      alertError("Terjadi kesalahan saat menghapus.");
     }
   };
 

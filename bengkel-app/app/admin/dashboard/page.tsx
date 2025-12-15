@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { Package, CalendarCheck, Users, DollarSign, ArrowRight, Loader2, AlertTriangle } from "lucide-react";
 import Link from "next/link";
+import { alertSuccess, alertError, alertLoginRequired } from "@/components/Alert";
 
 // --- Utility: Ambil token dari cookie ---
 function getCookie(name: string): string | null {
@@ -62,7 +63,7 @@ export default function AdminDashboardPage() {
   // ================= FETCH DATA & AGGREGASI PARALLEL =================
   async function loadDashboard() {
     if (!token) {
-      setError("Token otorisasi tidak ditemukan. Silakan login ulang.");
+      alertError("Token otorisasi tidak ditemukan. Silakan login ulang.");
       setLoading(false);
       return;
     }
@@ -161,7 +162,7 @@ export default function AdminDashboardPage() {
 
     } catch (err: any) {
       console.error("Dashboard load error:", err);
-      setError("Gagal memuat data dashboard. Pastikan API server berjalan.");
+      alertError("Gagal memuat data dashboard. Pastikan API server berjalan.");
     } finally {
       setLoading(false);
     }

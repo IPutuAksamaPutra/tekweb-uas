@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
+import { alertSuccess, alertError, alertLoginRequired, alertConfirmDelete } from "@/components/Alert";
 
 export default function EditProductPage() {
   const router = useRouter();
@@ -32,7 +33,7 @@ export default function EditProductPage() {
       setDesc(data.description);
       setImage(data.image_url);
     } catch (err) {
-      alert("Gagal memuat data produk");
+      alertError("Gagal memuat data produk");
     } finally {
       setLoading(false);
     }
@@ -61,10 +62,10 @@ export default function EditProductPage() {
         }
       );
 
-      alert("Produk berhasil diperbarui!");
+      alertSuccess("Produk berhasil diperbarui!");
       router.push("/admin/products");
     } catch (err) {
-      alert("Gagal menyimpan perubahan");
+      alertError("Gagal menyimpan perubahan");
     } finally {
       setSaving(false);
     }

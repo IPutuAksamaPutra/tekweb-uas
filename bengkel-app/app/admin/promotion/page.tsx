@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Plus, Trash2, Edit } from "lucide-react";
+import { alertSuccess, alertError, alertLoginRequired, alertConfirmDelete, alertValidation, alertValidate } from "@/components/Alert";
 
 interface Promotion {
   id: number;
@@ -42,8 +43,8 @@ export default function PromotionPage() {
     const token = document.cookie.match(/token=([^;]+)/)?.[1];
 
     if (!token) return alert("Login admin dulu!");
-
-    if (!confirm("Yakin hapus promo?")) return;
+  const validate = await alertValidate("Yakin hapus promo?");
+  if (!validate.isConfirmed) return;
 
     const res = await fetch(`http://localhost:8000/api/promotions/${id}`, {
       method: "DELETE",
@@ -51,10 +52,10 @@ export default function PromotionPage() {
     });
 
     if (res.ok) {
-      alert("Promo berhasil dihapus");
+      alertSuccess("Promo berhasil dihapus");
       getPromo();
     } else {
-      alert("Tidak punya akses hapus!");
+      alertError("Tidak punya akses hapus!");
     }
   };
 
@@ -115,7 +116,7 @@ export default function PromotionPage() {
 
                 <div className="flex flex-col gap-2 justify-center">
                   <a
-                    href={`/admin/promotion/edit/${p.id}`}
+                    href={`/admin/promotion/${p.id}/edit`}
                     className="px-3 py-1 border rounded-lg text-blue-700 hover:bg-blue-50 flex items-center gap-1"
                   >
                     <Edit size={16} /> Edit

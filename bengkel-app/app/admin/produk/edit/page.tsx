@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
+import { alertSuccess, alertError, alertLoginRequired, alertConfirmDelete, alertValidation } from "@/components/Alert";
 
 const DEFAULT_IMAGE_URL = "/no-image.png";
 const BACKEND_BASE = "http://localhost:8000";
@@ -76,7 +77,7 @@ export default function EditProductPage() {
 
         const token = getCookie("token");
         if (!token) {
-            alert("Sesi berakhir. Silakan login ulang.");
+            alertError("Sesi berakhir. Silakan login ulang.");
             router.push("/auth/login");
             return;
         }
@@ -91,7 +92,7 @@ export default function EditProductPage() {
                 );
 
                 if (!res.ok) {
-                    alert(`Gagal memuat produk. Status: ${res.status}`);
+                    alertError(`Gagal memuat produk. Status: ${res.status}`);
                     router.push("/admin/produk");
                     return;
                 }
@@ -105,7 +106,7 @@ export default function EditProductPage() {
                 
             } catch (err) {
                 console.error(err);
-                alert("Tidak dapat terhubung ke server.");
+                alertError("Tidak dapat terhubung ke server.");
             } finally {
                 setLoading(false);
             }
@@ -162,7 +163,7 @@ export default function EditProductPage() {
         const finalFiles = combinedFiles.slice(0, 5); // Batasi maks 5
 
         if (combinedFiles.length > 5) {
-            alert(`Maksimal 5 gambar yang diperbolehkan. Hanya 5 gambar pertama yang diambil.`);
+            alertError(`Maksimal 5 gambar yang diperbolehkan. Hanya 5 gambar pertama yang diambil.`);
         }
 
         setSelectedImageFiles(finalFiles);
@@ -179,7 +180,7 @@ export default function EditProductPage() {
 
         const token = getCookie("token");
         if (!token) {
-            alert("Sesi berakhir. Silakan login ulang.");
+            alertError("Sesi berakhir. Silakan login ulang.");
             router.push("/auth/login");
             setIsUpdating(false);
             return;
@@ -232,11 +233,11 @@ export default function EditProductPage() {
                 return;
             }
 
-            alert("Produk berhasil diperbarui!");
+            alertSuccess("Produk berhasil diperbarui!");
             router.push("/admin/produk");
         } catch (err) {
             console.error(err);
-            alert("Tidak dapat terhubung ke server.");
+            alertError("Tidak dapat terhubung ke server.");
         } finally {
             setIsUpdating(false);
             // Cleanup URL objek di finally block

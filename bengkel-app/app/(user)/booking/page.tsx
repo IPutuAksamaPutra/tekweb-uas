@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { alertSuccess, alertError, alertLoginRequired } from "@/components/Alert";
 
 interface User {
   id?: number;
@@ -36,7 +37,7 @@ export default function BookingPage() {
   async function handleBooking(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
-    if (!user?.token) return alert("Token tidak ditemukan. Silakan login ulang.");
+    if (!user?.token) return alertError("Terjadi kesalahan. Silakan login ulang.");
 
     setLoading(true);
 
@@ -66,20 +67,20 @@ export default function BookingPage() {
 
       const data = await res.json().catch(() => null);
 
-      if (res.status === 401) return alert("Session habis, login ulang.");
+      if (res.status === 401) return alertError("Session habis, login ulang.");
 
       if (!res.ok) {
         console.log("Respons Laravel:", data);
-        alert(data?.message || "Booking gagal. Periksa data!");
+        alertError(data?.message || "Booking gagal. Periksa data!");
         return;
       }
 
-      alert("Booking berhasil! Admin akan menghubungi Anda.");
+       alertSuccess("Booking berhasil! Admin akan menghubungi Anda.");
       formRef.current?.reset(); // 🔥 tidak error lagi
 
     } catch (err) {
       console.error("Booking error:", err);
-      alert("Terjadi kesalahan server.");
+      alertError("Terjadi kesalahan server.");
     } finally {
       setLoading(false);
     }

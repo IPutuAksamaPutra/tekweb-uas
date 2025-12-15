@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { alertSuccess, alertError, alertLoginRequired } from "@/components/Alert";
 
 // --- Ambil token dari cookies ---
 function getCookie(name: string): string | null {
@@ -84,7 +85,7 @@ export default function AdminBookingPage() {
 
         setBookings(cleaned);
       } catch (err: any) {
-        setError(err.message || "Terjadi kesalahan.");
+        alertError(err.message || "Terjadi kesalahan.");
       } finally {
         setLoading(false);
       }
@@ -98,7 +99,7 @@ export default function AdminBookingPage() {
     const allowed = ["Pending", "Confirmed"];
 
     if (!allowed.includes(newStatus)) {
-      alert("Status tidak valid! Hanya boleh Pending atau Confirmed.");
+      alertError("Status tidak valid! Hanya boleh Pending atau Confirmed.");
       return;
     }
 
@@ -130,11 +131,11 @@ export default function AdminBookingPage() {
 
       if (!res.ok) {
         console.error("Laravel error:", data);
-        alert(`Gagal update status! HTTP ${res.status}`);
+        alertError(`Gagal update status! HTTP ${res.status}`);
         setBookings(previous);
       }
     } catch (err) {
-      alert("Terjadi kesalahan saat update status.");
+      alertError("Terjadi kesalahan saat update status.");
     }
   }
 

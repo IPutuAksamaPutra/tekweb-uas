@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { MapPin, Phone, User, Send, ShoppingBag } from "lucide-react";
+import { alertSuccess, alertError, alertLoginRequired } from "@/components/Alert";
 
 // ======================= CART ITEM TYPE =======================
 interface CartItem {
@@ -56,10 +57,10 @@ export default function CheckoutPage() {
     // ======================= HANDLE CHECKOUT =======================
     const handleCheckout = async () => {
         if (!recipientName || !phone || !address)
-            return alert("Lengkapi data penerima dulu!");
+            return alertError("Lengkapi data penerima dulu!");
 
         if (paymentMethod === "transfer" && bank === "")
-            return alert("Pilih bank untuk pembayaran transfer!");
+            return alertError("Pilih bank untuk pembayaran transfer!");
 
         const token = getCookie("token");
         if (!token) return alert("Login dulu!");
@@ -95,7 +96,7 @@ export default function CheckoutPage() {
             return alert("Checkout gagal, cek console!");
         }
 
-        alert("Pesanan berhasil dibuat!");
+        alertSuccess("Pesanan berhasil dibuat!");
         window.location.href = "/marketplace/pesanan";
     };
 

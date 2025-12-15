@@ -67,6 +67,7 @@ Route::middleware(['auth:sanctum', 'role:admin,super_admin,kasir'])->group(funct
     Route::middleware('role:admin,super_admin')->group(function () {
         Route::apiResource('categories', CategoryController::class);
         // Promotions CRUD (create/update/delete) tetap di-admin
+        Route::get('promotions/{id}', [PromotionController::class, 'show']);
         Route::apiResource('promotions', PromotionController::class)->except(['index','show']);
         Route::delete('reviews/{review}', [ReviewController::class, 'destroy']);
     });

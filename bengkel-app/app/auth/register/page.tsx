@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Mail, Lock, User, UserPlus, Eye, EyeOff } from "lucide-react"; // 👁 added icon
+import { alertSuccess, alertError, alertLoginRequired } from "@/components/Alert";
 
 export default function RegisterPage() {
   const [fullName, setFullName] = useState("");
@@ -41,7 +42,7 @@ export default function RegisterPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        setErrorMsg(data.message || "Registrasi gagal!");
+        alertError(data.message || "Registrasi gagal!");
         setLoading(false);
         return;
       }
@@ -49,10 +50,10 @@ export default function RegisterPage() {
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
 
-      alert("Registrasi Berhasil!");
+      alertSuccess("Registrasi Berhasil!");
       window.location.href = "/auth/login";
     } catch {
-      setErrorMsg("Gagal terhubung ke server!");
+      alertError("Gagal terhubung ke server!");
     } finally {
       setLoading(false);
     }

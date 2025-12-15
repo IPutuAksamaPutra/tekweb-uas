@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { User, Mail, Pencil, LogOut, Save, XCircle, ShieldCheck } from "lucide-react";
+import { alertSuccess, alertError, alertLoginRequired } from "@/components/Alert";
 
 interface UserData {
     id?: number;
@@ -48,7 +49,7 @@ export default function ProfilePage() {
 
     const handleSave = () => {
         setUser(formData);
-        alert("Profil disimpan lokal (tidak update DB)");
+        alertSuccess("Profil disimpan lokal (tidak update DB)");
         setEditing(false);
     };
 
@@ -57,7 +58,7 @@ export default function ProfilePage() {
         document.cookie="user=; path=/; max-age=0";
         setUser({ name:"Guest User", email:"No Login Detected"});
         setEditing(false);
-        alert("Logout berhasil!");
+        alertSuccess("Logout berhasil!");
     };
 
     if (loading) return <p className="text-center py-20 text-lg">Memuat profil...</p>;

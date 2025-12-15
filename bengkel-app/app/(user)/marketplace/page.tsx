@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import ProductCard from "@/components/user/ProductCard";
 import ProductCardPromo from "@/components/user/ProductCardPromo";
 import { ShoppingCart } from "lucide-react";
+import { alertSuccess, alertError, alertLoginRequired } from "@/components/Alert";
+
 
 interface Product {
     id: number;
@@ -112,8 +114,11 @@ export default function MarketplacePage() {
     const handleAddToCart = async (prod: Product) => {
         const token = document.cookie.match(/token=([^;]+)/)?.[1];
         if (!token) {
-            alert("Silahkan login dulu");
-            return;
+           alertLoginRequired().then((result) => {
+        if (result.isConfirmed) {
+            router.push("/auth/login");
+        }
+    });
         }
 
         try {
@@ -132,13 +137,12 @@ export default function MarketplacePage() {
 
             if (res.ok) {
                 updateCartCount();
-                alert(prod.is_promo ? "Produk promo berhasil ditambahkan!" : "Produk berhasil ditambahkan ke keranjang!");
-            } else {
-                 alert("Gagal menambahkan produk ke keranjang. Mungkin stok habis atau masalah server.");
+                 alertSuccess(prod.is_promo ? "Produk promo berhasil ditambahkan!" : "Produk berhasil ditambahkan ke keranjang!");
+            } else {  
             }
         } catch (error) {
             console.error("Error saat menambahkan ke keranjang:", error);
-            alert("Terjadi kesalahan jaringan.");
+            alertError("Terjadi kesalahan jaringan.");
         }
     };
     
@@ -245,7 +249,7 @@ export default function MarketplacePage() {
                             // FIX GARIS MERAH dengan Type Assertion
                             img_url: ((p.img_urls && p.img_urls.length > 0) 
                                 ? p.img_urls[0] 
-                                : null) as (string | null),
+                                : null) as (string),
                         }}
                         onAdd={() => handleAddToCart(p)}
                         onClick={() => handleDetailClick(p)}

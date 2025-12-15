@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { alertSuccess, alertError, alertLoginRequired } from "@/components/Alert";
 
 // --- MOCK IKON LUCID ---
 const EyeIcon = (props: any) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>;
@@ -26,7 +27,7 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.message || "Gagal login. Periksa email dan password.");
+        alertError(data.message || "Gagal login. Periksa email dan password.");
         return;
       }
 
@@ -54,7 +55,7 @@ export default function LoginPage() {
       }, 50);
 
     } catch (err) {
-      setError("Terjadi kesalahan jaringan. Pastikan Laravel berjalan.");
+      alertError("Terjadi kesalahan jaringan. Pastikan Laravel berjalan.");
       console.error("Login Error:", err);
     }
   };

@@ -6,6 +6,7 @@ import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 // Impor ikon dari Lucide React
 import { ChevronDown, FileText, Printer, Plus, ChevronLeft, ChevronRight } from "lucide-react"; // <-- Menambahkan ikon panah
+import { alertSuccess, alertError, alertLoginRequired, alertConfirmDelete } from "@/components/Alert";
 
 export interface Product {
     id: number;
@@ -136,15 +137,16 @@ export default function AdminProductsPage() {
             setProducts(data.products ?? []);
         } catch (err) {
             console.error(err);
-            alert("Gagal memuat produk");
+            alertError("Gagal memuat produk");
         } finally {
             setLoading(false);
         }
     }
 
     async function deleteProduct(id: number) {
-        if (!confirm("Yakin ingin menghapus produk ini?")) return;
         try {
+            const confirm = await alertConfirmDelete();
+            if (!confirm.isConfirmed) return;
             const token = getCookie("token");
             const res = await fetch(`http://localhost:8000/api/products/${id}`, {
                 method: "DELETE",
@@ -154,7 +156,7 @@ export default function AdminProductsPage() {
             setProducts(prev => prev.filter(p => p.id !== id));
         } catch (err) {
             console.error(err);
-            alert("Gagal menghapus produk");
+            alertError("Gagal menghapus produk");
         }
     }
 
@@ -166,7 +168,7 @@ export default function AdminProductsPage() {
 
     const exportToExcel = () => {
         if (products.length === 0) {
-            alert("Tidak ada data untuk diekspor.");
+            alertError("Tidak ada data untuk diekspor.");
             return;
         }
         
