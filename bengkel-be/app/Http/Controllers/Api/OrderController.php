@@ -16,20 +16,33 @@ class OrderController extends Controller
         $this->middleware('auth:sanctum');
     }
 
-    // Ambil pesanan user
+    // LIST PESANAN USER
     public function index(Request $request)
     {
         $orders = Order::where('user_id', $request->user()->id)
-                        ->orderByDesc('created_at')
-                        ->get();
+            ->orderByDesc('created_at')
+            ->get();
 
         return response()->json([
             'message' => 'Daftar pesanan ditemukan',
             'orders'  => $orders
-        ], 200);
+        ]);
     }
 
-    // Checkout (SIMPAN ITEMS DALAM JSON)
+    // DETAIL PESANAN
+    public function show(Request $request, $id)
+    {
+        $order = Order::where('user_id', $request->user()->id)
+            ->where('id', $id)
+            ->firstOrFail();
+
+        return response()->json([
+            'message' => 'Detail pesanan',
+            'order'   => $order
+        ]);
+    }
+
+    // CHECKOUT
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -53,37 +66,28 @@ class OrderController extends Controller
         try {
             $order = Order::create([
                 'user_id' => $request->user()->id,
-                'items' => json_encode($request->items), // 🔥 penting!
-                'name' => $request->name,
-                'no_tlp' => $request->no_tlp,
+                'items'   => $request->items, // 🔥 FIX
+                'name'    => $request->name,
+                'no_tlp'  => $request->no_tlp,
                 'address' => $request->address,
-                'delivery' => $request->delivery,
+                'delivery'=> $request->delivery,
                 'payment' => $request->payment,
-                'total' => $request->total,
-                'status' => 'pending'
+                'total'   => $request->total,
+                'status'  => 'pending'
             ]);
 
-            // Kosongkan keranjang pengguna
             Cart::where('user_id', $request->user()->id)->delete();
 
             return response()->json([
-                'message' => 'Pesanan berhasil dibuat!',
-                'order' => $order
+                'message' => 'Pesanan berhasil dibuat',
+                'order'   => $order
             ], 201);
 
         } catch (\Exception $e) {
-            Log::error("ORDER ERROR: ".$e->getMessage());
-            return response()->json(['message' => 'Gagal memproses pesanan.'], 500);
+            Log::error('ORDER ERROR: '.$e->getMessage());
+            return response()->json([
+                'message' => 'Terjadi kesalahan server'
+            ], 500);
         }
-    }
-
-    public function show($id, Request $request)
-    {
-        $order = Order::where('user_id', $request->user()->id)->findOrFail($id);
-
-        return response()->json([
-            'message' => 'Detail pesanan',
-            'order' => $order
-        ], 200);
     }
 }

@@ -5,21 +5,24 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class ShippingProgres extends Model
+class Shipment extends Model
 {
-    use HasFactory;
-
-    protected $table = 'shipping_progres';
-
     protected $fillable = [
-        'order_id',
+        'user_id',
+        'transaction_id',
+        'address',
+        'shipping_cost',
         'status',
-        'location',
-        'progres_time',
+        'updated_by',
+        'status_updated_at'
     ];
 
-    public function order()
-    {
-        return $this->belongsTo(Order::class);
+    public function user() {
+        return $this->belongsTo(User::class);
+    }
+
+    public function admin() {
+        return $this->belongsTo(User::class, 'updated_by');
     }
 }
+
