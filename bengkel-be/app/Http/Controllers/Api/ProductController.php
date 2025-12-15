@@ -28,9 +28,10 @@ class ProductController extends Controller
                  'price' => $p->price,
                  'stock' => $p->stock,
                  'jenis_barang' => $p->jenis_barang,
+                 // Asumsi image_urls adalah accessor yang mengambil data dari kolom img_url
                  'img_urls' => $p->image_urls, 
              ];
-         });
+          });
 
         return response()->json(['products' => $products], 200);
     }
@@ -57,7 +58,7 @@ class ProductController extends Controller
     }
 
     // ================================================================
-    // STORE PRODUCT (DIPERBAIKI UNTUK MULTI-IMAGE)
+    // STORE PRODUCT
     // =================================================================
     public function store(Request $request)
     {
@@ -83,7 +84,6 @@ class ProductController extends Controller
 
             foreach ($files as $img) {
                 if ($img && $img->isValid()) { 
-                    // 🔥 PERUBAHAN: Menggunakan Str::random(10) untuk keunikan yang lebih baik
                     $filename = time() . '_' . Str::random(10) . '.' . $img->getClientOriginalExtension();
                     
                     $img->move($publicImagesPath, $filename);
@@ -117,7 +117,7 @@ class ProductController extends Controller
     }
 
     // ================================================================
-    // UPDATE PRODUCT (DIPERBAIKI UNTUK MULTI-IMAGE)
+    // UPDATE PRODUCT
     // ================================================================
     public function update(Request $request, $id)
     {
@@ -133,9 +133,11 @@ class ProductController extends Controller
             'images.*' => 'image|mimes:jpg,jpeg,png,webp|max:2048', 
         ]);
         
+        // Ambil URL gambar lama yang tersimpan sebagai JSON string/array di DB
         $currentRawJson = $product->getRawOriginal('img_url') ?? '[]';
         $imageNamesToDelete = json_decode($currentRawJson, true) ?? [];
 
+        // Penanganan jika img_url bukan array JSON (legacy data)
         if (!is_array($imageNamesToDelete) && is_string($currentRawJson) && !Str::startsWith($currentRawJson, '[')) {
              $imageNamesToDelete = [$currentRawJson];
         }
@@ -165,7 +167,6 @@ class ProductController extends Controller
 
             foreach ($files as $img) {
                 if ($img && $img->isValid()) {
-                    // 🔥 PERUBAHAN: Menggunakan Str::random(10) untuk keunikan yang lebih baik
                     $filename = time() . '_' . Str::random(10) . '.' . $img->getClientOriginalExtension();
                     $img->move($publicImagesPath, $filename);
                     $imageNamesToSave[] = $filename;
@@ -194,7 +195,7 @@ class ProductController extends Controller
     }
 
     // ================================================================
-    // DELETE PRODUCT (TETAP SAMA, KARENA LOGIKA ANDA SUDAH BENAR)
+    // DELETE PRODUCT
     // ================================================================
     public function destroy($id)
     {
@@ -227,7 +228,7 @@ class ProductController extends Controller
     }
 
     // ================================================================
-    // SEARCH FOR CASHIER
+    // SEARCH FOR CASHIER (SUDAH DIAMANKAN)
     // ================================================================
     public function searchForCashier(Request $request)
     {
@@ -243,15 +244,16 @@ class ProductController extends Controller
                            ->limit(10) // Batasi hasil pencarian
                            ->get()
                            ->map(function ($p) {
-                               // Map hasilnya agar ringan dan mudah digunakan di kasir
+                               $imageUrls = $p->image_urls; // Ambil array URL gambar (dari accessor/cast)
+                               
                                return [
                                    'id' => $p->id,
                                    'name' => $p->name,
                                    'price' => $p->price,
                                    'stock' => $p->stock,
                                    'jenis_barang' => $p->jenis_barang,
-                                   // Ambil URL gambar pertama saja (untuk preview cepat)
-                                   'img_url_first' => $p->image_urls[0] ?? null,
+                                   // Akses yang aman: Cek apakah array dan memiliki elemen sebelum mengakses indeks 0
+                                   'img_url_first' => (is_array($imageUrls) && count($imageUrls) > 0) ? $imageUrls[0] : null,
                                ];
                            });
 

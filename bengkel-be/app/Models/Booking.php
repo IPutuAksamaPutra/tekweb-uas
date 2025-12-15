@@ -4,7 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Casts\Attribute; // PENTING: Import Attribute
+// Import Attribute tidak diperlukan jika Accessor dihapus
+// use Illuminate\Database\Eloquent\Casts\Attribute; 
 
 class Booking extends Model
 {
@@ -20,28 +21,16 @@ class Booking extends Model
         'notes',
         'status',
     ];
-
-    // ✅ Tambahkan properti 'user_name' ke array/JSON output
-    protected $appends = ['user_name']; 
     
-    // Opsional: Sembunyikan objek 'user' bersarang jika Anda hanya ingin 'user_name'
-    // protected $hidden = ['user'];
+    // 🔥 DIHAPUS: protected $appends = ['user_name'];
+    // Karena logika penambahan 'user_name' sudah dilakukan di Controller::pendingForCashier
 
     // Relasi User
     public function user()
     {
+        // Parameter kedua ('user_id') adalah foreign key, parameter ketiga ('id') adalah primary key dari target (User)
         return $this->belongsTo(User::class, 'user_id', 'id');
     }
 
-    /**
-     * Accessor untuk mendapatkan nama pengguna (user_name).
-     * Dipanggil setelah relasi 'user' dimuat (eager loaded).
-     */
-    protected function userName(): Attribute
-    {
-        return Attribute::make(
-            // Pastikan relasi 'user' sudah dimuat, lalu ambil namanya
-            get: fn () => $this->user->name ?? null, 
-        );
-    }
+    // 🔥 DIHAPUS: protected function userName(): Attribute
 }

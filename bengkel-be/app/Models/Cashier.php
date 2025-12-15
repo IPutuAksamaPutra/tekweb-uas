@@ -9,27 +9,36 @@ class Cashier extends Model
 {
     use HasFactory;
     
-    // Memberi tahu Laravel bahwa nama tabel adalah 'cashier' (bukan 'cashiers')
-    protected $table = 'cashier';
+    // 🔥 KOREKSI 1: Arahkan ke tabel 'transactions' yang baru
+    // Asumsi tabel transaksi utama Anda kini bernama 'transactions'
+    protected $table = 'transactions'; 
 
-    // Kolom yang dapat diisi secara massal
+    // 🔥 KOREKSI 2: Perbarui fillable sesuai kolom tabel 'transactions' yang baru
     protected $fillable = [
-        'product_id',
-        'booking_id',
+        'cashier_user_id', // Tambahkan kolom FK Kasir
         'payment_method',
-        'total',
+        'total_amount',    // Mengganti 'total' menjadi 'total_amount'
+        'paid_amount',     // Kolom baru untuk uang yang diterima
+        'change_amount',   // Kolom baru untuk kembalian
         'transaction_date',
     ];
     
-    // Relasi (Opsional, tapi disarankan)
+    // Relasi 
     
-    public function product()
+    // 🔥 KOREKSI 3: Tambahkan relasi ke Detail Item (Baris paling penting)
+    public function items()
     {
-        return $this->belongsTo(Product::class);
+        // Menghubungkan ke Model TransactionItem yang baru Anda buat
+        return $this->hasMany(TransactionItem::class, 'transaction_id');
     }
     
-    public function booking()
+    // Relasi ke Kasir (User)
+    public function cashier()
     {
-        return $this->belongsTo(Booking::class);
+        return $this->belongsTo(User::class, 'cashier_user_id');
     }
+    
+    // Hapus relasi product() dan booking() yang lama karena kini ada di TransactionItem
+    // public function product() // Dihapus
+    // public function booking() // Dihapus
 }

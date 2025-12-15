@@ -6,16 +6,14 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Booking;
 use Illuminate\Support\Facades\Validator;
-use App\Models\User;
+use App\Models\User; 
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 class BookingController extends Controller
 {
-    // Daftar peran manajemen yang boleh UPDATE dan DELETE (TERMASUK 'kasir')
     private $managementRoles = ['admin', 'super_admin', 'kasir'];
-    
-    // Daftar layanan yang diizinkan untuk validasi input
     private $allowedServices = ['Service Ringan', 'Service Berat', 'Ganti Oli', 'Perbaikan Rem', 'Tune Up'];
 
     // --- 1. READ (List Booking) ---
@@ -28,9 +26,10 @@ class BookingController extends Controller
 
         $query = Booking::query();
 
-        if (in_array($user->role, ['admin', 'super_admin', 'kasir'])) {
+        if (in_array($user->role, $this->managementRoles)) {
             $bookings = $query->with('user:id,name')->latest()->get(); 
-        } else {
+        } 
+        else {
             $bookings = $query->where('user_id', $user->id)->with('user:id,name')->latest()->get(); 
         }
 
@@ -162,7 +161,9 @@ class BookingController extends Controller
         ], 200);
     }
     
-    // --- 6. READ (Pencarian Booking Pending untuk Kasir) ---
+    /**
+     * --- 6. READ (Pencarian Booking Pending/Confirmed untuk Kasir) ---
+     */
     public function pendingForCashier(Request $request)
     {
         $user = $request->user();
@@ -172,38 +173,51 @@ class BookingController extends Controller
 
         $query = Booking::whereIn('status', ['Pending', 'Confirmed']);
 
-        if ($request->has('search')) {
-            $search = strtolower($request->input('search'));
+        if ($request->has('q')) { 
+            $search = strtolower($request->input('q'));
             $searchTerm = "%{$search}%";
             
             $query->where(function ($q) use ($searchTerm) {
-                // Menggunakan whereRaw dan COALESCE untuk pencarian yang aman (NULL-safe)
                 
-                // Cari berdasarkan jenis_service
-                $q->whereRaw('LOWER(COALESCE(jenis_service, "")) LIKE ?', [$searchTerm]);
+                $q->whereRaw('LOWER(COALESCE(jenis_service, "")) LIKE ?', [$searchTerm])
+                  ->orWhereRaw('LOWER(COALESCE(no_wa, "")) LIKE ?', [$searchTerm])
+                  ->orWhereRaw('LOWER(COALESCE(nama_kendaraan, "")) LIKE ?', [$searchTerm]);
                 
-                // Cari berdasarkan no_wa
-                $q->orWhereRaw('LOWER(COALESCE(no_wa, "")) LIKE ?', [$searchTerm]);
-
-                // Cari berdasarkan nama_kendaraan
-                $q->orWhereRaw('LOWER(COALESCE(nama_kendaraan, "")) LIKE ?', [$searchTerm]);
-                
-                // Cari berdasarkan 'code'
                 if (Schema::hasColumn('bookings', 'code')) {
                     $q->orWhereRaw('LOWER(COALESCE(code, "")) LIKE ?', [$searchTerm]);
                 }
+            })
+            // Mencari berdasarkan Nama Pelanggan (dari relasi user)
+            ->orWhereHas('user', function ($q) use ($searchTerm) {
+                 $q->where('name', 'LIKE', $searchTerm);
             });
         }
 
-        $bookings = $query->with('user:id,name,email')->latest()->get(); 
+        // Memuat relasi 'user' secara efisien
+        $bookings = $query
+            ->with('user:id,name,email') 
+            ->latest()
+            ->get()
+            // ✅ MAPPING NAMA USER: Inject user_name ke tingkat root objek
+            ->map(function ($booking) {
+                $bookingData = $booking->toArray();
+                
+                // 🔥 Mengambil nama dari relasi 'user'
+                $bookingData['user_name'] = $booking->user->name ?? 'Pelanggan'; 
+                
+                // Pastikan remaining_due ada
+                $bookingData['remaining_due'] = $booking->remaining_due ?? 0;
+                
+                return $bookingData;
+            });
 
         return response()->json([
             'message' => 'Daftar booking siap kasir berhasil diambil.',
-            'data' => $bookings // Wajib menggunakan 'data' sesuai ekspektasi Next.js
+            'data' => $bookings
         ]);
     }
 
-    // --- 7. Index Admin (Jika diperlukan) ---
+    // --- 7. Index Admin (Delegasi ke pendingForCashier) ---
     public function indexAdmin(Request $request)
     {
         return $this->pendingForCashier($request);
