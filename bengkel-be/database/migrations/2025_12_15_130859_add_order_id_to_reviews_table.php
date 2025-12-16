@@ -9,15 +9,17 @@ return new class extends Migration
     /**
      * Run the migrations.
      */
-   public function up()
-{
-    Schema::table('reviews', function (Blueprint $table) {
-        $table->foreignId('order_id')
-              ->after('user_id')
-              ->constrained('orders')
-              ->cascadeOnDelete();
-    });
-}
+   // DI FILE MIGRASI ANDA
+    public function up()
+    {
+        Schema::table('reviews', function (Blueprint $table) {
+            $table->foreignId('order_id')
+                ->nullable() // TAMBAHKAN INI!
+                ->after('user_id')
+                ->constrained('orders')
+                ->cascadeOnDelete();
+        });
+    }
 
 public function down()
 {
