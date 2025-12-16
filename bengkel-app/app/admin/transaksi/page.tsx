@@ -1,42 +1,43 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Search, Eye, Loader2, AlertTriangle, ChevronDown, FileText, Printer } from 'lucide-react'; 
+import { Search, Eye, Loader2, AlertTriangle, ChevronDown, FileText, Printer, ChevronLeft, ChevronRight } from 'lucide-react'; 
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
-// Import Alert component Anda di sini (dihapus sementara untuk menjaga keringkasan kode)
 
 // URL API Laravel Anda
 const API_URL = "http://localhost:8000/api"; 
 
 // --- Helper: Ambil token dari cookies ---
 function getCookie(name: string) {
-    if (typeof document === "undefined") return null;
-    const value = `; ${document.cookie}`;
-    const parts = value.split(`; ${name}=`);
-    if (parts.length === 2) return parts.pop()!.split(";").shift() || null;
-    return null;
+    if (typeof document === "undefined") return null;
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop()!.split(";").shift() || null;
+    return null;
 }
 
 // --- Interfaces yang Disesuaikan (Universal) ---
 interface TransactionItem {
-    item_type: 'product' | 'service_manual' | 'booking_pelunasan';
-    item_name: string; 
-    quantity: number;
-    price: number;
+    item_type: 'product' | 'service_manual' | 'booking_pelunasan';
+    item_name: string; 
+    quantity: number;
+    price: number;
 }
 
 interface Transaksi {
-    id: number;
-    // Kolom Umum
-    payment_method: string;
-    total_amount: number; 
-    transaction_date: string;
-    
-    // Properti yang diproses di frontend
-    jenis: "Produk" | "Booking" | "Jasa Manual" | "Campuran" | "Pelunasan Order";
-    nama_item_utama: string; 
-    status: "Lunas" | "Pending";
+    id: number;
+    // Kolom Umum
+    payment_method: string;
+    total_amount: number; 
+    transaction_date: string;
+    
+    // Properti yang diproses di frontend
+    jenis: "Produk" | "Booking" | "Jasa Manual" | "Campuran" | "Pelunasan Order";
+    nama_item_utama: string; 
+    status: "Lunas" | "Pending";
+    // Tambahkan properti khusus untuk membedakan asal data di normalization
+    is_order: boolean; 
 }
 
 // --- Filter Types ---
@@ -44,6 +45,7 @@ type FilterType = 'Semua' | 'Produk' | 'Booking' | 'Jasa Manual' | 'Campuran' | 
 
 
 export default function TransaksiPage() {
+    // ... (States Anda tetap sama)
     const [search, setSearch] = useState("");
     const [filterJenis, setFilterJenis] = useState<FilterType>('Semua');
     const [transaksiList, setTransaksiList] = useState<Transaksi[]>([]);
@@ -51,11 +53,14 @@ export default function TransaksiPage() {
     const [error, setError] = useState<string | null>(null);
     const [isExportDropdownOpen, setIsExportDropdownOpen] = useState(false);
     const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
+    
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(10); 
 
 
     // ==================== LOGIKA PEMBENTUKAN DATA ====================
     
-    // Fungsi untuk menormalisasi data dari satu sumber gabungan (/api/transactions)
+    // Fungsi untuk menormalisasi data
     const normalizeData = (rawData: any[]): Transaksi[] => {
         return rawData.map((t: any) => {
             let jenis: Transaksi['jenis'] = 'Campuran';
@@ -63,10 +68,18 @@ export default function TransaksiPage() {
             const total = Number(t.total_amount || t.total || 0); 
             const status = (t.status === 'Lunas' || total > 0) ? "Lunas" : "Pending"; 
             
-            // Logika Deteksi:
             const items: TransactionItem[] = Array.isArray(t.items) ? t.items : [];
 
-            if (items.length > 0) {
+            // 🔥 Logika Pelunasan Order dari tabel 'orders'
+            if (t.is_order) { 
+                // Jika ini adalah data yang berasal dari tabel 'orders'
+                jenis = 'Pelunasan Order'; 
+                // Sesuaikan nama field jika berbeda di tabel orders
+                const customerName = t.customer_name || t.user?.name || 'Pelanggan';
+                namaUtama = `Order #${t.id} (${t.jenis_service || 'Service'}) - ${customerName}`;
+            
+            // Logika Transaksi POS (dari tabel 'transactions')
+            } else if (items.length > 0) {
                 const types = items.map(item => item.item_type);
                 const uniqueTypes = Array.from(new Set(types));
 
@@ -80,13 +93,8 @@ export default function TransaksiPage() {
                 if (items.length > 1) {
                     namaUtama += ` (+${items.length - 1} item)`;
                 }
-            
-            } else if (t.jenis_service) { 
-                jenis = 'Pelunasan Order'; 
-                namaUtama = `Order #${t.id} (${t.jenis_service}) - ${t.user?.name || t.customer_name || 'Pelanggan'}`;
-            
             } else {
-                 namaUtama = t.nama_item || namaUtama;
+                namaUtama = t.nama_item || namaUtama;
             }
 
 
@@ -99,14 +107,34 @@ export default function TransaksiPage() {
                 jenis: jenis,
                 nama_item_utama: namaUtama,
                 status: status,
+                is_order: !!t.is_order, // Menandai asal data
             } as Transaksi;
         });
     };
 
 
-    // ==================== LOAD DATA (SINGLE SOURCE) ====================
+    // ==================== LOAD ORDERS (SUMBER 2) ====================
+    const fetchApiData = async (endpoint: string, token: string) => {
+        const fetchOptions = {
+            method: "GET",
+            headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
+        };
+        const res = await fetch(`${API_URL}${endpoint}`, fetchOptions); 
+        
+        if (res.status === 404) {
+             throw new Error(`Endpoint '${endpoint}' tidak ditemukan.`);
+        }
+        if (!res.ok) {
+            throw new Error(`Gagal mengambil data dari ${endpoint}. Status: ${res.status}`);
+        }
+        
+        const data = await res.json();
+        return data.data || data.transactions || data.orders || [];
+    }
+
+    // ==================== LOAD ALL DATA (GABUNGAN) ====================
     useEffect(() => {
-        const loadTransactions = async () => {
+        const loadAllData = async () => {
             setIsLoading(true);
             try {
                 setError(null);
@@ -117,32 +145,33 @@ export default function TransaksiPage() {
                     return;
                 }
                 
-                const fetchOptions = {
-                    method: "GET",
-                    headers: {
-                        Accept: "application/json",
-                        Authorization: `Bearer ${token}`,
-                    },
-                };
-
-                // 🔥 MENGGUNKAN ENDPOINT /api/transactions
-                const res = await fetch(`${API_URL}/transactions`, fetchOptions); 
+                // 1. Ambil data TRANSAKSI POS
+                const rawTransactions = await fetchApiData('/transactions', token);
                 
-                if (res.status === 404) {
-                    throw new Error("Endpoint '/api/transactions' tidak ditemukan. Pastikan rute di backend sudah benar.");
-                }
-
-                if (!res.ok) {
-                    throw new Error("Gagal mengambil transaksi. Status: " + res.status);
-                }
-
-                const data = await res.json();
+                // 2. Ambil data ORDERS (Pelunasan Order)
+                // ASUMSI: Rute Admin Order Anda adalah '/admin/orders'
+                const rawOrders = await fetchApiData('/admin/orders', token);
                 
-                let rawData: any[] = data.data || data.transactions || [];
+                // 3. Gabungkan dan tandai asal data
+                const combinedRawData = [
+                    ...rawTransactions.map((t:any) => ({...t, is_order: false})),
+                    ...rawOrders.map((o:any) => ({
+                        ...o, 
+                        // Ambil jumlah yang harus dibayar (contoh: total_price)
+                        total_amount: o.total_price || o.total || 0,
+                        transaction_date: o.updated_at || o.created_at,
+                        payment_method: o.payment_method || 'Bayar di Tempat',
+                        is_order: true,
+                    }))
+                ];
                 
-                const processed = normalizeData(rawData);
+                // Urutkan berdasarkan tanggal transaksi terbaru (opsional)
+                combinedRawData.sort((a:any, b:any) => 
+                    new Date(b.transaction_date).getTime() - new Date(a.transaction_date).getTime()
+                );
+                
+                const processed = normalizeData(combinedRawData);
                 setTransaksiList(processed);
-
 
             } catch (err: any) {
                 console.error("Fetch Error:", err);
@@ -152,11 +181,39 @@ export default function TransaksiPage() {
             }
         };
 
-        loadTransactions();
+        loadAllData();
     }, []);
 
-    // Filter berdasarkan input pencarian & dropdown
-    const filtered = useMemo(() => {
+    // ------------------------------------------------------------------
+    // 🔥 Solusi: Inject CSS Cetak Lokal ke dalam Head (Pertahankan)
+    // ------------------------------------------------------------------
+    useEffect(() => {
+        const styleId = 'transaction-print-styles';
+        let styleTag = document.getElementById(styleId) as HTMLStyleElement | null;
+
+        const printStyles = `
+            @media print {
+                .print-hidden, .header, .sidebar, .no-print { display: none !important; }
+                body { margin: 0; padding: 0; }
+                .print-title { text-align: center; margin-bottom: 20px; font-size: 1.5rem; font-weight: bold; color: black; }
+                .print-table { width: 100%; border-collapse: collapse; }
+                .print-table th, .print-table td { border: 1px solid #ccc; padding: 8px; text-align: left; font-size: 10px; }
+                .print-table th { background-color: #f0f0f0; color: black; }
+                .print-only { display: block !important; }
+            }
+        `;
+
+        if (!styleTag) {
+            styleTag = document.createElement('style');
+            styleTag.id = styleId;
+            document.head.appendChild(styleTag);
+        }
+        styleTag.innerHTML = printStyles;
+    }, []); 
+
+    // ... (Logika FILTER & PAGINASI, EKSPOR, dan UI tetap sama)
+    // ==================== FILTER & PAGINASI LOGIC ====================
+    const paginatedList = useMemo(() => {
         let list = transaksiList;
 
         // 1. Filter Dropdown Jenis
@@ -165,21 +222,52 @@ export default function TransaksiPage() {
         }
 
         // 2. Filter Search Bar
-        if (search.trim() === "") {
-            return list;
+        const searchTerm = search.trim().toLowerCase();
+        if (searchTerm !== "") {
+            list = list.filter((t) =>
+                t.nama_item_utama.toLowerCase().includes(searchTerm) || 
+                t.id.toString().includes(searchTerm)
+            );
         }
 
-        const searchTerm = search.toLowerCase();
+        // --- Paginasi ---
+        const totalItems = list.length;
+        const totalPages = Math.ceil(totalItems / itemsPerPage);
         
-        return list.filter((t) =>
-            t.nama_item_utama.toLowerCase().includes(searchTerm) || 
-            t.id.toString().includes(searchTerm)
-        );
-    }, [transaksiList, search, filterJenis]);
+        // Sesuaikan current page jika sudah melewati batas
+        if (currentPage > totalPages && totalPages > 0) {
+            setCurrentPage(totalPages);
+        } else if (currentPage === 0 && totalPages > 0) {
+            setCurrentPage(1);
+        }
 
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const endIndex = startIndex + itemsPerPage;
+
+        // Item yang ditampilkan di halaman saat ini
+        const currentItems = list.slice(startIndex, endIndex);
+
+        return {
+            items: currentItems,
+            totalItems,
+            totalPages,
+        };
+    }, [transaksiList, search, filterJenis, currentPage, itemsPerPage]);
+
+    const { items: filtered, totalItems, totalPages } = paginatedList;
+
+    const handlePageChange = (newPage: number) => {
+        if (newPage >= 1 && newPage <= totalPages) {
+            setCurrentPage(newPage);
+        }
+    };
+    
+    const handleItemsPerPageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        setItemsPerPage(Number(e.target.value));
+        setCurrentPage(1); // Reset ke halaman 1 setiap kali limit berubah
+    };
 
     // ==================== FUNGSI EKSPOR ====================
-
     const exportToExcel = () => {
         if (transaksiList.length === 0) {
             alert("Tidak ada data transaksi untuk diekspor.");
@@ -188,8 +276,10 @@ export default function TransaksiPage() {
 
         setIsExportDropdownOpen(false); 
 
-        const dataForExport = transaksiList.map((t) => ({
-            ID: t.id,
+        const dataForExport = transaksiList.map((t, index) => ({
+            "No Urut": index + 1, // Tambahkan penomoran di ekspor
+            "ID Transaksi/Order": t.id,
+            "Jenis Sumber": t.is_order ? "Order" : "Transaksi POS",
             "Tanggal Transaksi": new Date(t.transaction_date).toLocaleDateString("id-ID"),
             "Deskripsi Item Utama": t.nama_item_utama,
             "Jenis Transaksi": t.jenis,
@@ -218,13 +308,12 @@ export default function TransaksiPage() {
     // ==================== UI ====================
     return (
         <div className="p-4 lg:p-8 space-y-6"> {/* Padding disesuaikan */}
-            <h1 className="text-2xl lg:text-3xl font-bold text-[#234C6A] print:text-black">📄 Riwayat Transaksi Kasir</h1>
+            <h1 className="text-2xl lg:text-3xl font-bold text-[#234C6A] print-title">📄 Riwayat Transaksi Kasir</h1>
 
             {/* CONTAINER BAR FILTER & EXPORT */}
-            {/* Menggunakan flex-wrap untuk wrapping di mobile */}
-            <div className="flex justify-between items-center flex-wrap gap-3 lg:gap-4 print:hidden"> 
+            <div className="flex justify-between items-center flex-wrap gap-3 lg:gap-4 print-hidden"> 
                 
-                {/* Search Bar - Full width di mobile, max-w-sm di desktop */}
+                {/* Search Bar */}
                 <div className="flex items-center bg-white p-3 rounded-xl shadow gap-3 w-full md:max-w-sm">
                     <Search size={20} className="text-gray-500" />
                     <input
@@ -235,7 +324,7 @@ export default function TransaksiPage() {
                     />
                 </div>
                 
-                {/* Dropdown Group - Menggunakan flex untuk tetap bersebelahan */}
+                {/* Dropdown Group */}
                 <div className='flex gap-3 lg:gap-4'>
                     
                     {/* Dropdown Filter Jenis */}
@@ -292,7 +381,7 @@ export default function TransaksiPage() {
                                     className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 text-left"
                                 >
                                     <FileText className="w-4 h-4 mr-2 text-emerald-600" />
-                                    Ekspor ke Excel
+                                    Ekspor ke Excel (Semua)
                                 </button>
                                 <button
                                     onClick={printToPDF}
@@ -309,25 +398,24 @@ export default function TransaksiPage() {
 
 
             {error && (
-                <div className="flex items-center gap-2 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg">
+                <div className="flex items-center gap-2 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg print-hidden">
                     <AlertTriangle size={20} /> {error}
                 </div>
             )}
 
-            {/* TABEL CONTAINER - PENTING UNTUK SCROLLING DI MOBILE */}
+            {/* TABEL CONTAINER */}
             <div className="bg-white rounded-xl shadow overflow-x-auto">
-                <table className="min-w-full border-collapse text-left print:table text-sm">
+                <table className="min-w-full text-left text-sm print-table">
                     <thead>
                         <tr className="border-b bg-gray-50">
-                            {/* Menambah min-width agar kolom tidak terlalu sempit di mobile */}
-                            <th className="p-3 min-w-[70px]">ID</th>
+                            <th className="p-3 min-w-[70px]">No.</th>
                             <th className="p-3 min-w-[200px]">Item/Deskripsi</th>
                             <th className="p-3 min-w-[100px]">Jenis</th>
                             <th className="p-3 min-w-[100px]">Metode</th>
                             <th className="p-3 min-w-[120px]">Total</th>
                             <th className="p-3 min-w-[100px]">Tanggal</th>
-                            <th className="p-3 min-w-20">Status</th>
-                            <th className="p-3 print:hidden min-w-20">Aksi</th>
+                            <th className="p-3 print-hidden min-w-20">Status</th>
+                            <th className="p-3 print-hidden min-w-20">Aksi</th>
                         </tr>
                     </thead>
 
@@ -341,20 +429,23 @@ export default function TransaksiPage() {
                         )}
 
                         {
-                        !isLoading && filtered.map((t) => (
-                            // PERBAIKAN KEY: Menggabungkan jenis dan ID untuk mengatasi tabrakan ID
+                        !isLoading && filtered.map((t, index) => (
                             <tr key={`${t.jenis}-${t.id}`} className="border-b hover:bg-gray-100">
-                                <td className="p-3 font-semibold">#{t.id}</td>
+                                {/* Menampilkan Nomor Urut (index + start Index + 1) */}
+                                <td className="p-3 font-semibold">
+                                    {(currentPage - 1) * itemsPerPage + index + 1}
+                                </td>
+                                
                                 <td className="p-3">{t.nama_item_utama}</td> 
                                 <td className="p-3">{t.jenis}</td>
                                 <td className="p-3">{t.payment_method}</td>
-                                <td className="p-3 text-[#FF6D1F] font-semibold">
+                                <td className="p-3 text-[#FF6D1F] font-semibold print:text-black">
                                     Rp {Number(t.total_amount).toLocaleString("id-ID")}
                                 </td>
                                 <td className="p-3">
                                     {new Date(t.transaction_date).toLocaleDateString("id-ID")}
                                 </td>
-                                <td className="p-3">
+                                <td className="p-3 print-hidden">
                                     <span
                                         className={`px-3 py-1 rounded-full text-xs text-white ${
                                             t.status === "Lunas" ? "bg-green-600" : "bg-yellow-600"
@@ -363,7 +454,7 @@ export default function TransaksiPage() {
                                         {t.status}
                                     </span>
                                 </td>
-                                <td className="p-3 print:hidden">
+                                <td className="p-3 print-hidden">
                                     <button className="text-blue-600 flex items-center gap-1">
                                         <Eye size={18} /> Detail
                                     </button>
@@ -380,6 +471,52 @@ export default function TransaksiPage() {
                         )}
                     </tbody>
                 </table>
+            </div>
+
+            {/* KONTROL PAGINASI */}
+            <div className="flex flex-col sm:flex-row justify-between items-center space-y-3 sm:space-y-0 print-hidden">
+                
+                {/* Info Jumlah Item & Pengaturan Limit */}
+                <div className="flex items-center gap-3 text-sm text-gray-700">
+                    <span>
+                        Menampilkan {(currentPage - 1) * itemsPerPage + 1} - 
+                        {Math.min(currentPage * itemsPerPage, totalItems)} dari {totalItems} transaksi
+                    </span>
+                    
+                    <select
+                        value={itemsPerPage}
+                        onChange={handleItemsPerPageChange}
+                        className="p-1 border border-gray-300 rounded-md"
+                    >
+                        <option value={5}>5 / hlm</option>
+                        <option value={10}>10 / hlm</option>
+                        <option value={20}>20 / hlm</option>
+                        <option value={50}>50 / hlm</option>
+                    </select>
+                </div>
+
+                {/* Tombol Navigasi */}
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => handlePageChange(currentPage - 1)}
+                        disabled={currentPage === 1 || isLoading}
+                        className="p-2 border border-gray-300 rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 transition"
+                    >
+                        <ChevronLeft size={18} />
+                    </button>
+                    
+                    <span className="text-sm font-semibold text-gray-700">
+                        Halaman {totalPages > 0 ? currentPage : 0} dari {totalPages}
+                    </span>
+                    
+                    <button
+                        onClick={() => handlePageChange(currentPage + 1)}
+                        disabled={currentPage === totalPages || isLoading || totalPages === 0}
+                        className="p-2 border border-gray-300 rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 transition"
+                    >
+                        <ChevronRight size={18} />
+                    </button>
+                </div>
             </div>
         </div>
     );

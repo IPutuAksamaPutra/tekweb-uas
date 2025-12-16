@@ -256,14 +256,14 @@ const printReceipt = (items: CartItem[], total: number, paymentMethod: string, p
         </head>
         <body>
             <div class="center">
-                <h3>POS BENGKEL JAYA</h3>
-                <p>Jl. Contoh No. 123, Kota Anda</p>
-                <p>Telp: 0812-XXXX-XXXX</p>
+                <h3>POS BENGKEL DEXAR</h3>
+                <p>Jl. UDAYANA, Kota SINGARAJA</p>
+                <p>Telp: 0812-9932-1122</p>
             </div>
 
             <p>----------------------------------</p>
             <p>Tgl: ${date}</p>
-            <p>Kasir: John Doe</p>
+            <p>Kasir: VERDY</p>
             <p>----------------------------------</p>
 
             <table class="item-list">

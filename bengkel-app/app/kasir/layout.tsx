@@ -50,7 +50,7 @@ const CashierLayout: React.FC<CashierLayoutProps> = ({ children }) => {
 
                         {/* Konten Menu Desktop (Selalu terlihat di layar besar) */}
                         <div className="hidden sm:flex items-center text-sm text-gray-600">
-                            <span className="mr-2">Kasir: John Doe</span> 
+                            <span className="mr-2">Kasir: Verdy</span> 
                             <div className="h-4 border-l border-gray-300 mx-2"></div>
                             <button 
                                 onClick={handleLogout} 

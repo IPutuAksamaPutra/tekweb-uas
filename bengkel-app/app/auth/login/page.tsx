@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+// Import useRouter dari next/navigation untuk navigasi programatik
+import { useRouter } from "next/navigation"; 
 import { alertSuccess, alertError, alertLoginRequired } from "@/components/Alert";
 
 // --- MOCK IKON LUCID ---
@@ -12,6 +14,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const router = useRouter(); // 🔥 Inisialisasi useRouter
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,13 +35,13 @@ export default function LoginPage() {
       }
 
       // ============================
-      //   SIMPAN TOKEN KE COOKIES
+      //   SIMPAN TOKEN KE COOKIES
       // ============================
       document.cookie = `token=${data.token}; path=/;`;
       document.cookie = `user=${encodeURIComponent(JSON.stringify(data.user))}; path=/;`;
 
       // ============================
-      //       PENENTUAN ROLE
+      //       PENENTUAN ROLE
       // ============================
       const userRole = data.user.role;
       let redirectPath = "/";
@@ -48,7 +51,7 @@ export default function LoginPage() {
       }
 
       // ============================
-      //       REDIRECT PAKSA
+      //       REDIRECT PAKSA
       // ============================
       setTimeout(() => {
         window.location.assign(redirectPath);
@@ -59,6 +62,11 @@ export default function LoginPage() {
       console.error("Login Error:", err);
     }
   };
+
+    // 🔥 Fungsi untuk navigasi ke halaman register
+    const handleRegisterClick = () => {
+        router.push("/auth/register");
+    };
 
     return (
     <div className="min-h-screen flex items-center justify-center px-6 
@@ -125,7 +133,11 @@ export default function LoginPage() {
 
         <p className="text-center text-gray-600 text-sm mt-6">
           Belum punya akun? 
-          <span className="text-[#FF6D1F] font-semibold cursor-pointer hover:underline ml-1">
+          {/* 🔥 Menambahkan event onClick untuk navigasi ke /auth/register */}
+          <span 
+            className="text-[#FF6D1F] font-semibold cursor-pointer hover:underline ml-1"
+            onClick={handleRegisterClick}
+          >
             Daftar sekarang
           </span>
         </p>

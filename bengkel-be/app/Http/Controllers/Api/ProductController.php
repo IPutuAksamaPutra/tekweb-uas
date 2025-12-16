@@ -20,6 +20,7 @@ class ProductController extends Controller
         $base = "http://localhost:8000"; 
 
         $products = Product::latest()->get()->map(function ($p) {
+            // Asumsi $p->image_urls adalah Accessor/Cast array yang mengembalikan URL gambar lengkap
              return [
                  'id' => $p->id,
                  'name' => $p->name,
@@ -28,16 +29,15 @@ class ProductController extends Controller
                  'price' => $p->price,
                  'stock' => $p->stock,
                  'jenis_barang' => $p->jenis_barang,
-                 // Asumsi image_urls adalah accessor yang mengambil data dari kolom img_url
                  'img_urls' => $p->image_urls, 
              ];
-          });
+         });
 
         return response()->json(['products' => $products], 200);
     }
 
     // ================================================================
-    // SHOW DETAIL PRODUCT
+    // SHOW DETAIL PRODUCT BY ID
     // ================================================================
     public function show($id)
     {
@@ -55,6 +55,55 @@ class ProductController extends Controller
                 'img_urls' => $product->image_urls, 
             ]
         ]);
+    }
+
+    // ================================================================
+    // 🔥 METHOD BARU: SHOW DETAIL PRODUCT BY SLUG (Untuk SEO/Metadata) 🔥
+    // ================================================================
+    public function showBySlug($slug)
+    {
+        // Mencari produk berdasarkan kolom 'slug'
+        $product = Product::where('slug', $slug)->first();
+
+        if (!$product) {
+            // Mengembalikan 404 jika produk tidak ditemukan
+            return response()->json(['message' => 'Produk tidak ditemukan.'], 404);
+        }
+
+        $imgUrls = $product->image_urls; // Ambil array URL gambar
+
+        // Format data yang dibutuhkan Next.js (termasuk data Schema/SEO mock)
+        return response()->json([
+            'name' => $product->name,
+            'slug' => $product->slug,
+            'description' => $product->description,
+            'price' => $product->price,
+            'stock' => $product->stock,
+            'jenis_barang' => $product->jenis_barang,
+            'image_url' => is_array($imgUrls) && count($imgUrls) > 0 ? $imgUrls[0] : null, // Ambil URL gambar pertama
+            
+            // --- DATA MOCK UNTUK KELENGKAPAN SCHEMA MARKUP DI NEXT.JS ---
+            'location' => 'Jakarta, Indonesia', 
+            'currency' => 'IDR',
+            'sku' => 'PROD-'.$product->id,
+            'brand' => 'Bengkel Pedia',
+            'rating' => 4.5,        // Ganti dengan logic perhitungan ulasan aktual
+            'review_count' => 120,  // Ganti dengan jumlah ulasan aktual
+            'in_stock' => $product->stock > 0, 
+        ], 200);
+    }
+    
+    // ================================================================
+    // 🔥 METHOD BARU: GET ALL SLUGS (Untuk Dynamic Sitemap) 🔥
+    // ================================================================
+    public function getAllSlugs()
+    {
+        // Ambil hanya kolom 'slug' dari semua produk
+        $slugs = Product::pluck('slug')->all();
+
+        return response()->json([
+            'slugs' => $slugs
+        ], 200);
     }
 
     // ================================================================
@@ -245,7 +294,7 @@ class ProductController extends Controller
                            ->get()
                            ->map(function ($p) {
                                $imageUrls = $p->image_urls; // Ambil array URL gambar (dari accessor/cast)
-                               
+                                
                                return [
                                    'id' => $p->id,
                                    'name' => $p->name,
