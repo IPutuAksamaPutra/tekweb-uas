@@ -21,9 +21,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <Sidebar />
         </div>
 
-        <div className="text-center py-3 text-sm opacity-75 border-t border-white/10">
-          © {new Date().getFullYear()} BengkelApp
-        </div>
+        
       </aside>
 
       {/* ========== MAIN CONTENT ========== */}

@@ -33,7 +33,7 @@ export default function Sidebar() {
 
             {/* Judul brand */}
             <h2 className="text-xl font-bold mb-5 text-center tracking-wide">
-                🛠 ADMIN PANEL
+                🛠 MAIN MENU
             </h2>
 
             {/* MENU LIST */}
@@ -60,7 +60,7 @@ export default function Sidebar() {
 
             </ul>
 
-            <p className="text-center text-xs opacity-60">© Bengkel App 2025</p>
+            <p className="text-center text-xs opacity-60"></p>
         </div>
     );
 }
