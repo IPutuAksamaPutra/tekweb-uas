@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Trash2, Plus, Minus, ShoppingCart } from "lucide-react";
+import { Trash2, Plus, Minus, ShoppingCart, Check } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { alertLoginRequired } from "@/components/Alert"; // ✅ SWEETALERT
+import { alertLoginRequired } from "@/components/Alert";
 
+/* =======================
+   TYPES
+======================= */
 interface CartItem {
   id: number;
   quantity: number;
@@ -13,36 +16,34 @@ interface CartItem {
     name: string;
     price: number;
     original_price?: number;
-    is_promo?: boolean;
     img_url: string[];
   };
 }
+
+/* =======================
+   HELPER
+======================= */
+const formatRupiah = (value: number) =>
+  "Rp " + value.toLocaleString("id-ID");
 
 export default function CartPage() {
   const router = useRouter();
   const [cart, setCart] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<number[]>([]);
 
   const token =
     typeof document !== "undefined"
       ? document.cookie.match(/token=([^;]+)/)?.[1]
       : null;
 
-  // ================= ANIMASI QTY =================
-  const [animateId, setAnimateId] = useState<number | null>(null);
-  const animate = (id: number) => {
-    setAnimateId(id);
-    setTimeout(() => setAnimateId(null), 250);
-  };
-
-  // ================= GET CART =================
+  /* =======================
+     FETCH CART
+  ======================= */
   const fetchCart = async () => {
     if (!token) {
-      // ✅ SWEETALERT (TANPA UBAH LOGIKA)
       alertLoginRequired().then((res) => {
-        if (res.isConfirmed) {
-          router.push("/login");
-        }
+        if (res.isConfirmed) router.push("/auth/login");
       });
       setLoading(false);
       return;
@@ -52,18 +53,29 @@ export default function CartPage() {
       const res = await fetch("http://localhost:8000/api/cart", {
         headers: { Authorization: `Bearer ${token}` },
       });
+
       const data = await res.json();
 
       if (res.ok) {
-        const cleanedCart = (data.cart_items ?? []).map((item: any) => {
-          if (!Array.isArray(item.product.img_url)) {
-            item.product.img_url = item.product.img_url
-              ? [item.product.img_url]
-              : [];
-          }
-          return item;
-        });
-        setCart(cleanedCart);
+        const normalized: CartItem[] = (data.cart_items ?? []).map(
+          (item: any) => ({
+            ...item,
+            product: {
+              ...item.product,
+              price: Number(item.product.price),
+              original_price: item.product.original_price
+                ? Number(item.product.original_price)
+                : undefined,
+              img_url: Array.isArray(item.product.img_url)
+                ? item.product.img_url
+                : item.product.img_url
+                ? [item.product.img_url]
+                : [],
+            },
+          })
+        );
+
+        setCart(normalized);
       }
     } finally {
       setLoading(false);
@@ -74,10 +86,11 @@ export default function CartPage() {
     fetchCart();
   }, []);
 
-  // ================= UPDATE QTY =================
+  /* =======================
+     QTY UPDATE
+  ======================= */
   const updateQty = async (id: number, qty: number) => {
     if (qty < 1) return;
-    animate(id);
 
     const product_id = cart.find((c) => c.id === id)?.product.id;
     if (!product_id) return;
@@ -94,7 +107,9 @@ export default function CartPage() {
     fetchCart();
   };
 
-  // ================= REMOVE ITEM =================
+  /* =======================
+     REMOVE ITEM
+  ======================= */
   const removeItem = async (id: number) => {
     await fetch(`http://localhost:8000/api/cart/${id}`, {
       method: "DELETE",
@@ -103,13 +118,35 @@ export default function CartPage() {
     fetchCart();
   };
 
-  // ================= TOTAL =================
-  const total = cart.reduce(
+  /* =======================
+     SELECT HANDLER
+  ======================= */
+  const toggleSelect = (id: number) => {
+    setSelected((prev) =>
+      prev.includes(id)
+        ? prev.filter((x) => x !== id)
+        : [...prev, id]
+    );
+  };
+
+  const selectedItems = cart.filter((c) =>
+    selected.includes(c.id)
+  );
+
+  /* =======================
+     TOTAL (ONLY SELECTED)
+  ======================= */
+  const total = selectedItems.reduce(
     (sum, item) => sum + item.product.price * item.quantity,
     0
   );
 
-  if (loading) return <p className="text-center mt-10">Memuat keranjang...</p>;
+  if (loading)
+    return (
+      <p className="text-center mt-20 text-gray-500">
+        Memuat keranjang...
+      </p>
+    );
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -117,81 +154,81 @@ export default function CartPage() {
 
         {/* HEADER */}
         <div className="flex items-center gap-3 mb-10 border-b pb-4">
-          <ShoppingCart size={34} className="text-[#FF6D1F]" />
-          <h1 className="text-3xl font-extrabold text-[#234C6A] tracking-wide">
-            Keranjang Belanja
+          <ShoppingCart size={32} className="text-orange-500" />
+          <h1 className="text-3xl font-bold text-slate-800">
+            Keranjang
           </h1>
-          <span className="ml-auto text-gray-500 text-sm">
-            ({cart.length} item)
-          </span>
         </div>
 
-        {/* KOSONG */}
+        {/* EMPTY */}
         {cart.length === 0 && (
-          <div className="text-center bg-white p-10 rounded-xl shadow">
-            <p className="text-gray-600 mb-4 text-lg">
+          <div className="bg-white p-10 rounded-xl shadow text-center">
+            <p className="text-gray-500 mb-4">
               Keranjang masih kosong
             </p>
             <button
               onClick={() => router.push("/marketplace")}
-              className="bg-[#FF6D1F] px-6 py-2 rounded-full text-white font-bold hover:bg-[#e65b14] transition"
+              className="bg-orange-500 text-white px-6 py-2 rounded-full"
             >
               Belanja Sekarang
             </button>
           </div>
         )}
 
-        {/* LIST */}
-        <div className="space-y-5">
+        {/* CART LIST */}
+        <div className="space-y-4">
           {cart.map((item) => {
-            const primaryImg = item.product.img_url[0];
-            const imgSrc = primaryImg
-              ? primaryImg.startsWith("http")
-                ? primaryImg
-                : `http://localhost:8000/images/${primaryImg}`
+            const checked = selected.includes(item.id);
+            const img = item.product.img_url[0]
+              ? `http://localhost:8000/images/${item.product.img_url[0]}`
               : "/no-image.png";
-
-            const isPromo =
-              item.product.original_price &&
-              item.product.original_price > item.product.price;
 
             return (
               <div
                 key={item.id}
-                className="flex bg-white p-5 rounded-xl shadow-md gap-6 items-center border hover:shadow-xl hover:-translate-y-0.5 transition"
+                className={`flex items-center gap-4 p-5 bg-white rounded-xl border
+                  ${checked ? "border-orange-500 ring-1 ring-orange-300" : ""}
+                `}
               >
-                {/* IMAGE */}
-                <div className="w-24 h-24 rounded-lg overflow-hidden bg-gray-200 border">
-                  <img
-                    src={imgSrc}
-                    className="object-cover w-full h-full"
-                    onError={(e) =>
-                      (e.currentTarget.src = "/no-image.png")
-                    }
-                  />
-                </div>
+                {/* CHECK */}
+                <button
+                  onClick={() => toggleSelect(item.id)}
+                  className={`w-6 h-6 rounded border flex items-center justify-center
+                    ${checked ? "bg-orange-500 border-orange-500" : "border-gray-400"}
+                  `}
+                >
+                  {checked && <Check size={14} className="text-white" />}
+                </button>
 
-                {/* DETAIL */}
-                <div className="flex flex-col flex-1">
-                  <h2 className="font-semibold text-[19px] text-[#234C6A]">
+                {/* IMAGE (CLICKABLE → DETAIL) */}
+                <img
+                  src={img}
+                  onClick={() =>
+                    router.push(
+                      `/marketplace/detailProduk?id=${item.product.id}`
+                    )
+                  }
+                  className="w-20 h-20 rounded-lg object-cover border cursor-pointer hover:opacity-80"
+                  onError={(e) =>
+                    (e.currentTarget.src = "/no-image.png")
+                  }
+                />
+
+                {/* INFO (CLICKABLE → DETAIL) */}
+                <div
+                  className="flex-1 cursor-pointer"
+                  onClick={() =>
+                    router.push(
+                      `/marketplace/detailProduk?id=${item.product.id}`
+                    )
+                  }
+                >
+                  <h2 className="font-semibold text-slate-800 hover:underline">
                     {item.product.name}
                   </h2>
-
-                  {isPromo ? (
-                    <>
-                      <span className="text-sm line-through text-gray-500">
-                        Rp{" "}
-                        {item.product.original_price?.toLocaleString("id-ID")}
-                      </span>
-                      <span className="text-[#FF6D1F] font-bold text-[18px]">
-                        Rp {item.product.price.toLocaleString("id-ID")}
-                      </span>
-                    </>
-                  ) : (
-                    <p className="text-[#FF6D1F] font-bold text-[18px]">
-                      Rp {item.product.price.toLocaleString("id-ID")}
-                    </p>
-                  )}
+                  <p className="text-orange-500 font-bold">
+                    {formatRupiah(item.product.price)}
+                  </p>
                 </div>
 
                 {/* QTY */}
@@ -200,16 +237,12 @@ export default function CartPage() {
                     onClick={() =>
                       updateQty(item.id, item.quantity - 1)
                     }
-                    className="w-9 h-9 bg-gray-200 rounded-full"
+                    className="w-8 h-8 bg-gray-200 rounded-full"
                   >
-                    <Minus size={18} />
+                    <Minus size={16} />
                   </button>
 
-                  <span
-                    className={`font-semibold text-[18px] transition ${
-                      animateId === item.id ? "scale-125" : ""
-                    }`}
-                  >
+                  <span className="font-semibold">
                     {item.quantity}
                   </span>
 
@@ -217,39 +250,45 @@ export default function CartPage() {
                     onClick={() =>
                       updateQty(item.id, item.quantity + 1)
                     }
-                    className="w-9 h-9 bg-gray-200 rounded-full"
+                    className="w-8 h-8 bg-gray-200 rounded-full"
                   >
-                    <Plus size={18} />
+                    <Plus size={16} />
                   </button>
                 </div>
 
                 {/* DELETE */}
                 <button
                   onClick={() => removeItem(item.id)}
-                  className="text-red-500 hover:text-red-700"
+                  className="text-red-500"
                 >
-                  <Trash2 size={22} />
+                  <Trash2 size={20} />
                 </button>
               </div>
             );
           })}
         </div>
 
-        {/* TOTAL */}
-        {cart.length > 0 && (
-          <div className="mt-10 bg-white p-6 rounded-xl shadow flex justify-between items-center border">
-            <p className="text-xl font-bold text-[#234C6A]">
-              Total :
-              <span className="text-[#FF6D1F] ml-2">
-                Rp {total.toLocaleString("id-ID")}
+        {/* FOOTER */}
+        {selectedItems.length > 0 && (
+          <div className="mt-10 bg-white p-6 rounded-xl shadow flex justify-between items-center">
+            <p className="text-xl font-bold">
+              Total:
+              <span className="text-orange-500 ml-2">
+                {formatRupiah(total)}
               </span>
             </p>
 
             <button
-              onClick={() => router.push("/checkout")}
-              className="bg-[#FF6D1F] text-white px-7 py-3 rounded-full font-bold text-lg hover:bg-[#e65b14]"
+              onClick={() => {
+                localStorage.setItem(
+                  "checkout_items",
+                  JSON.stringify(selectedItems)
+                );
+                router.push("/checkout");
+              }}
+              className="bg-orange-500 text-white px-7 py-3 rounded-full font-bold"
             >
-              Checkout
+              Checkout ({selectedItems.length})
             </button>
           </div>
         )}

@@ -27,6 +27,11 @@ Route::get('products/{id}', [ProductController::class, 'show']);
 // Promotions
 Route::get('promotions', [PromotionController::class, 'index']);
 
+// ==================================
+// 🔥 PUBLIC REVIEWS (FIX UTAMA)
+// ==================================
+Route::get('reviews', [ReviewController::class, 'index']);
+
 
 // ===========================================
 // 2. USER AUTHENTICATED ROUTES
@@ -46,12 +51,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('orders', OrderController::class);
 
     // ==================================
-    // REVIEWS (FIXED - NO DUPLICATE ROUTE)
+    // REVIEWS (LOGIN REQUIRED)
     // ==================================
-    Route::apiResource('reviews', ReviewController::class)
-        ->except(['destroy', 'update']);
-
-    // UPDATE REVIEW (MAX 7 HARI)
+    Route::post('reviews', [ReviewController::class, 'store']);
     Route::put('reviews/{review}', [ReviewController::class, 'update']);
 
     // BOOKINGS (USER)
@@ -72,6 +74,10 @@ Route::middleware(['auth:sanctum', 'role:admin,super_admin,kasir'])->group(funct
     // Cashier POS
     Route::post('cashier/process-transaction', [CashierController::class, 'processTransaction']);
 
+    // Transactions (FIX FRONTEND)
+    Route::get('transactions', [CashierController::class, 'index']);
+    Route::post('transactions', [CashierController::class, 'processTransaction']);
+
     // Products
     Route::get('products/search/cashier', [ProductController::class, 'searchForCashier']);
     Route::apiResource('products', ProductController::class)->except(['index','show']);
@@ -83,6 +89,8 @@ Route::middleware(['auth:sanctum', 'role:admin,super_admin,kasir'])->group(funct
         Route::apiResource('categories', CategoryController::class);
         Route::get('promotions/{id}', [PromotionController::class, 'show']);
         Route::apiResource('promotions', PromotionController::class)->except(['index','show']);
+
+        // DELETE REVIEW (ADMIN)
         Route::delete('reviews/{review}', [ReviewController::class, 'destroy']);
     });
 });

@@ -16,29 +16,44 @@ class ReviewController extends Controller
      * =================================================
      */
     public function index(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'product_id' => 'required|exists:products,id',
-        ]);
+{
+    $validator = Validator::make($request->all(), [
+        'product_id' => 'required|exists:products,id',
+    ]);
 
-        if ($validator->fails()) {
-            return response()->json([
-                'errors' => $validator->errors()
-            ], 422);
-        }
-
-        $reviews = Review::with('user:id,name')
-            ->where('product_id', $request->product_id)
-            ->latest()
-            ->get();
-
+    if ($validator->fails()) {
         return response()->json([
-            'average_rating' => number_format($reviews->avg('rating'), 1),
-            'total_reviews'  => $reviews->count(),
-            'reviews'        => $reviews
-        ], 200);
+            'errors' => $validator->errors()
+        ], 422);
     }
 
+    $reviews = Review::with('user:id,name')
+        ->where('product_id', $request->product_id)
+        ->whereNotNull('user_id')           // 🔥 PENTING
+        ->whereNotNull('rating')            // 🔥 PENTING
+        ->latest()
+        ->get();
+
+    $average = $reviews->count()
+        ? round((float) $reviews->avg('rating'), 1)
+        : 0;
+
+    return response()->json([
+        'average_rating' => number_format($average, 1),
+        'total_reviews'  => $reviews->count(),
+        'reviews'        => $reviews->map(function ($r) {
+            return [
+                'id' => $r->id,
+                'rating' => (int) $r->rating,
+                'comment' => $r->comment,
+                'created_at' => $r->created_at,
+                'user' => [
+                    'name' => optional($r->user)->name ?? 'User',
+                ],
+            ];
+        }),
+    ], 200);
+}
     /**
      * =================================================
      * POST /api/reviews

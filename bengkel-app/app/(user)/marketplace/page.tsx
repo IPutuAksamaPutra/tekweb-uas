@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react"; 
+import { useEffect, useState } from "react"; 
 import { useRouter } from "next/navigation";
 import ProductCard from "@/components/user/ProductCard";
 import ProductCardPromo from "@/components/user/ProductCardPromo";
-import { ShoppingCart } from "lucide-react";
+import { ShoppingCart, ClipboardList } from "lucide-react";
 import { alertSuccess, alertError, alertLoginRequired } from "@/components/Alert";
-
 
 interface Product {
     id: number;
@@ -14,8 +13,8 @@ interface Product {
     price: number;
     stock: number;
     jenis_barang: string;
-    img_urls?: string[]; // ARRAY url dari backend
-    img_url?: string | null; // STRING untuk card
+    img_urls?: string[];
+    img_url?: string | null;
     original_price?: number;
     is_promo?: boolean;
 }
@@ -114,11 +113,12 @@ export default function MarketplacePage() {
     const handleAddToCart = async (prod: Product) => {
         const token = document.cookie.match(/token=([^;]+)/)?.[1];
         if (!token) {
-           alertLoginRequired().then((result) => {
-        if (result.isConfirmed) {
-            router.push("/auth/login");
-        }
-    });
+            alertLoginRequired().then((result) => {
+                if (result.isConfirmed) {
+                    router.push("/auth/login");
+                }
+            });
+            return;
         }
 
         try {
@@ -137,27 +137,29 @@ export default function MarketplacePage() {
 
             if (res.ok) {
                 updateCartCount();
-                 alertSuccess(prod.is_promo ? "Produk promo berhasil ditambahkan!" : "Produk berhasil ditambahkan ke keranjang!");
-            } else {  
+                alertSuccess(
+                    prod.is_promo
+                        ? "Produk promo berhasil ditambahkan!"
+                        : "Produk berhasil ditambahkan ke keranjang!"
+                );
             }
         } catch (error) {
             console.error("Error saat menambahkan ke keranjang:", error);
             alertError("Terjadi kesalahan jaringan.");
         }
     };
-    
+
     // ================= DETAIL PAGE HANDLER =================
     const handleDetailClick = (p: Product) => {
-        // Simpan data lengkap produk ke localStorage untuk halaman detail
         localStorage.setItem(
             "selectedProduct",
             JSON.stringify({
                 ...p,
-                img_url: p.img_urls ?? [], 
+                img_url: p.img_urls ?? [],
             })
         );
         router.push("/marketplace/detailProduk");
-    }
+    };
 
     return (
         <div className="max-w-6xl mx-auto p-6">
@@ -167,14 +169,27 @@ export default function MarketplacePage() {
                     Marketplace Produk
                 </h1>
 
-                <a href="/cart" className="relative">
-                    <ShoppingCart size={32} className="text-[#FF6D1F]" />
-                    {cartCount > 0 && (
-                        <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs font-bold rounded-full px-2">
-                            {cartCount}
-                        </span>
-                    )}
-                </a>
+                {/* 🔥 KERANJANG + PESANAN */}
+                <div className="flex items-center gap-5">
+                    {/* PESANAN */}
+                    <button
+                        onClick={() => router.push("/marketplace/pesanan")}
+                        className="relative flex items-center gap-1 text-[#234C6A] font-bold hover:text-[#FF6D1F]"
+                    >
+                        <ClipboardList size={28} />
+                        <span className="hidden sm:inline">Pesanan</span>
+                    </button>
+
+                    {/* KERANJANG */}
+                    <a href="/cart" className="relative">
+                        <ShoppingCart size={32} className="text-[#FF6D1F]" />
+                        {cartCount > 0 && (
+                            <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs font-bold rounded-full px-2">
+                                {cartCount}
+                            </span>
+                        )}
+                    </a>
+                </div>
             </div>
 
             {/* SEARCH & FILTER */}
@@ -215,9 +230,9 @@ export default function MarketplacePage() {
                                 const promoProduct: Product = {
                                     ...p,
                                     img_urls: p.img_urls ?? [],
-                                    img_url: ((p.img_urls && p.img_urls.length > 0) 
-                                        ? p.img_urls[0] 
-                                        : null) as (string | null), // FIX GARIS MERAH
+                                    img_url: (p.img_urls && p.img_urls.length > 0)
+                                        ? p.img_urls[0]
+                                        : null,
                                     original_price: p.price,
                                     price: finalPrice,
                                     is_promo: true,
@@ -238,9 +253,11 @@ export default function MarketplacePage() {
             )}
 
             {/* ================= ALL PRODUCTS ================= */}
-            <h2 className="text-xl font-bold text-[#234C6A] mb-4">Semua Produk</h2>
+            <h2 className="text-xl font-bold text-[#234C6A] mb-4">
+                Semua Produk
+            </h2>
 
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                 {filtered.map((p) => (
                     <ProductCard
                         key={p.id}

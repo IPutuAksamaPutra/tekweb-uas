@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Star } from "lucide-react";
 
 interface Item {
   product_id: number;
@@ -43,24 +44,20 @@ export default function ReviewForm({ orderId, items, onSuccess }: Props) {
           Accept: "application/json",
         },
         body: JSON.stringify({
-          order_id: orderId,      // WAJIB (backend)
-          product_id: productId,  // WAJIB
-          rating,                 // 1–5
-          comment,                // optional
+          order_id: orderId,
+          product_id: productId,
+          rating,
+          comment,
         }),
       });
 
       const data = await res.json();
 
-      // ============================
-      // HANDLE ERROR DARI BACKEND
-      // ============================
       if (!res.ok) {
         if (data?.errors) {
           const firstError = Object.values(data.errors)[0] as string[];
           throw new Error(firstError[0]);
         }
-
         throw new Error(data?.message || "Gagal mengirim review");
       }
 
@@ -73,16 +70,20 @@ export default function ReviewForm({ orderId, items, onSuccess }: Props) {
   };
 
   return (
-    <div className="mt-6 border rounded-lg p-4 text-black">
-      <h3 className="font-bold mb-3">Tulis Review Produk</h3>
+    <div className="mt-8 bg-white border rounded-2xl p-6 shadow-sm text-black">
+      <h3 className="text-xl font-bold mb-6 text-[#234C6A]">
+        Tulis Ulasan Produk
+      </h3>
 
       {/* PILIH PRODUK */}
-      <label className="block mb-2">
-        Pilih Produk
+      <div className="mb-5">
+        <label className="block font-semibold mb-2 text-gray-700">
+          Pilih Produk
+        </label>
         <select
           value={productId}
           onChange={(e) => setProductId(Number(e.target.value))}
-          className="w-full border p-2 mt-1"
+          className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-orange-400 outline-none"
         >
           {items.map((item, i) => (
             <option key={i} value={item.product_id}>
@@ -90,44 +91,70 @@ export default function ReviewForm({ orderId, items, onSuccess }: Props) {
             </option>
           ))}
         </select>
-      </label>
+      </div>
 
       {/* RATING */}
-      <label className="block mb-2">
-        Rating (1–5)
-        <select
-          value={rating}
-          onChange={(e) => setRating(Number(e.target.value))}
-          className="w-full border p-2 mt-1"
-        >
+      <div className="mb-5">
+        <label className="block font-semibold mb-2 text-gray-700">
+          Rating
+        </label>
+
+        <div className="flex gap-2">
           {[1, 2, 3, 4, 5].map((r) => (
-            <option key={r} value={r}>{r}</option>
+            <button
+              key={r}
+              type="button"
+              onClick={() => setRating(r)}
+              className="transition-transform hover:scale-110"
+            >
+              <Star
+                size={32}
+                className={
+                  r <= rating
+                    ? "fill-yellow-400 text-yellow-400"
+                    : "text-gray-300"
+                }
+              />
+            </button>
           ))}
-        </select>
-      </label>
+        </div>
+
+        <p className="text-sm text-gray-500 mt-1">
+          {rating === 5 && "Sangat puas"}
+          {rating === 4 && "Puas"}
+          {rating === 3 && "Cukup"}
+          {rating === 2 && "Kurang"}
+          {rating === 1 && "Sangat buruk"}
+        </p>
+      </div>
 
       {/* KOMENTAR */}
-      <label className="block mb-2">
-        Komentar
+      <div className="mb-5">
+        <label className="block font-semibold mb-2 text-gray-700">
+          Komentar
+        </label>
         <textarea
           value={comment}
           onChange={(e) => setComment(e.target.value)}
-          className="w-full border p-2 mt-1"
-          placeholder="Tulis komentar (opsional)"
+          className="w-full border rounded-xl p-3 min-h-[100px] focus:ring-2 focus:ring-orange-400 outline-none"
+          placeholder="Ceritakan pengalamanmu tentang produk ini"
         />
-      </label>
+      </div>
 
       {/* ERROR */}
       {error && (
-        <p className="text-red-600 text-sm mb-2">{error}</p>
+        <div className="mb-4 bg-red-50 border border-red-200 text-red-600 px-4 py-2 rounded-xl text-sm">
+          {error}
+        </div>
       )}
 
+      {/* SUBMIT */}
       <button
         onClick={handleSubmit}
         disabled={loading}
-        className="bg-black text-white px-4 py-2 rounded disabled:opacity-50"
+        className="w-full bg-[#FF6D1F] hover:bg-[#E85E15] text-white font-bold py-3 rounded-full transition disabled:opacity-50"
       >
-        {loading ? "Mengirim..." : "Kirim Review"}
+        {loading ? "Mengirim ulasan..." : "Kirim Ulasan"}
       </button>
     </div>
   );
