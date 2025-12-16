@@ -3,7 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\AdminUserController;
-use App\Http\Controllers\Api\ProductController; 
+use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\CashierController;
@@ -15,21 +15,37 @@ use App\Http\Controllers\Admin\AdminOrderController;
 
 
 // ==================================
-// 1. PUBLIC ROUTES (No Auth Required)
+// 1. PUBLIC ROUTES (NO AUTH)
 // ==================================
 Route::post('register', [AuthController::class, 'register']);
 Route::post('login', [AuthController::class, 'login']);
 
-// Produk Public
-Route::get('products', [ProductController::class, 'index']);
-Route::get('products/{id}', [ProductController::class, 'show']);
 
-// Promotions
+// ===============================
+// PRODUK (PUBLIC - EXISTING)
+// ===============================
+Route::get('products', [ProductController::class, 'index']);
+Route::get('products/{id}', [ProductController::class, 'show'])
+    ->whereNumber('id'); // 🔒 aman ID only
+
+
+// ===============================
+// 🔥 PRODUK SEO / MARKETPLACE (SLUG)
+// 🔥 DITAMBAHKAN TANPA MERUSAK ROUTE LAMA
+// ===============================
+Route::get('products/slug/{slug}', [ProductController::class, 'showBySlug']);
+Route::get('products/slugs', [ProductController::class, 'getAllSlugs']);
+
+
+// ===============================
+// PROMOTIONS (PUBLIC)
+// ===============================
 Route::get('promotions', [PromotionController::class, 'index']);
 
-// ==================================
-// 🔥 PUBLIC REVIEWS (FIX UTAMA)
-// ==================================
+
+// ===============================
+// REVIEWS (PUBLIC)
+// ===============================
 Route::get('reviews', [ReviewController::class, 'index']);
 
 
@@ -50,9 +66,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // ORDERS
     Route::apiResource('orders', OrderController::class);
 
-    // ==================================
     // REVIEWS (LOGIN REQUIRED)
-    // ==================================
     Route::post('reviews', [ReviewController::class, 'store']);
     Route::put('reviews/{review}', [ReviewController::class, 'update']);
 
@@ -67,30 +81,30 @@ Route::middleware('auth:sanctum')->group(function () {
 // =======================================================
 Route::middleware(['auth:sanctum', 'role:admin,super_admin,kasir'])->group(function () {
 
-    // Booking search for cashier
+    // Booking search cashier
     Route::get('bookings/search/cashier', [BookingController::class, 'pendingForCashier']);
-    Route::get('bookings/manage', [BookingController::class, 'indexAdmin']); 
+    Route::get('bookings/manage', [BookingController::class, 'indexAdmin']);
 
     // Cashier POS
     Route::post('cashier/process-transaction', [CashierController::class, 'processTransaction']);
 
-    // Transactions (FIX FRONTEND)
+    // Transactions
     Route::get('transactions', [CashierController::class, 'index']);
     Route::post('transactions', [CashierController::class, 'processTransaction']);
 
-    // Products
+    // Products cashier/admin
     Route::get('products/search/cashier', [ProductController::class, 'searchForCashier']);
     Route::apiResource('products', ProductController::class)->except(['index','show']);
 
     Route::apiResource('cashier', CashierController::class);
 
-    // Admin only
+    // ADMIN ONLY
     Route::middleware('role:admin,super_admin')->group(function () {
         Route::apiResource('categories', CategoryController::class);
+
         Route::get('promotions/{id}', [PromotionController::class, 'show']);
         Route::apiResource('promotions', PromotionController::class)->except(['index','show']);
 
-        // DELETE REVIEW (ADMIN)
         Route::delete('reviews/{review}', [ReviewController::class, 'destroy']);
     });
 });
@@ -113,7 +127,6 @@ Route::middleware(['auth:sanctum','role:admin,super_admin'])->group(function () 
 Route::middleware(['auth:sanctum', 'role:admin,super_admin'])
     ->prefix('admin')
     ->group(function () {
-
         Route::get('orders', [AdminOrderController::class, 'index']);
         Route::post('orders/{id}/status', [AdminOrderController::class, 'updateStatus']);
 });
