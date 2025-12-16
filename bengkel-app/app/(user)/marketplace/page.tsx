@@ -180,7 +180,7 @@ export default function MarketplacePage() {
   /* ================= DETAIL PAGE ================= */
   const handleDetailClick = (p: Product) => {
     localStorage.setItem("selectedProduct", JSON.stringify(p));
-    router.push(`/marketplace/detailProduk/${p.slug}`);
+    router.push(`/marketplace/detail-produk/${p.slug}`);
   };
 
   /* ================= JSX ================= */
