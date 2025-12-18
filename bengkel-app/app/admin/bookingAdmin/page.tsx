@@ -3,10 +3,10 @@
 import { useEffect, useState } from "react";
 import { alertSuccess, alertError, alertLoginRequired } from "@/components/Alert";
 
-// --- Ambil token dari cookies ---
-function getCookie(name: string): string | null {
-  const match = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
-  return match ? decodeURIComponent(match[2]) : null;
+// --- Ambil token dari localStorage (SSR SAFE) ---
+function getToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("token");
 }
 
 interface Booking {
@@ -62,7 +62,7 @@ export default function AdminBookingPage() {
         setLoading(true);
         setError(null);
 
-        const token = getCookie("token");
+        const token = getToken();
 
         const res = await fetch("http://localhost:8000/api/bookings", {
           headers: {
@@ -113,7 +113,7 @@ export default function AdminBookingPage() {
         )
       );
 
-      const token = getCookie("token");
+      const token = getToken();
 
       const res = await fetch(`http://localhost:8000/api/bookings/${id}`, {
         method: "PUT",
@@ -142,8 +142,6 @@ export default function AdminBookingPage() {
   // -- BOOKING CARD COMPONENT --
   const BookingCard = ({ b }: { b: Booking }) => (
     <div className="bg-white rounded-2xl shadow-lg hover:shadow-2xl transition duration-300 border border-gray-200 p-6 relative overflow-hidden">
-
-      {/* Highlight strip */}
       <div className="absolute top-0 left-0 w-full h-1 bg-linear-to-r from-amber-400 to-amber-600"></div>
 
       <div className="flex justify-between items-start mb-4">
