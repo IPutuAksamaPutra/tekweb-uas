@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use App\Models\Product;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\DB; // Ditambahkan untuk proteksi Database Transaction
 
 class ProductController extends Controller
 {
@@ -192,6 +193,7 @@ class ProductController extends Controller
         if ($request->hasFile('images')) {
             $path = public_path('images');
 
+            // Hapus gambar lama dari folder fisik
             foreach ($existingImages as $img) {
                 if ($img && File::exists($path . '/' . $img)) {
                     File::delete($path . '/' . $img);
@@ -232,21 +234,44 @@ class ProductController extends Controller
     // ================================================================
     public function destroy($id)
     {
-        $product = Product::findOrFail($id);
-        $images = json_decode($product->getRawOriginal('img_url') ?? '[]', true) ?? [];
+        // Menggunakan Transaction agar data DB tidak terhapus jika file gagal diproses
+        DB::beginTransaction();
 
-        $path = public_path('images');
-        foreach ($images as $img) {
-            if ($img && File::exists($path . '/' . $img)) {
-                File::delete($path . '/' . $img);
+        try {
+            $product = Product::findOrFail($id);
+            $imagesRaw = $product->getRawOriginal('img_url');
+            $images = is_string($imagesRaw) ? json_decode($imagesRaw, true) : $imagesRaw;
+
+            // Hapus data dari Database
+            $product->delete();
+
+            // Hapus file fisik di public/images
+            if (is_array($images)) {
+                $path = public_path('images');
+                foreach ($images as $img) {
+                    if ($img && File::exists($path . '/' . $img)) {
+                        File::delete($path . '/' . $img);
+                    }
+                }
             }
+
+            DB::commit();
+            return response()->json([
+                'message' => 'Produk berhasil dihapus'
+            ], 200);
+
+        } catch (\Illuminate\Database\QueryException $e) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Produk tidak bisa dihapus karena sedang digunakan dalam transaksi atau keranjang.'
+            ], 422);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Gagal menghapus produk.',
+                'error' => $e->getMessage()
+            ], 500);
         }
-
-        $product->delete();
-
-        return response()->json([
-            'message' => 'Produk berhasil dihapus'
-        ], 200);
     }
 
     // ================================================================
