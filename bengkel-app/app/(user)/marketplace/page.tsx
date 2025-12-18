@@ -22,7 +22,7 @@ interface Product {
   stock: number;
   jenis_barang: string;
   img_urls: string[];
-  img_url: string; // ✅ PASTI STRING
+  img_url: string;
   original_price?: number;
   is_promo?: boolean;
 }
@@ -63,7 +63,7 @@ export default function MarketplacePage() {
           stock: p.stock,
           jenis_barang: p.jenis_barang,
           img_urls: imgs,
-          img_url: imgs.length > 0 ? imgs[0] : "/no-image.png", // ✅ FIX
+          img_url: imgs.length > 0 ? imgs[0] : "/no-image.png",
         };
       });
 
@@ -85,11 +85,10 @@ export default function MarketplacePage() {
           ...promo,
           products: promo.products.map((p: any) => {
             const imgs = Array.isArray(p.img_urls) ? p.img_urls : [];
-
             return {
               ...p,
               img_urls: imgs,
-              img_url: imgs.length > 0 ? imgs[0] : "/no-image.png", // ✅ FIX
+              img_url: imgs.length > 0 ? imgs[0] : "/no-image.png",
             };
           }),
         })
@@ -232,12 +231,50 @@ export default function MarketplacePage() {
         </select>
       </div>
 
+      {/* PROMO PRODUCTS */}
+      {promotions.length > 0 && (
+        <div className="mb-10">
+          <h2 className="text-2xl font-bold text-[#FF6D1F] mb-4">
+            🔥 Produk Promo
+          </h2>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            {promotions.map((promo) =>
+              promo.products.map((p) => {
+                const discountedPrice =
+                  promo.discount_type === "percentage"
+                    ? Math.max(
+                        p.price - p.price * (promo.discount_value / 100),
+                        0
+                      )
+                    : Math.max(p.price - promo.discount_value, 0);
+
+                return (
+                  <ProductCardPromo
+                    key={`promo-${promo.id}-${p.id}`}
+                    product={{
+                      ...p,
+                      original_price: p.price,
+                      price: discountedPrice,
+                      is_promo: true,
+                    }}
+                    promo={promo}
+                    onAdd={() => handleAddToCart(p)}
+                    onClick={() => handleDetailClick(p)}
+                  />
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+
       {/* PRODUCTS */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
         {filtered.map((p) => (
           <ProductCard
             key={p.id}
-            product={p} // ✅ TIDAK ADA ERROR TS
+            product={p}
             onAdd={() => handleAddToCart(p)}
             onClick={() => handleDetailClick(p)}
           />

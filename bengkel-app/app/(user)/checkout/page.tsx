@@ -122,7 +122,7 @@ export default function CheckoutPage() {
             <ShoppingBag className="text-[#FF6D1F]" /> Checkout
           </h1>
 
-          <div className="space-y-5">
+          <div className="space-y-5 text-[#04080b]">
             <input
               className={input}
               placeholder="Nama Penerima"
@@ -177,7 +177,7 @@ export default function CheckoutPage() {
         </div>
 
         {/* RINGKASAN */}
-        <div className="w-full md:w-96 bg-white p-6 rounded-2xl shadow border-t-8 border-[#FF6D1F]">
+        <div className="w-full md:w-96 bg-white p-6 rounded-2xl shadow border-t-8 border-[#FF6D1F] text-[#05090c]">
           <h2 className="text-xl font-bold mb-4">Ringkasan</h2>
 
           {cart.map((item) => (
@@ -189,7 +189,7 @@ export default function CheckoutPage() {
             </div>
           ))}
 
-          <div className="mt-4 space-y-1">
+          <div className="mt-4 space-y-1 text-[#05090c]">
             <div className="flex justify-between">
               <span>Subtotal</span>
               <span>Rp {subtotal.toLocaleString("id-ID")}</span>

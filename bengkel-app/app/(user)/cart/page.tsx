@@ -134,7 +134,7 @@ export default function CartPage() {
   );
 
   /* =======================
-     TOTAL (ONLY SELECTED)
+     TOTAL
   ======================= */
   const total = selectedItems.reduce(
     (sum, item) => sum + item.product.price * item.quantity,
@@ -149,20 +149,20 @@ export default function CartPage() {
     );
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-gray-50 p-4 md:p-6">
       <div className="max-w-5xl mx-auto">
 
         {/* HEADER */}
-        <div className="flex items-center gap-3 mb-10 border-b pb-4">
-          <ShoppingCart size={32} className="text-orange-500" />
-          <h1 className="text-3xl font-bold text-slate-800">
+        <div className="flex items-center gap-3 mb-6 md:mb-10 border-b pb-4">
+          <ShoppingCart size={28} className="text-orange-500" />
+          <h1 className="text-2xl md:text-3xl font-bold text-slate-800">
             Keranjang
           </h1>
         </div>
 
         {/* EMPTY */}
         {cart.length === 0 && (
-          <div className="bg-white p-10 rounded-xl shadow text-center">
+          <div className="bg-white p-8 md:p-10 rounded-xl shadow text-center">
             <p className="text-gray-500 mb-4">
               Keranjang masih kosong
             </p>
@@ -186,83 +186,91 @@ export default function CartPage() {
             return (
               <div
                 key={item.id}
-                className={`flex items-center gap-4 p-5 bg-white rounded-xl border
-                  ${checked ? "border-orange-500 ring-1 ring-orange-300" : ""}
-                `}
+                className={`flex flex-col md:flex-row md:items-center gap-4 p-4 md:p-5 bg-white rounded-xl border
+                ${checked ? "border-orange-500 ring-1 ring-orange-300" : ""}
+              `}
               >
-                {/* CHECK */}
-                <button
-                  onClick={() => toggleSelect(item.id)}
-                  className={`w-6 h-6 rounded border flex items-center justify-center
+                {/* TOP ROW (MOBILE) */}
+                <div className="flex items-center gap-4 md:gap-4">
+                  {/* CHECK */}
+                  <button
+                    onClick={() => toggleSelect(item.id)}
+                    className={`w-6 h-6 rounded border flex items-center justify-center
                     ${checked ? "bg-orange-500 border-orange-500" : "border-gray-400"}
                   `}
-                >
-                  {checked && <Check size={14} className="text-white" />}
-                </button>
-
-                {/* IMAGE (CLICKABLE → DETAIL) */}
-                <img
-                  src={img}
-                  onClick={() =>
-                    router.push(
-                      `/marketplace/detailProduk?id=${item.product.id}`
-                    )
-                  }
-                  className="w-20 h-20 rounded-lg object-cover border cursor-pointer hover:opacity-80"
-                  onError={(e) =>
-                    (e.currentTarget.src = "/no-image.png")
-                  }
-                />
-
-                {/* INFO (CLICKABLE → DETAIL) */}
-                <div
-                  className="flex-1 cursor-pointer"
-                  onClick={() =>
-                    router.push(
-                      `/marketplace/detailProduk?id=${item.product.id}`
-                    )
-                  }
-                >
-                  <h2 className="font-semibold text-slate-800 hover:underline">
-                    {item.product.name}
-                  </h2>
-                  <p className="text-orange-500 font-bold">
-                    {formatRupiah(item.product.price)}
-                  </p>
-                </div>
-
-                {/* QTY */}
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() =>
-                      updateQty(item.id, item.quantity - 1)
-                    }
-                    className="w-8 h-8 bg-gray-200 rounded-full"
                   >
-                    <Minus size={16} />
+                    {checked && (
+                      <Check size={14} className="text-[#05090c]" />
+                    )}
                   </button>
 
-                  <span className="font-semibold">
-                    {item.quantity}
-                  </span>
-
-                  <button
+                  {/* IMAGE */}
+                  <img
+                    src={img}
                     onClick={() =>
-                      updateQty(item.id, item.quantity + 1)
+                      router.push(
+                        `/marketplace/detailProduk?id=${item.product.id}`
+                      )
                     }
-                    className="w-8 h-8 bg-gray-200 rounded-full"
+                    className="w-20 h-20 rounded-lg object-cover border cursor-pointer"
+                    onError={(e) =>
+                      (e.currentTarget.src = "/no-image.png")
+                    }
+                  />
+
+                  {/* INFO */}
+                  <div
+                    className="flex-1 cursor-pointer text-[#05090c]"
+                    onClick={() =>
+                      router.push(
+                        `/marketplace/detailProduk?id=${item.product.id}`
+                      )
+                    }
                   >
-                    <Plus size={16} />
-                  </button>
+                    <h2 className="font-semibold text-slate-800">
+                      {item.product.name}
+                    </h2>
+                    <p className="text-orange-500 font-bold">
+                      {formatRupiah(item.product.price)}
+                    </p>
+                  </div>
                 </div>
 
-                {/* DELETE */}
-                <button
-                  onClick={() => removeItem(item.id)}
-                  className="text-red-500"
-                >
-                  <Trash2 size={20} />
-                </button>
+                {/* ACTIONS */}
+                <div className="flex items-center justify-between md:justify-end gap-4 md:ml-auto">
+                  {/* QTY */}
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() =>
+                        updateQty(item.id, item.quantity - 1)
+                      }
+                      className="w-8 h-8 bg-gray-200 rounded-full text-[#05090c]"
+                    >
+                      <Minus size={16} />
+                    </button>
+
+                    <span className="font-semibold text-[#05090c]">
+                      {item.quantity}
+                    </span>
+
+                    <button
+                      onClick={() =>
+                        updateQty(item.id, item.quantity + 1)
+                      }
+                      className="w-8 h-8 bg-gray-200 rounded-full text-[#05090c]"
+                    >
+                      <Plus size={16} />
+                    </button>
+                  </div>
+
+                  {/* DELETE */}
+                  <button
+                    onClick={() => removeItem(item.id)}
+                    className="text-red-500"
+                  >
+                    <Trash2 size={20} />
+                  </button>
+                </div>
               </div>
             );
           })}
@@ -270,8 +278,8 @@ export default function CartPage() {
 
         {/* FOOTER */}
         {selectedItems.length > 0 && (
-          <div className="mt-10 bg-white p-6 rounded-xl shadow flex justify-between items-center">
-            <p className="text-xl font-bold">
+          <div className="mt-8 bg-white p-5 md:p-6 rounded-xl shadow flex flex-col md:flex-row gap-4 md:gap-0 justify-between items-center text-[#05090c]">
+            <p className="text-lg md:text-xl font-bold">
               Total:
               <span className="text-orange-500 ml-2">
                 {formatRupiah(total)}
@@ -286,7 +294,7 @@ export default function CartPage() {
                 );
                 router.push("/checkout");
               }}
-              className="bg-orange-500 text-white px-7 py-3 rounded-full font-bold"
+              className="w-full md:w-auto bg-orange-500 text-[#05090c] px-7 py-3 rounded-full font-bold"
             >
               Checkout ({selectedItems.length})
             </button>
