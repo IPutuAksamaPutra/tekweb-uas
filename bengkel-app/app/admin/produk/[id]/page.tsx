@@ -29,7 +29,8 @@ export default function EditProductPage() {
   const [desc, setDesc] = useState("");
   const [image, setImage] = useState("");
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://tekweb-uas-production.up.railway.app/api";
+  const BASE_URL = "https://tekweb-uas-production.up.railway.app";
+  const API_URL = `${BASE_URL}/api`;
 
   /* =====================
       FETCH PRODUCT
@@ -40,19 +41,24 @@ export default function EditProductPage() {
       const res = await fetch(`${API_URL}/products/${productId}`, {
         headers: {
           Authorization: `Bearer ${token}`,
+          "Accept": "application/json"
         },
       });
 
       if (!res.ok) throw new Error();
       const data = await res.json();
 
-      // Menyesuaikan dengan struktur data Laravel Anda
-      const p = data.product || data;
-      setName(p.name);
-      setPrice(p.price.toString());
+      // Menyesuaikan dengan struktur data Laravel
+      const p = data.product || data.data || data;
+      
+      setName(p.name || "");
+      setPrice(p.price ? p.price.toString() : "");
       setDesc(p.description || "");
-      // Ambil gambar pertama jika img_urls berupa array
-      setImage(Array.isArray(p.img_urls) ? p.img_urls[0] : p.image_url || "");
+      
+      // Ambil nama file asli dari array image_urls atau img_urls
+      const rawImages = p.image_urls || p.img_urls || [];
+      setImage(Array.isArray(rawImages) ? rawImages[0] : "");
+      
     } catch (err) {
       alertError("Gagal memuat data produk");
       router.push("/admin/produk");
@@ -74,12 +80,14 @@ export default function EditProductPage() {
     setSaving(true);
 
     const token = getCookie("token");
+    
+    // Pastikan key sesuai dengan Model Laravel Anda: 'img_url'
+    // Dan karena Model Anda meng-cast ke array, kirim sebagai array
     const payload = {
       name,
       price: Number(price),
       description: desc,
-      // Sesuaikan key dengan backend (image_url atau img_urls)
-      image_url: image, 
+      img_url: [image], 
     };
 
     try {
@@ -87,17 +95,21 @@ export default function EditProductPage() {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
+          "Accept": "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
       });
 
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || "Gagal memperbarui produk");
+      }
 
       alertSuccess("Produk berhasil diperbarui!");
       router.push("/admin/produk");
-    } catch (err) {
-      alertError("Gagal menyimpan perubahan");
+    } catch (err: any) {
+      alertError(err.message || "Terjadi kesalahan saat menyimpan");
     } finally {
       setSaving(false);
     }
@@ -109,7 +121,7 @@ export default function EditProductPage() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
         <Loader2 className="animate-spin text-[#FF6D1F] mb-4" size={40} />
-        <p className="text-[#234C6A] font-bold">Memuat Data Produk...</p>
+        <p className="text-[#234C6A] font-black uppercase tracking-widest text-xs">Sinkronisasi Data...</p>
       </div>
     );
   }
@@ -121,7 +133,7 @@ export default function EditProductPage() {
         {/* Tombol Kembali */}
         <button
           onClick={() => router.back()}
-          className="flex items-center gap-2 mb-8 font-bold text-[#234C6A] hover:text-[#FF6D1F] transition-colors"
+          className="flex items-center gap-2 mb-8 font-black text-[#234C6A] hover:text-[#FF6D1F] transition-colors uppercase text-xs tracking-widest"
         >
           <ArrowLeft size={20} /> Kembali ke Daftar
         </button>
@@ -130,9 +142,9 @@ export default function EditProductPage() {
           {/* Header Card */}
           <div className="bg-[#234C6A] p-8 text-white">
             <h1 className="text-3xl font-black uppercase tracking-tighter flex items-center gap-3">
-              <Package className="text-[#FF6D1F]" /> Edit Produk
+              <Package className="text-[#FF6D1F]" size={32} /> Edit Produk
             </h1>
-            <p className="text-blue-100 text-sm mt-1">ID Produk: #{productId}</p>
+            <p className="text-blue-100 text-xs font-bold mt-1 opacity-70">ID: {productId} — Update Inventory Railway</p>
           </div>
 
           <form onSubmit={handleSubmit} className="p-8 grid md:grid-cols-2 gap-8">
@@ -146,8 +158,8 @@ export default function EditProductPage() {
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full bg-gray-50 border-none p-4 rounded-2xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-[#FF6D1F] transition-all"
-                  placeholder="Contoh: Oli Mesin Matic"
+                  className="w-full bg-gray-50 border-2 border-transparent p-4 rounded-2xl font-bold text-slate-800 outline-none focus:border-[#FF6D1F] focus:bg-white transition-all"
+                  placeholder="Nama produk..."
                 />
               </div>
 
@@ -158,8 +170,8 @@ export default function EditProductPage() {
                   required
                   value={price}
                   onChange={(e) => setPrice(e.target.value)}
-                  className="w-full bg-gray-50 border-none p-4 rounded-2xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-[#FF6D1F] transition-all"
-                  placeholder="100000"
+                  className="w-full bg-gray-50 border-2 border-transparent p-4 rounded-2xl font-bold text-slate-800 outline-none focus:border-[#FF6D1F] focus:bg-white transition-all"
+                  placeholder="Contoh: 150000"
                 />
               </div>
 
@@ -169,8 +181,8 @@ export default function EditProductPage() {
                   rows={4}
                   value={desc}
                   onChange={(e) => setDesc(e.target.value)}
-                  className="w-full bg-gray-50 border-none p-4 rounded-2xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-[#FF6D1F] transition-all resize-none"
-                  placeholder="Detail spesifikasi produk..."
+                  className="w-full bg-gray-50 border-2 border-transparent p-4 rounded-2xl font-bold text-slate-800 outline-none focus:border-[#FF6D1F] focus:bg-white transition-all resize-none"
+                  placeholder="Detail spesifikasi..."
                 />
               </div>
             </div>
@@ -178,22 +190,22 @@ export default function EditProductPage() {
             {/* Kolom Kanan: Gambar */}
             <div className="space-y-5">
               <div>
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">URL / Nama File Gambar</label>
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Nama File Gambar</label>
                 <input
                   type="text"
                   value={image}
                   onChange={(e) => setImage(e.target.value)}
-                  className="w-full bg-gray-50 border-none p-4 rounded-2xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-[#FF6D1F] transition-all"
-                  placeholder="nama-gambar.jpg"
+                  className="w-full bg-gray-50 border-2 border-transparent p-4 rounded-2xl font-bold text-slate-800 outline-none focus:border-[#FF6D1F] focus:bg-white transition-all"
+                  placeholder="ban-motor.jpg"
                 />
               </div>
 
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Preview Gambar</label>
-                <div className="aspect-square bg-gray-100 rounded-3xl border-2 border-dashed border-gray-200 flex items-center justify-center overflow-hidden">
+                <div className="aspect-square bg-white rounded-3xl border-4 border-dashed border-gray-100 flex items-center justify-center overflow-hidden">
                   {image ? (
                     <img
-                      src={image.startsWith("http") ? image : `https://tekweb-uas-production.up.railway.app/images/${image}`}
+                      src={image.startsWith("http") ? image : `${BASE_URL}/storage/products/${image.replace('public/products/', '')}`}
                       alt="Preview"
                       className="w-full h-full object-contain p-4"
                       onError={(e) => {
@@ -201,9 +213,9 @@ export default function EditProductPage() {
                       }}
                     />
                   ) : (
-                    <div className="text-center text-gray-400">
-                      <ImageIcon size={48} className="mx-auto mb-2" />
-                      <p className="text-xs font-bold uppercase">Belum ada gambar</p>
+                    <div className="text-center text-gray-300">
+                      <ImageIcon size={48} className="mx-auto mb-2 opacity-20" />
+                      <p className="text-[10px] font-black uppercase tracking-widest">Belum ada gambar</p>
                     </div>
                   )}
                 </div>
@@ -215,7 +227,7 @@ export default function EditProductPage() {
               <button
                 type="submit"
                 disabled={saving}
-                className="flex-1 bg-[#FF6D1F] hover:bg-orange-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-orange-200 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:bg-gray-300"
+                className="flex-1 bg-[#FF6D1F] hover:bg-orange-600 text-white py-5 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-orange-100 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:bg-gray-300"
               >
                 {saving ? (
                   <Loader2 className="animate-spin" size={20} />
@@ -229,7 +241,7 @@ export default function EditProductPage() {
               <button
                 type="button"
                 onClick={() => router.back()}
-                className="px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-gray-400 hover:bg-gray-100 transition-all"
+                className="px-8 py-5 rounded-2xl font-black uppercase tracking-widest text-gray-400 hover:bg-gray-100 transition-all"
               >
                 Batal
               </button>

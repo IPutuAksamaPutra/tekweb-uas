@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect, useMemo, Suspense } from "react";
+import { useState, useEffect, useMemo, Suspense, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { alertSuccess, alertError } from "@/components/Alert";
 import { ArrowLeft, Save, Upload, Package, X, Loader2 } from "lucide-react";
 
 /* ===============================
-   INTERFACE
+    INTERFACE
 ================================ */
 interface Product {
   id: number;
@@ -41,14 +41,10 @@ function EditProductContent() {
   const [selectedImageFiles, setSelectedImageFiles] = useState<File[]>([]);
   const [existingImageUrls, setExistingImageUrls] = useState<string[]>([]);
 
-  // 1. Initial Load & Hydration Guard
-  useEffect(() => {
-    setIsMount(true);
-    if (!productId) {
-      setLoading(false);
-      return;
-    }
-
+  /* =====================
+      FETCH PRODUCT DATA
+  ===================== */
+  const fetchProduct = useCallback(async () => {
     const token = getCookie("token");
     if (!token) {
       alertError("Sesi berakhir. Silakan login ulang.");
@@ -56,36 +52,50 @@ function EditProductContent() {
       return;
     }
 
-    async function fetchProduct() {
-      try {
-        const res = await fetch(`${BACKEND_BASE}/api/products/${productId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+    try {
+      const res = await fetch(`${BACKEND_BASE}/api/products/${productId}`, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          "Accept": "application/json"
+        },
+      });
 
-        if (!res.ok) throw new Error();
+      if (!res.ok) throw new Error();
 
-        const data = await res.json();
-        const prod = data.product;
+      const data = await res.json();
+      // Menangani data.product atau data.data sesuai respon backend Anda
+      const prod = data.product || data.data || data;
 
-        setProduct(prod);
-        
-        // Transform nama file dari backend menjadi full URL jika perlu
-        const formattedUrls = (prod.img_url || []).map((url: string) => 
-          url.startsWith('http') ? url : `${BACKEND_BASE}/images/${url}`
-        );
-        setExistingImageUrls(formattedUrls);
-      } catch (err) {
-        alertError("Gagal memuat data produk.");
-        router.push("/admin/produk");
-      } finally {
-        setLoading(false);
-      }
+      setProduct(prod);
+      
+      /**
+       * TRANSFORM KE STORAGE URL
+       * Menyesuaikan dengan sistem symbolic link Railway
+       */
+      const formattedUrls = (prod.image_urls || prod.img_urls || prod.img_url || []).map((url: string) => {
+        if (url.startsWith('http')) return url;
+        // Bersihkan path 'public/products/' jika ada
+        const fileName = url.replace('public/products/', '');
+        return `${BACKEND_BASE}/storage/products/${fileName}`;
+      });
+      
+      setExistingImageUrls(formattedUrls);
+    } catch (err) {
+      alertError("Gagal memuat data produk.");
+      router.push("/admin/produk");
+    } finally {
+      setLoading(false);
     }
-
-    fetchProduct();
   }, [productId, router]);
 
-  // 2. Blob URL Preview Management
+  useEffect(() => {
+    setIsMount(true);
+    if (productId) fetchProduct();
+  }, [productId, fetchProduct]);
+
+  /* =====================
+      IMAGE PREVIEW MGMT
+  ===================== */
   const newPreviewUrls = useMemo(() => {
     return selectedImageFiles.map((file) => URL.createObjectURL(file));
   }, [selectedImageFiles]);
@@ -96,9 +106,12 @@ function EditProductContent() {
     };
   }, [newPreviewUrls]);
 
+  // Jika user pilih file baru, tampilkan preview file baru. Jika tidak, tampilkan gambar yang sudah ada di server.
   const currentPreviewUrls = newPreviewUrls.length > 0 ? newPreviewUrls : existingImageUrls;
 
-  // 3. Handlers
+  /* =====================
+      HANDLERS
+  ===================== */
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     if (!product) return;
     const { name, value } = e.target;
@@ -124,51 +137,64 @@ function EditProductContent() {
     setIsUpdating(true);
 
     const token = getCookie("token");
+    
+    /**
+     * MENGGUNAKAN FORMDATA
+     * Penting agar file gambar bisa terkirim ke Laravel Railway
+     */
     const formData = new FormData();
     formData.append("name", product.name);
     formData.append("price", product.price.toString());
     formData.append("description", product.description);
     formData.append("jenis_barang", product.jenis_barang);
     formData.append("stock", product.stock.toString());
-    formData.append("_method", "PUT"); // Laravel method spoofing
+    
+    // Method Spoofing karena HTML Form tidak mendukung PUT dengan FormData secara native di beberapa versi Laravel
+    formData.append("_method", "PUT"); 
 
+    // Tambahkan gambar baru jika ada
     selectedImageFiles.forEach((file) => formData.append("images[]", file));
 
     try {
       const res = await fetch(`${BACKEND_BASE}/api/products/${product.id}`, {
-        method: "POST", // Harus POST untuk FormData + spoofing PUT
+        method: "POST", // Menggunakan POST + _method PUT (Spoofing)
         headers: {
           Accept: "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: formData,
+        body: formData, // Browser akan otomatis set Content-Type: multipart/form-data
       });
 
-      if (!res.ok) throw new Error();
-      alertSuccess("Produk diperbarui!");
+      if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.message || "Update gagal");
+      }
+      
+      alertSuccess("Produk berhasil diperbarui!");
       router.push("/admin/produk");
-    } catch (err) {
-      alertError("Gagal menyimpan perubahan.");
+    } catch (err: any) {
+      alertError(err.message || "Gagal menyimpan perubahan.");
     } finally {
       setIsUpdating(false);
     }
   };
 
   if (!isMount) return null;
+
   if (loading) return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
       <Loader2 className="animate-spin text-[#FF6D1F]" size={40} />
-      <p className="font-bold text-[#234C6A]">Memuat Data Produk...</p>
+      <p className="font-black text-[#234C6A] uppercase tracking-widest text-xs">Menghubungkan ke Storage...</p>
     </div>
   );
 
-  const inputStyle = "w-full bg-gray-50 border-none p-4 rounded-2xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-[#FF6D1F] transition-all";
+  const inputStyle = "w-full bg-gray-50 border-2 border-transparent p-4 rounded-2xl font-bold text-slate-800 outline-none focus:border-[#FF6D1F] focus:bg-white transition-all";
 
   return (
     <div className="max-w-4xl mx-auto p-4 md:p-8">
       <button 
         onClick={() => router.back()}
-        className="flex items-center gap-2 mb-6 font-bold text-[#234C6A] hover:text-[#FF6D1F] transition-colors"
+        className="flex items-center gap-2 mb-6 font-black text-[#234C6A] hover:text-[#FF6D1F] transition-colors uppercase text-xs tracking-widest"
       >
         <ArrowLeft size={20} /> Kembali
       </button>
@@ -179,11 +205,11 @@ function EditProductContent() {
             <Package className="text-[#FF6D1F]" size={32} /> 
             Edit Produk
           </h1>
-          <p className="text-blue-100 text-sm mt-1">ID Produk: #{product?.id}</p>
+          <p className="text-blue-100 text-xs font-bold mt-1 opacity-70 uppercase">ID Produk: #{product?.id} — Update via Railway Storage</p>
         </div>
 
         <form onSubmit={handleSubmit} className="p-8 space-y-6">
-          <div className="grid md:grid-cols-2 gap-6">
+          <div className="grid md:grid-cols-2 gap-8">
             <div className="space-y-4">
               <div>
                 <label className="text-[10px] font-black text-gray-400 uppercase ml-1 tracking-widest">Nama Produk</label>
@@ -219,29 +245,29 @@ function EditProductContent() {
           </div>
 
           {/* Upload Section */}
-          <div className="border-2 border-dashed border-gray-200 rounded-4xl p-6 bg-gray-50/50">
+          <div className="border-4 border-dashed border-gray-100 rounded-4xl p-8 bg-gray-50/50">
             <label className="block text-center cursor-pointer group">
               <input type="file" multiple accept="image/*" onChange={handleUpload} className="hidden" />
-              <div className="flex flex-col items-center gap-2">
-                <div className="p-4 bg-white rounded-full shadow-sm text-[#FF6D1F] group-hover:scale-110 transition-transform">
-                  <Upload size={24} />
+              <div className="flex flex-col items-center gap-3">
+                <div className="p-4 bg-white rounded-full shadow-lg text-[#FF6D1F] group-hover:scale-110 transition-transform">
+                  <Upload size={28} />
                 </div>
-                <p className="font-black text-[#234C6A] uppercase text-xs">Klik untuk Ganti Gambar</p>
-                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Akan mengganti semua gambar lama</p>
+                <p className="font-black text-[#234C6A] uppercase text-xs">Ganti Gambar Produk</p>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Memilih file baru akan menggantikan gambar lama</p>
               </div>
             </label>
 
-            <div className="flex flex-wrap gap-4 mt-6 justify-center">
+            <div className="flex flex-wrap gap-4 mt-8 justify-center">
               {currentPreviewUrls.map((url, i) => (
-                <div key={i} className="relative group w-24 h-24 rounded-2xl overflow-hidden shadow-md border-2 border-white">
-                  <Image src={url} alt="Preview" fill className="object-cover" unoptimized />
-                  {newPreviewUrls.length > 0 && (
+                <div key={i} className="relative group w-28 h-28 rounded-2xl overflow-hidden shadow-xl border-4 border-white">
+                  <img src={url} alt="Preview" className="w-full h-full object-cover" />
+                  {selectedImageFiles.length > 0 && (
                     <button 
                       type="button" 
                       onClick={() => removeSelectedImage(i)}
-                      className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
                     >
-                      <X size={12} />
+                      <X size={14} />
                     </button>
                   )}
                 </div>
@@ -252,9 +278,19 @@ function EditProductContent() {
           <button 
             type="submit" 
             disabled={isUpdating}
-            className="w-full bg-[#FF6D1F] hover:bg-orange-600 text-white py-5 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-orange-200 transition-all flex items-center justify-center gap-3 active:scale-[0.98] disabled:bg-gray-300"
+            className="w-full bg-[#FF6D1F] hover:bg-orange-600 text-white py-6 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-orange-100 transition-all flex items-center justify-center gap-3 active:scale-[0.98] disabled:bg-gray-300"
           >
-            {isUpdating ? <Loader2 className="animate-spin" /> : <><Save size={20} /> Simpan Perubahan</>}
+            {isUpdating ? (
+                <>
+                    <Loader2 className="animate-spin" />
+                    Memproses Perubahan...
+                </>
+            ) : (
+                <>
+                    <Save size={20} /> 
+                    Simpan Perubahan
+                </>
+            )}
           </button>
         </form>
       </div>
@@ -265,7 +301,7 @@ function EditProductContent() {
 export default function EditProductPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <Loader2 className="animate-spin text-[#FF6D1F]" size={40} />
       </div>
     }>

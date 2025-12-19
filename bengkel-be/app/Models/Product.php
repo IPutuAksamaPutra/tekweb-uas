@@ -21,8 +21,8 @@ class Product extends Model
     ];
 
     /**
-     * Accessor imageUrls
-     * Mengirimkan array nama file mentah ke Frontend.
+     * Accessor imageUrls (img_urls di JSON)
+     * Mengirimkan nama file mentah agar aman dan fleksibel diolah Frontend.
      */
     protected function imageUrls(): Attribute
     {
@@ -36,8 +36,10 @@ class Product extends Model
                 }
 
                 if (is_array($value)) {
-                    // Hanya ambil nama filenya saja, jangan pakai asset()
-                    return array_filter($value);
+                    // Bersihkan path jika ada tulisan 'public/' agar hanya nama file yang dikirim
+                    return array_map(function($item) {
+                        return str_replace('public/products/', '', $item);
+                    }, array_filter($value));
                 }
 
                 return [];

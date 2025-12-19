@@ -6,13 +6,13 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Product;
 use Illuminate\Support\Str;
-use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\DB; // Ditambahkan untuk proteksi Database Transaction
+use Illuminate\Support\Facades\Storage; // Gunakan Storage bukan File
+use Illuminate\Support\Facades\DB;
 
 class ProductController extends Controller
 {
     // ================================================================
-    // 🔥 HELPER: GENERATE UNIQUE SLUG (SEO SAFE)
+    // 🔥 HELPER: GENERATE UNIQUE SLUG
     // ================================================================
     private function generateUniqueSlug(string $name, ?int $ignoreId = null): string
     {
@@ -28,15 +28,15 @@ class ProductController extends Controller
             $slug = $baseSlug . '-' . $counter;
             $counter++;
         }
-
         return $slug;
     }
 
     // ================================================================
-    // GET ALL PRODUCTS (MARKETPLACE LIST)
+    // GET ALL PRODUCTS
     // ================================================================
     public function index()
     {
+        // Menggunakan properti image_urls dari Accessor di Model
         $products = Product::latest()->get()->map(function ($p) {
             return [
                 'id' => $p->id,
@@ -46,83 +46,15 @@ class ProductController extends Controller
                 'price' => $p->price,
                 'stock' => $p->stock,
                 'jenis_barang' => $p->jenis_barang,
-                'img_urls' => $p->image_urls,
+                'img_urls' => $p->image_urls, // Pastikan nama key sinkron dengan Next.js
             ];
         });
 
-        return response()->json([
-            'products' => $products
-        ], 200);
+        return response()->json(['products' => $products], 200);
     }
 
     // ================================================================
-    // SHOW PRODUCT BY ID (LEGACY – TIDAK DIUBAH)
-    // ================================================================
-    public function show($id)
-    {
-        $product = Product::findOrFail($id);
-
-        return response()->json([
-            'product' => [
-                'id' => $product->id,
-                'name' => $product->name,
-                'slug' => $product->slug,
-                'description' => $product->description,
-                'price' => $product->price,
-                'stock' => $product->stock,
-                'jenis_barang' => $product->jenis_barang,
-                'img_urls' => $product->image_urls,
-            ]
-        ], 200);
-    }
-
-    // ================================================================
-    // 🔥 SHOW PRODUCT BY SLUG (DETAIL + SEO)
-    // ================================================================
-    public function showBySlug($slug)
-    {
-        $product = Product::where('slug', $slug)->first();
-
-        if (!$product) {
-            return response()->json([
-                'message' => 'Produk tidak ditemukan'
-            ], 404);
-        }
-
-        return response()->json([
-            'product' => [
-                'id' => $product->id,
-                'name' => $product->name,
-                'slug' => $product->slug,
-                'description' => $product->description,
-                'price' => $product->price,
-                'stock' => $product->stock,
-                'jenis_barang' => $product->jenis_barang,
-                'img_urls' => $product->image_urls,
-
-                // === SEO / SCHEMA SUPPORT ===
-                'in_stock' => $product->stock > 0,
-                'currency' => 'IDR',
-                'sku' => 'PROD-' . $product->id,
-                'brand' => 'Bengkel Pedia',
-                'rating' => 4.5,
-                'review_count' => 120,
-            ]
-        ], 200);
-    }
-
-    // ================================================================
-    // 🔥 GET ALL SLUGS (SITEMAP / SEO)
-    // ================================================================
-    public function getAllSlugs()
-    {
-        return response()->json([
-            'slugs' => Product::pluck('slug')->all()
-        ], 200);
-    }
-
-    // ================================================================
-    // STORE PRODUCT
+    // STORE PRODUCT (DIARAHKAN KE STORAGE)
     // ================================================================
     public function store(Request $request)
     {
@@ -137,16 +69,14 @@ class ProductController extends Controller
         ]);
 
         $imageNames = [];
-        $path = public_path('images');
 
-        if (!is_dir($path)) {
-            mkdir($path, 0755, true);
-        }
-
-        foreach ($request->file('images') as $img) {
-            $filename = time() . '_' . Str::random(10) . '.' . $img->getClientOriginalExtension();
-            $img->move($path, $filename);
-            $imageNames[] = $filename;
+        if ($request->hasFile('images')) {
+            foreach ($request->file('images') as $img) {
+                // Simpan ke storage/app/public/products
+                $path = $img->store('products', 'public');
+                // Ambil hanya nama filenya saja (misal: products/abc.jpg -> abc.jpg)
+                $imageNames[] = basename($path);
+            }
         }
 
         $product = Product::create([
@@ -161,17 +91,12 @@ class ProductController extends Controller
 
         return response()->json([
             'message' => 'Produk berhasil ditambahkan',
-            'product' => [
-                'id' => $product->id,
-                'name' => $product->name,
-                'slug' => $product->slug,
-                'img_urls' => $product->image_urls,
-            ]
+            'product' => $product
         ], 201);
     }
 
     // ================================================================
-    // UPDATE PRODUCT
+    // UPDATE PRODUCT (DENGAN PEMBERSIHAN STORAGE)
     // ================================================================
     public function update(Request $request, $id)
     {
@@ -187,24 +112,21 @@ class ProductController extends Controller
             'images.*' => 'image|mimes:jpg,jpeg,png,webp|max:2048',
         ]);
 
-        $existingImages = json_decode($product->getRawOriginal('img_url') ?? '[]', true) ?? [];
-        $imageNames = $existingImages;
+        $imageNames = $product->img_url; // Default gunakan yang lama
 
         if ($request->hasFile('images')) {
-            $path = public_path('images');
-
-            // Hapus gambar lama dari folder fisik
-            foreach ($existingImages as $img) {
-                if ($img && File::exists($path . '/' . $img)) {
-                    File::delete($path . '/' . $img);
+            // Hapus gambar lama dari storage
+            if (is_array($product->img_url)) {
+                foreach ($product->img_url as $oldImg) {
+                    Storage::disk('public')->delete('products/' . $oldImg);
                 }
             }
 
+            // Upload gambar baru
             $imageNames = [];
             foreach ($request->file('images') as $img) {
-                $filename = time() . '_' . Str::random(10) . '.' . $img->getClientOriginalExtension();
-                $img->move($path, $filename);
-                $imageNames[] = $filename;
+                $path = $img->store('products', 'public');
+                $imageNames[] = basename($path);
             }
         }
 
@@ -218,90 +140,47 @@ class ProductController extends Controller
             'img_url' => $imageNames,
         ]);
 
-        return response()->json([
-            'message' => 'Produk berhasil diupdate',
-            'product' => [
-                'id' => $product->id,
-                'name' => $product->name,
-                'slug' => $product->slug,
-                'img_urls' => $product->image_urls,
-            ]
-        ], 200);
+        return response()->json(['message' => 'Produk berhasil diperbarui'], 200);
     }
 
     // ================================================================
-    // DELETE PRODUCT
+    // DELETE PRODUCT (DENGAN PEMBERSIHAN STORAGE)
     // ================================================================
     public function destroy($id)
     {
-        // Menggunakan Transaction agar data DB tidak terhapus jika file gagal diproses
         DB::beginTransaction();
-
         try {
             $product = Product::findOrFail($id);
-            $imagesRaw = $product->getRawOriginal('img_url');
-            $images = is_string($imagesRaw) ? json_decode($imagesRaw, true) : $imagesRaw;
+            $images = $product->img_url;
 
-            // Hapus data dari Database
+            // Hapus dari DB dulu
             $product->delete();
 
-            // Hapus file fisik di public/images
+            // Hapus file fisik dari storage
             if (is_array($images)) {
-                $path = public_path('images');
                 foreach ($images as $img) {
-                    if ($img && File::exists($path . '/' . $img)) {
-                        File::delete($path . '/' . $img);
-                    }
+                    Storage::disk('public')->delete('products/' . $img);
                 }
             }
 
             DB::commit();
-            return response()->json([
-                'message' => 'Produk berhasil dihapus'
-            ], 200);
+            return response()->json(['message' => 'Produk berhasil dihapus'], 200);
 
-        } catch (\Illuminate\Database\QueryException $e) {
-            DB::rollBack();
-            return response()->json([
-                'message' => 'Produk tidak bisa dihapus karena sedang digunakan dalam transaksi atau keranjang.'
-            ], 422);
         } catch (\Exception $e) {
             DB::rollBack();
-            return response()->json([
-                'message' => 'Gagal menghapus produk.',
-                'error' => $e->getMessage()
-            ], 500);
+            return response()->json(['message' => 'Gagal menghapus produk'], 500);
         }
     }
 
-    // ================================================================
-    // SEARCH FOR CASHIER (TIDAK DIUBAH)
-    // ================================================================
-    public function searchForCashier(Request $request)
+    public function show($id)
     {
-        $keyword = $request->input('q');
+        $product = Product::findOrFail($id);
+        return response()->json(['product' => $product], 200);
+    }
 
-        if (!$keyword) {
-            return response()->json(['products' => []], 200);
-        }
-
-        $products = Product::where('name', 'LIKE', "%{$keyword}%")
-            ->orWhere('slug', 'LIKE', "%{$keyword}%")
-            ->orWhere('description', 'LIKE', "%{$keyword}%")
-            ->limit(10)
-            ->get()
-            ->map(function ($p) {
-                $imgs = $p->image_urls;
-                return [
-                    'id' => $p->id,
-                    'name' => $p->name,
-                    'price' => $p->price,
-                    'stock' => $p->stock,
-                    'jenis_barang' => $p->jenis_barang,
-                    'img_url_first' => is_array($imgs) && count($imgs) ? $imgs[0] : null,
-                ];
-            });
-
-        return response()->json(['products' => $products], 200);
+    public function showBySlug($slug)
+    {
+        $product = Product::where('slug', $slug)->firstOrFail();
+        return response()->json(['product' => $product], 200);
     }
 }

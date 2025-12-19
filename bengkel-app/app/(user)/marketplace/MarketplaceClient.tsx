@@ -11,9 +11,6 @@ import {
   alertLoginRequired,
 } from "@/components/Alert";
 
-/* ===============================
-    INTERFACE (DIPASTIKAN KONSISTEN)
-================================ */
 export interface Product {
   id: number;
   slug: string;
@@ -21,7 +18,6 @@ export interface Product {
   price: number;
   stock: number;
   jenis_barang: string;
-  // Kita gunakan 'img_urls' agar sesuai dengan saran TypeScript kamu
   img_urls: string[]; 
   original_price?: number;
   is_promo?: boolean;
@@ -39,14 +35,12 @@ interface Promotion {
 
 export default function MarketplacePage() {
   const router = useRouter();
-
   const [products, setProducts] = useState<Product[]>([]);
   const [filtered, setFiltered] = useState<Product[]>([]);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [cartCount, setCartCount] = useState(0);
   const [isMount, setIsMount] = useState(false);
   const [loading, setLoading] = useState(true);
-
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
 
@@ -59,22 +53,18 @@ export default function MarketplacePage() {
     return match ? decodeURIComponent(match[2]) : null;
   };
 
-  /* ================= FIX LOGIK GAMBAR ================= */
-  const getSafeImageUrl = (p: any) => {
-    // Ambil dari image_urls (accessor Laravel) atau img_urls (database)
+  /* ================= SISTEM STORAGE AMAN ================= */
+  const getStorageImageUrl = (p: any) => {
     const urls = p.image_urls || p.img_urls || [];
     const firstImg = urls[0];
 
-    if (!firstImg) return `${BASE_URL}/images/default_product.png`;
-    
-    // Jika sudah berupa URL lengkap dari Laravel asset()
+    if (!firstImg) return `${BASE_URL}/storage/products/default.png`;
     if (firstImg.startsWith("http")) return firstImg;
     
-    // Jika hanya nama file, arahkan ke folder images sesuai Model Laravel kamu
-    return `${BASE_URL}/images/${firstImg}`;
+    // Mengarahkan ke path storage yang sudah di-link ke public
+    return `${BASE_URL}/storage/products/${firstImg}`;
   };
 
-  /* ================= FETCH DATA ================= */
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
@@ -86,21 +76,18 @@ export default function MarketplacePage() {
       const prodRes = await prodReq.json();
       const promoRes = await promoReq.json();
 
-      // Normalisasi Produk
       const rawProducts = prodRes.products || prodRes.data || [];
       const normalizedProds: Product[] = rawProducts.map((p: any) => ({
         ...p,
-        // Pastikan properti yang dikirim ke state adalah 'img_urls'
-        img_urls: p.image_urls || p.img_urls || [], 
+        img_urls: [getStorageImageUrl(p)], 
       }));
 
-      // Normalisasi Promo
       const rawPromos = promoRes.promotions || promoRes.data || [];
       const normalizedPromos: Promotion[] = rawPromos.map((promo: any) => ({
         ...promo,
         products: (promo.products || []).map((p: any) => ({
           ...p,
-          img_urls: p.image_urls || p.img_urls || [],
+          img_urls: [getStorageImageUrl(p)],
         })),
       }));
 
@@ -135,9 +122,7 @@ export default function MarketplacePage() {
 
   useEffect(() => {
     const result = products.filter((p) => {
-      const matchesCategory =
-        category === "all" ||
-        p.jenis_barang?.toLowerCase() === category.toLowerCase();
+      const matchesCategory = category === "all" || p.jenis_barang?.toLowerCase() === category.toLowerCase();
       const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase());
       return matchesCategory && matchesSearch;
     });
@@ -154,43 +139,29 @@ export default function MarketplacePage() {
     try {
       const res = await fetch(`${API_URL}/cart`, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          product_id: prod.id,
-          price: prod.price,
-          quantity: 1,
-        }),
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ product_id: prod.id, price: prod.price, quantity: 1 }),
       });
-      if (res.ok) {
-        updateCartCount();
-        alertSuccess("Berhasil masuk keranjang!");
-      }
-    } catch (error) {
-      alertError("Gagal menambah produk.");
-    }
+      if (res.ok) { updateCartCount(); alertSuccess("Berhasil masuk keranjang!"); }
+    } catch (error) { alertError("Gagal menambah produk."); }
   };
 
   if (!isMount) return null;
 
   return (
     <div className="max-w-8xl mx-auto p-6 bg-gray-50 min-h-screen">
-      {/* HEADER */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
+      <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
         <div>
           <h1 className="text-4xl font-black text-[#234C6A] tracking-tight uppercase">Marketplace</h1>
-          <p className="text-gray-500 font-medium">Railway Production Mode</p>
+          <p className="text-gray-500 font-medium">Safe Storage Mode Enabled</p>
         </div>
-
-        <div className="flex items-center gap-4 bg-white p-2 rounded-2xl shadow-sm border">
-          <button onClick={() => router.push("/marketplace/pesanan")} className="flex items-center gap-2 px-4 py-2 font-bold text-[#234C6A] hover:bg-gray-50 rounded-xl transition-all">
+        <div className="flex items-center gap-4 bg-white p-2 rounded-2xl shadow-sm border border-gray-100">
+          <button onClick={() => router.push("/marketplace/pesanan")} className="flex items-center gap-2 px-4 py-2 font-bold text-[#234C6A] hover:bg-gray-50 rounded-xl">
             <ClipboardList size={22} />
             <span className="hidden sm:inline">Pesanan</span>
           </button>
           <div className="h-8 w-px bg-gray-200"></div>
-          <button onClick={() => router.push("/cart")} className="relative p-2 bg-orange-50 rounded-xl text-[#FF6D1F] hover:bg-orange-100 transition-all">
+          <button onClick={() => router.push("/cart")} className="relative p-2 bg-orange-50 rounded-xl text-[#FF6D1F]">
             <ShoppingCart size={24} />
             {cartCount > 0 && (
               <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-black rounded-full h-5 w-5 flex items-center justify-center border-2 border-white">
@@ -199,17 +170,16 @@ export default function MarketplacePage() {
             )}
           </button>
         </div>
-      </div>
+      </header>
 
-      {/* SEARCH & FILTER */}
       <div className="flex gap-4 mb-10 flex-col sm:flex-row">
         <div className="relative flex-1">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cari produk..."
-            className="w-full pl-12 pr-4 py-4 bg-white border border-gray-200 rounded-2xl outline-none focus:border-[#FF6D1F] shadow-sm font-bold text-slate-700"
+            placeholder="Cari sparepart aman..."
+            className="w-full pl-12 pr-4 py-4 bg-white border border-gray-200 rounded-2xl outline-none focus:border-[#FF6D1F] font-bold text-slate-700 shadow-sm"
           />
         </div>
         <div className="relative sm:w-64">
@@ -217,7 +187,7 @@ export default function MarketplacePage() {
           <select
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            className="w-full pl-12 pr-4 py-4 bg-white border border-gray-200 rounded-2xl appearance-none cursor-pointer font-medium text-gray-700 focus:border-[#FF6D1F]"
+            className="w-full pl-12 pr-4 py-4 bg-white border border-gray-200 rounded-2xl appearance-none cursor-pointer font-bold text-gray-700"
           >
             <option value="all">Semua Kategori</option>
             <option value="sparepart">⚙️ Sparepart</option>
@@ -229,13 +199,12 @@ export default function MarketplacePage() {
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20">
             <Loader2 className="animate-spin text-[#FF6D1F] mb-4" size={40} />
-            <p className="text-gray-400 font-black text-xs uppercase tracking-widest">Sinkronisasi Railway...</p>
+            <p className="text-gray-400 font-black text-xs uppercase tracking-widest">Sinkronisasi Storage Railway...</p>
         </div>
       ) : (
         <>
-          {/* PROMO SECTION */}
           {promotions.length > 0 && (
-            <div className="mb-12">
+            <section className="mb-12">
               <div className="flex items-center gap-3 mb-6">
                 <span className="bg-red-500 text-white text-[10px] font-black px-3 py-1 rounded-full animate-pulse uppercase">Hot Deal</span>
                 <h2 className="text-2xl font-black text-[#234C6A] uppercase tracking-tighter">Penawaran Terbatas</h2>
@@ -246,18 +215,10 @@ export default function MarketplacePage() {
                     const discountedPrice = promo.discount_type === "percentage"
                         ? p.price - (p.price * promo.discount_value) / 100
                         : p.price - promo.discount_value;
-
                     return (
                       <ProductCardPromo
                         key={`promo-${promo.id}-${p.id}`}
-                        product={{ 
-                            ...p, 
-                            // KIRIM PROPERTI YANG SESUAI DENGAN INTERFACE (img_urls)
-                            img_urls: [getSafeImageUrl(p)],
-                            original_price: p.price, 
-                            price: discountedPrice, 
-                            is_promo: true 
-                        }}
+                        product={{ ...p, original_price: p.price, price: discountedPrice, is_promo: true }}
                         promo={promo}
                         onAdd={() => handleAddToCart(p)}
                         onClick={() => router.push(`/marketplace/detail-produk/${p.slug}`)}
@@ -266,33 +227,28 @@ export default function MarketplacePage() {
                   })
                 )}
               </div>
-            </div>
+            </section>
           )}
 
-          {/* ALL PRODUCTS */}
-          <div className="space-y-6">
+          <section className="space-y-6">
             <h2 className="text-2xl font-black text-[#234C6A] uppercase tracking-tighter">Semua Produk</h2>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
               {filtered.length > 0 ? (
                 filtered.map((p) => (
                   <ProductCard
                     key={p.id}
-                    product={{
-                        ...p,
-                        // KIRIM PROPERTI YANG SESUAI DENGAN INTERFACE (img_urls)
-                        img_urls: [getSafeImageUrl(p)]
-                    }}
+                    product={p}
                     onAdd={() => handleAddToCart(p)}
                     onClick={() => router.push(`/marketplace/detail-produk/${p.slug}`)}
                   />
                 ))
               ) : (
-                <div className="col-span-full py-20 text-center bg-white rounded-3xl border border-dashed">
+                <div className="col-span-full py-20 text-center bg-white rounded-3xl border border-dashed border-gray-200">
                   <p className="text-gray-400 font-medium">Produk tidak ditemukan.</p>
                 </div>
               )}
             </div>
-          </div>
+          </section>
         </>
       )}
     </div>

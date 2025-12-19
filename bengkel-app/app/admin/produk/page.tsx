@@ -42,7 +42,7 @@ const ImageCarousel = ({ urls, alt }: { urls: string[], alt: string }) => {
     const images = Array.isArray(urls) ? urls.filter(Boolean) : [];
     const totalImages = images.length;
     
-    // Alamat base Railway (sesuaikan dengan lokasi penyimpanan di Laravel)
+    // Alamat base Railway
     const BASE_URL = "https://tekweb-uas-production.up.railway.app";
 
     if (totalImages === 0) {
@@ -54,12 +54,13 @@ const ImageCarousel = ({ urls, alt }: { urls: string[], alt: string }) => {
     }
 
     const getImageUrl = (url: string) => {
-        // 1. Jika sudah berupa URL lengkap (mengandung http), langsung pakai
+        // 1. Jika sudah URL lengkap, langsung pakai
         if (url.startsWith('http')) return url;
 
-        // 2. Jika hanya nama file, arahkan ke folder images sesuai Model Laravel Anda
-        // Pastikan di Laravel file benar-benar ada di public/images/
-        return `${BASE_URL}/images/${url}`;
+        // 2. Jika hanya nama file, arahkan ke STORAGE
+        // Bersihkan path 'public/products/' jika terbawa dari DB
+        const fileName = url.replace('public/products/', '');
+        return `${BASE_URL}/storage/products/${fileName}`;
     };
 
     return (
@@ -75,7 +76,7 @@ const ImageCarousel = ({ urls, alt }: { urls: string[], alt: string }) => {
                         alt={`${alt} ${i}`} 
                         className="w-12 h-12 object-cover shrink-0" 
                         onError={(e) => {
-                            // Jika gambar gagal dimuat, tampilkan placeholder default
+                            // Fallback jika storage link belum jalan
                             (e.target as HTMLImageElement).src = `${BASE_URL}/images/default_product.png`;
                         }}
                     />
@@ -133,7 +134,6 @@ export default function AdminProductsPage() {
             }
 
             const data = await res.json();
-            // Samakan dengan kunci JSON dari Backend (products atau data)
             const list = data.products ?? data.data ?? [];
             setProducts(Array.isArray(list) ? list : []);
         } catch (err) {
@@ -221,7 +221,7 @@ export default function AdminProductsPage() {
                     </div>
                     <div>
                         <h1 className="text-3xl font-black text-[#234C6A] tracking-tighter uppercase">Inventaris Produk</h1>
-                        <p className="text-sm text-gray-500 font-medium">Monitoring stok produk Railway Live</p>
+                        <p className="text-sm text-gray-500 font-medium tracking-tight">Safe Storage Mode Enabled</p>
                     </div>
                 </div>
                 
@@ -229,16 +229,16 @@ export default function AdminProductsPage() {
                     <div className="relative">
                         <button 
                             onClick={() => setIsDropdownOpen(!isDropdownOpen)} 
-                            className="bg-white text-gray-700 px-5 py-3 rounded-2xl border-2 border-gray-100 hover:bg-gray-50 transition-all text-xs font-black uppercase tracking-widest flex items-center"
+                            className="bg-white text-gray-700 px-5 py-3 rounded-2xl border-2 border-gray-100 hover:bg-gray-50 transition-all text-xs font-black uppercase tracking-widest flex items-center shadow-sm"
                         >
                             Ekspor <ChevronDown className={`w-4 h-4 ml-2 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
                         </button>
                         {isDropdownOpen && (
                             <div className="absolute right-0 mt-3 w-56 bg-white border border-gray-100 rounded-2xl shadow-2xl z-50 overflow-hidden">
-                                <button onClick={exportToExcel} className="flex items-center w-full px-5 py-4 text-xs font-bold text-gray-600 hover:bg-gray-50 border-b border-gray-50">
+                                <button onClick={exportToExcel} className="flex items-center w-full px-5 py-4 text-xs font-bold text-gray-600 hover:bg-gray-50 border-b border-gray-50 transition-colors">
                                     <FileText className="w-4 h-4 mr-3 text-emerald-600" /> Excel (.xlsx)
                                 </button>
-                                <button onClick={() => {setIsDropdownOpen(false); window.print();}} className="flex items-center w-full px-5 py-4 text-xs font-bold text-gray-600 hover:bg-gray-50">
+                                <button onClick={() => {setIsDropdownOpen(false); window.print();}} className="flex items-center w-full px-5 py-4 text-xs font-bold text-gray-600 hover:bg-gray-50 transition-colors">
                                     <Printer className="w-4 h-4 mr-3 text-blue-600" /> Cetak (PDF)
                                 </button>
                             </div>
@@ -246,7 +246,7 @@ export default function AdminProductsPage() {
                     </div>
                     <button 
                         onClick={() => router.push("/admin/produk/create")} 
-                        className="bg-[#FF6D1F] text-white px-6 py-3 rounded-2xl shadow-lg hover:bg-orange-600 transition-all text-xs font-black uppercase tracking-widest flex items-center"
+                        className="bg-[#FF6D1F] text-white px-6 py-3 rounded-2xl shadow-lg hover:bg-orange-600 shadow-orange-100 transition-all text-xs font-black uppercase tracking-widest flex items-center"
                     >
                         <Plus className="w-5 h-5 mr-2" /> Tambah Produk
                     </button>
@@ -256,10 +256,10 @@ export default function AdminProductsPage() {
             {/* SEARCH & FILTER */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="relative md:col-span-2 group">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 group-focus-within:text-[#FF6D1F]" />
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 group-focus-within:text-[#FF6D1F] transition-colors" />
                     <input 
                         type="text" 
-                        placeholder="Cari berdasarkan nama atau kategori..." 
+                        placeholder="Cari sparepart atau aksesoris..." 
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="w-full pl-12 pr-4 py-4 bg-white border-2 border-transparent rounded-2xl shadow-sm focus:border-[#FF6D1F] focus:outline-none transition-all text-sm font-bold text-slate-700"
@@ -270,7 +270,7 @@ export default function AdminProductsPage() {
                     <select 
                         value={selectedCategory}
                         onChange={(e) => setSelectedCategory(e.target.value)}
-                        className="w-full pl-12 pr-4 py-4 bg-white border-2 border-transparent rounded-2xl shadow-sm focus:border-[#FF6D1F] focus:outline-none appearance-none text-sm font-bold text-slate-700"
+                        className="w-full pl-12 pr-4 py-4 bg-white border-2 border-transparent rounded-2xl shadow-sm focus:border-[#FF6D1F] focus:outline-none appearance-none text-sm font-bold text-slate-700 cursor-pointer"
                     >
                         {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                     </select>
@@ -279,51 +279,59 @@ export default function AdminProductsPage() {
 
             {/* TABLE CONTENT */}
             {loading ? (
-                <div className="bg-white p-32 rounded-[2.5rem] shadow-sm text-center flex flex-col items-center">
+                <div className="bg-white p-32 rounded-[2.5rem] shadow-sm text-center flex flex-col items-center border border-gray-100">
                     <Loader2 className="animate-spin text-[#FF6D1F] mb-4" size={48} />
-                    <p className="text-[#234C6A] font-black uppercase text-xs">Menyinkronkan...</p>
+                    <p className="text-[#234C6A] font-black uppercase tracking-widest text-xs">Sinkronisasi Data...</p>
                 </div>
             ) : (
-                <div className="bg-white rounded-[2.5rem] shadow-xl border border-gray-100 overflow-hidden">
+                <div className="bg-white rounded-[2.5rem] shadow-xl border border-gray-100 overflow-hidden shadow-blue-900/5">
                     <div className="overflow-x-auto">
-                        <table className="w-full text-left">
+                        <table className="w-full text-left border-collapse">
                             <thead className="bg-gray-50/50 border-b border-gray-100">
                                 <tr>
                                     <th className="p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Preview</th>
                                     <th className="p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Nama & Kategori</th>
                                     <th className="p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Harga</th>
-                                    <th className="p-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest">Stok</th>
+                                    <th className="p-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest">Status Stok</th>
                                     <th className="p-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50">
                                 {filteredProducts.map((p) => (
-                                    <tr key={p.id} className="hover:bg-gray-50/50 transition-colors">
+                                    <tr key={p.id} className="hover:bg-gray-50/50 transition-colors group">
                                         <td className="p-6 w-24">
                                             <ImageCarousel urls={p.img_urls} alt={p.name} />
                                         </td>
                                         <td className="p-6">
-                                            <p className="font-black text-[#234C6A] text-base mb-1">{p.name}</p>
-                                            <span className="text-[9px] bg-blue-50 text-blue-600 px-3 py-1 rounded-full font-black uppercase tracking-tighter">
+                                            <p className="font-black text-[#234C6A] text-base leading-tight mb-1">{p.name}</p>
+                                            <span className="text-[9px] bg-blue-50 text-blue-600 px-3 py-1 rounded-full font-black uppercase tracking-tighter border border-blue-100">
                                                 {p.jenis_barang}
                                             </span>
                                         </td>
-                                        <td className="p-6">
+                                        <td className="p-6 whitespace-nowrap">
                                             <p className="text-sm font-black text-[#FF6D1F]">
                                                 Rp {Number(p.price).toLocaleString("id-ID")}
                                             </p>
                                         </td>
                                         <td className="p-6 text-center">
-                                            <span className={`text-xs font-black px-4 py-1.5 rounded-xl border ${p.stock < 10 ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
+                                            <span className={`text-xs font-black px-4 py-1.5 rounded-xl border ${p.stock < 10 ? 'bg-red-50 text-red-600 border-red-100' : 'bg-green-50 text-green-600 border-green-100'}`}>
                                                 {p.stock} Unit
                                             </span>
                                         </td>
                                         <td className="p-6 text-center">
                                             <div className="flex justify-center gap-2">
-                                                <button onClick={() => router.push(`/admin/produk/edit?id=${p.id}`)} className="p-3 text-blue-500 bg-blue-50 hover:bg-blue-600 hover:text-white rounded-2xl transition-all shadow-sm">
+                                                <button 
+                                                    onClick={() => router.push(`/admin/produk/edit?id=${p.id}`)} 
+                                                    className="p-3 text-blue-500 bg-blue-50 hover:bg-blue-600 hover:text-white rounded-2xl transition-all shadow-sm active:scale-90"
+                                                    title="Edit Produk"
+                                                >
                                                     <Edit size={18}/>
                                                 </button>
-                                                <button onClick={() => deleteProduct(p.id)} className="p-3 text-red-500 bg-red-50 hover:bg-red-600 hover:text-white rounded-2xl transition-all shadow-sm">
+                                                <button 
+                                                    onClick={() => deleteProduct(p.id)} 
+                                                    className="p-3 text-red-500 bg-red-50 hover:bg-red-600 hover:text-white rounded-2xl transition-all shadow-sm active:scale-90"
+                                                    title="Hapus Produk"
+                                                >
                                                     <Trash2 size={18}/>
                                                 </button>
                                             </div>
@@ -332,6 +340,14 @@ export default function AdminProductsPage() {
                                 ))}
                             </tbody>
                         </table>
+                        
+                        {filteredProducts.length === 0 && (
+                            <div className="p-32 text-center flex flex-col items-center justify-center">
+                                <Search className="w-12 h-12 text-gray-200 mb-4" />
+                                <h3 className="text-lg font-black text-[#234C6A] uppercase tracking-tighter">Produk Tidak Ditemukan</h3>
+                                <p className="text-gray-400 text-sm font-medium mt-1">Coba gunakan kata kunci pencarian yang lain.</p>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
