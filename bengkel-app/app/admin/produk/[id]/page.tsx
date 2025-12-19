@@ -57,7 +57,9 @@ export default function EditProductPage() {
       
       // Ambil nama file asli dari array image_urls atau img_urls
       const rawImages = p.image_urls || p.img_urls || [];
-      setImage(Array.isArray(rawImages) ? rawImages[0] : "");
+      // Ambil nama file saja, bersihkan dari path storage jika terbawa
+      const firstImg = Array.isArray(rawImages) ? rawImages[0] : "";
+      setImage(firstImg ? firstImg.replace("public/products/", "").replace("products/", "") : "");
       
     } catch (err) {
       alertError("Gagal memuat data produk");
@@ -82,7 +84,7 @@ export default function EditProductPage() {
     const token = getCookie("token");
     
     // Pastikan key sesuai dengan Model Laravel Anda: 'img_url'
-    // Dan karena Model Anda meng-cast ke array, kirim sebagai array
+    // Mengirimkan sebagai array sesuai casting Model
     const payload = {
       name,
       price: Number(price),
@@ -121,7 +123,7 @@ export default function EditProductPage() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
         <Loader2 className="animate-spin text-[#FF6D1F] mb-4" size={40} />
-        <p className="text-[#234C6A] font-black uppercase tracking-widest text-xs">Sinkronisasi Data...</p>
+        <p className="text-[#234C6A] font-black uppercase tracking-widest text-xs">Menyinkronkan dengan Railway...</p>
       </div>
     );
   }
@@ -144,7 +146,7 @@ export default function EditProductPage() {
             <h1 className="text-3xl font-black uppercase tracking-tighter flex items-center gap-3">
               <Package className="text-[#FF6D1F]" size={32} /> Edit Produk
             </h1>
-            <p className="text-blue-100 text-xs font-bold mt-1 opacity-70">ID: {productId} — Update Inventory Railway</p>
+            <p className="text-blue-100 text-xs font-bold mt-1 opacity-70 uppercase tracking-widest">Safe Storage Mode Enabled</p>
           </div>
 
           <form onSubmit={handleSubmit} className="p-8 grid md:grid-cols-2 gap-8">
@@ -156,9 +158,10 @@ export default function EditProductPage() {
                 <input
                   type="text"
                   required
+                  name="name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full bg-gray-50 border-2 border-transparent p-4 rounded-2xl font-bold text-slate-800 outline-none focus:border-[#FF6D1F] focus:bg-white transition-all"
+                  className="w-full bg-gray-50 border-2 border-transparent p-4 rounded-2xl font-bold text-slate-800 outline-none focus:border-[#FF6D1F] focus:bg-white transition-all shadow-sm"
                   placeholder="Nama produk..."
                 />
               </div>
@@ -168,9 +171,10 @@ export default function EditProductPage() {
                 <input
                   type="number"
                   required
+                  name="price"
                   value={price}
                   onChange={(e) => setPrice(e.target.value)}
-                  className="w-full bg-gray-50 border-2 border-transparent p-4 rounded-2xl font-bold text-slate-800 outline-none focus:border-[#FF6D1F] focus:bg-white transition-all"
+                  className="w-full bg-gray-50 border-2 border-transparent p-4 rounded-2xl font-bold text-slate-800 outline-none focus:border-[#FF6D1F] focus:bg-white transition-all shadow-sm"
                   placeholder="Contoh: 150000"
                 />
               </div>
@@ -179,9 +183,10 @@ export default function EditProductPage() {
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Deskripsi</label>
                 <textarea
                   rows={4}
+                  name="description"
                   value={desc}
                   onChange={(e) => setDesc(e.target.value)}
-                  className="w-full bg-gray-50 border-2 border-transparent p-4 rounded-2xl font-bold text-slate-800 outline-none focus:border-[#FF6D1F] focus:bg-white transition-all resize-none"
+                  className="w-full bg-gray-50 border-2 border-transparent p-4 rounded-2xl font-bold text-slate-800 outline-none focus:border-[#FF6D1F] focus:bg-white transition-all resize-none shadow-sm"
                   placeholder="Detail spesifikasi..."
                 />
               </div>
@@ -193,23 +198,24 @@ export default function EditProductPage() {
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Nama File Gambar</label>
                 <input
                   type="text"
+                  name="image"
                   value={image}
                   onChange={(e) => setImage(e.target.value)}
-                  className="w-full bg-gray-50 border-2 border-transparent p-4 rounded-2xl font-bold text-slate-800 outline-none focus:border-[#FF6D1F] focus:bg-white transition-all"
-                  placeholder="ban-motor.jpg"
+                  className="w-full bg-gray-50 border-2 border-transparent p-4 rounded-2xl font-bold text-slate-800 outline-none focus:border-[#FF6D1F] focus:bg-white transition-all shadow-sm"
+                  placeholder="contoh: helm.jpg"
                 />
               </div>
 
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Preview Gambar</label>
-                <div className="aspect-square bg-white rounded-3xl border-4 border-dashed border-gray-100 flex items-center justify-center overflow-hidden">
+                <div className="aspect-square bg-white rounded-3xl border-4 border-dashed border-gray-100 flex items-center justify-center overflow-hidden shadow-inner relative group">
                   {image ? (
                     <img
-                      src={image.startsWith("http") ? image : `${BASE_URL}/storage/products/${image.replace('public/products/', '')}`}
+                      src={image.startsWith("http") ? image : `${BASE_URL}/storage/products/${image.replace('public/products/', '').replace('products/', '')}`}
                       alt="Preview"
-                      className="w-full h-full object-contain p-4"
+                      className="w-full h-full object-contain p-4 transition-transform duration-300 group-hover:scale-105"
                       onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).src = "https://placehold.co/400x400?text=Gambar+Tidak+Ditemukan";
+                        (e.currentTarget as HTMLImageElement).src = "https://placehold.co/400x400?text=File+Tidak+Ditemukan";
                       }}
                     />
                   ) : (
@@ -219,6 +225,7 @@ export default function EditProductPage() {
                     </div>
                   )}
                 </div>
+                <p className="text-[9px] text-gray-400 font-bold uppercase text-center mt-2 tracking-tighter">Pastikan file sudah ada di folder storage/products Railway</p>
               </div>
             </div>
 
@@ -227,13 +234,17 @@ export default function EditProductPage() {
               <button
                 type="submit"
                 disabled={saving}
-                className="flex-1 bg-[#FF6D1F] hover:bg-orange-600 text-white py-5 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-orange-100 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:bg-gray-300"
+                className="flex-1 bg-[#FF6D1F] hover:bg-orange-600 text-white py-5 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-orange-100 transition-all flex items-center justify-center gap-3 active:scale-[0.98] disabled:bg-gray-300 disabled:shadow-none"
               >
                 {saving ? (
-                  <Loader2 className="animate-spin" size={20} />
+                  <>
+                    <Loader2 className="animate-spin" size={20} />
+                    <span>Menyimpan...</span>
+                  </>
                 ) : (
                   <>
-                    <Save size={20} /> Simpan Perubahan
+                    <Save size={20} /> 
+                    <span>Simpan Perubahan</span>
                   </>
                 )}
               </button>
@@ -241,7 +252,7 @@ export default function EditProductPage() {
               <button
                 type="button"
                 onClick={() => router.back()}
-                className="px-8 py-5 rounded-2xl font-black uppercase tracking-widest text-gray-400 hover:bg-gray-100 transition-all"
+                className="px-8 py-5 rounded-2xl font-black uppercase tracking-widest text-gray-400 hover:bg-gray-100 transition-all active:scale-[0.98]"
               >
                 Batal
               </button>

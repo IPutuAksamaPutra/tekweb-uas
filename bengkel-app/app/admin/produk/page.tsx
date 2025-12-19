@@ -54,12 +54,10 @@ const ImageCarousel = ({ urls, alt }: { urls: string[], alt: string }) => {
     }
 
     const getImageUrl = (url: string) => {
-        // 1. Jika sudah URL lengkap, langsung pakai
         if (url.startsWith('http')) return url;
-
-        // 2. Jika hanya nama file, arahkan ke STORAGE
-        // Bersihkan path 'public/products/' jika terbawa dari DB
-        const fileName = url.replace('public/products/', '');
+        
+        // PERBAIKAN: Bersihkan path storage dan arahkan ke folder publik yang benar
+        const fileName = url.replace('public/products/', '').replace('products/', '');
         return `${BASE_URL}/storage/products/${fileName}`;
     };
 
@@ -76,8 +74,7 @@ const ImageCarousel = ({ urls, alt }: { urls: string[], alt: string }) => {
                         alt={`${alt} ${i}`} 
                         className="w-12 h-12 object-cover shrink-0" 
                         onError={(e) => {
-                            // Fallback jika storage link belum jalan
-                            (e.target as HTMLImageElement).src = `${BASE_URL}/images/default_product.png`;
+                            (e.currentTarget as HTMLImageElement).src = `${BASE_URL}/images/default_product.png`;
                         }}
                     />
                 ))}
@@ -134,6 +131,7 @@ export default function AdminProductsPage() {
             }
 
             const data = await res.json();
+            // Mendukung data.products atau data.data dari backend
             const list = data.products ?? data.data ?? [];
             setProducts(Array.isArray(list) ? list : []);
         } catch (err) {
@@ -166,7 +164,7 @@ export default function AdminProductsPage() {
             if (!res.ok) throw new Error("Gagal menghapus produk");
             
             setProducts(prev => prev.filter(p => p.id !== id));
-            alertSuccess("Produk telah dihapus");
+            alertSuccess("Produk telah dihapus dari database Railway");
         } catch (err: any) {
             alertError(err.message);
         }
@@ -205,7 +203,7 @@ export default function AdminProductsPage() {
         const worksheet = XLSX.utils.json_to_sheet(exportData);
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "Data Produk");
-        XLSX.writeFile(workbook, `Laporan_Stok_${new Date().toLocaleDateString('id-ID')}.xlsx`);
+        XLSX.writeFile(workbook, `Inventaris_Bengkel_${new Date().getTime()}.xlsx`);
     };
 
     if (!isMount) return null;
@@ -216,12 +214,12 @@ export default function AdminProductsPage() {
             {/* HEADER */}
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 bg-white p-6 rounded-4xl shadow-sm border border-gray-100">
                 <div className="flex items-center gap-4">
-                    <div className="p-3 bg-[#234C6A] text-white rounded-2xl">
+                    <div className="p-3 bg-[#234C6A] text-white rounded-2xl shadow-lg shadow-blue-900/20">
                         <Package size={28} />
                     </div>
                     <div>
                         <h1 className="text-3xl font-black text-[#234C6A] tracking-tighter uppercase">Inventaris Produk</h1>
-                        <p className="text-sm text-gray-500 font-medium tracking-tight">Safe Storage Mode Enabled</p>
+                        <p className="text-sm text-gray-500 font-medium tracking-tight uppercase opacity-60">Safe Storage Railway Active</p>
                     </div>
                 </div>
                 

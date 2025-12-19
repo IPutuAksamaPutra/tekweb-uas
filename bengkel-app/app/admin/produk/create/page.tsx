@@ -93,7 +93,7 @@ export default function CreateProductPage() {
     payload.append("stock", formData.stock);
     payload.append("jenis_barang", formData.jenis_barang);
 
-    // Kirim images sebagai array file 'images[]'
+    // Kirim images sebagai array file 'images[]' agar sesuai dengan Laravel
     imageFiles.forEach(file => {
         payload.append("images[]", file);
     });
@@ -103,9 +103,9 @@ export default function CreateProductPage() {
         method: "POST",
         headers: { 
             Authorization: `Bearer ${token}`,
-            "Accept": "application/json", // Agar Laravel merespon dengan JSON jika error
+            "Accept": "application/json", // Memastikan response Laravel berupa JSON
         },
-        body: payload, // Jangan set Content-Type manual saat pakai FormData
+        body: payload, // Browser akan otomatis mengatur Content-Type: multipart/form-data
       });
 
       const data = await res.json();
@@ -150,7 +150,7 @@ export default function CreateProductPage() {
               <Package className="text-[#FF6D1F]" size={32} /> 
               Tambah Produk
             </h1>
-            <p className="text-blue-100 text-xs font-bold mt-1 opacity-70 uppercase tracking-wider">Produk akan disimpan ke Storage Railway</p>
+            <p className="text-blue-100 text-xs font-bold mt-1 opacity-70 uppercase tracking-wider">Penyimpanan di Storage/App/Public Railway</p>
           </div>
 
           <form onSubmit={handleSubmit} className="p-8 space-y-6">
@@ -184,7 +184,7 @@ export default function CreateProductPage() {
               <div className="space-y-4">
                 <div>
                   <label className="text-[10px] font-black text-gray-400 uppercase ml-1 tracking-widest">Deskripsi Produk</label>
-                  <textarea name="description" value={formData.description} onChange={handleChange} placeholder="Detail spesifikasi..." className={`${inputStyle} h-[180px] resize-none`} required/>
+                  <textarea name="description" value={formData.description} onChange={handleChange} placeholder="Jelaskan spesifikasi secara detail..." className={`${inputStyle} h-[180px] resize-none`} required/>
                 </div>
               </div>
             </div>
@@ -197,8 +197,8 @@ export default function CreateProductPage() {
                   <div className="p-4 bg-white rounded-full shadow-lg text-[#FF6D1F]">
                     <Upload size={28} />
                   </div>
-                  <p className="font-black text-[#234C6A] uppercase text-xs tracking-widest">Pilih Gambar Produk</p>
-                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">File akan masuk ke storage/app/public</p>
+                  <p className="font-black text-[#234C6A] uppercase text-xs tracking-widest">Upload Foto Produk</p>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Maksimal 5 Gambar (JPG/PNG)</p>
                 </div>
               </label>
 
@@ -231,7 +231,7 @@ export default function CreateProductPage() {
                   <Loader2 className="animate-spin" /> 
                   Sedang Mengupload...
                 </>
-              ) : "Simpan Produk ke Storage"}
+              ) : "Publikasikan Produk"}
             </button>
           </form>
         </div>

@@ -19,6 +19,12 @@ interface Product {
   stock: number;
 }
 
+// PERBAIKAN: Interface Props sekarang menerima initialSlug untuk sinkronisasi dengan page.tsx
+interface Props {
+  initialProduct?: Product | null;
+  initialSlug?: string;
+}
+
 const productTypes = ["Sparepart", "Aksesoris"];
 const BACKEND_BASE = "https://tekweb-uas-production.up.railway.app";
 
@@ -28,13 +34,13 @@ function getCookie(name: string): string | null {
   return match ? decodeURIComponent(match[2]) : null;
 }
 
-function EditProductContent() {
+function EditProductContent({ initialProduct, initialSlug }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const productId = searchParams.get("id");
 
-  const [product, setProduct] = useState<Product | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [product, setProduct] = useState<Product | null>(initialProduct || null);
+  const [loading, setLoading] = useState(!initialProduct);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isMount, setIsMount] = useState(false);
 
@@ -63,19 +69,14 @@ function EditProductContent() {
       if (!res.ok) throw new Error();
 
       const data = await res.json();
-      // Menangani data.product atau data.data sesuai respon backend Anda
       const prod = data.product || data.data || data;
 
       setProduct(prod);
       
-      /**
-       * TRANSFORM KE STORAGE URL
-       * Menyesuaikan dengan sistem symbolic link Railway
-       */
+      // Transform nama file asli ke Storage URL Railway
       const formattedUrls = (prod.image_urls || prod.img_urls || prod.img_url || []).map((url: string) => {
         if (url.startsWith('http')) return url;
-        // Bersihkan path 'public/products/' jika ada
-        const fileName = url.replace('public/products/', '');
+        const fileName = url.replace('public/products/', '').replace('products/', '');
         return `${BACKEND_BASE}/storage/products/${fileName}`;
       });
       
@@ -90,8 +91,8 @@ function EditProductContent() {
 
   useEffect(() => {
     setIsMount(true);
-    if (productId) fetchProduct();
-  }, [productId, fetchProduct]);
+    if (productId && !initialProduct) fetchProduct();
+  }, [productId, initialProduct, fetchProduct]);
 
   /* =====================
       IMAGE PREVIEW MGMT
@@ -106,7 +107,6 @@ function EditProductContent() {
     };
   }, [newPreviewUrls]);
 
-  // Jika user pilih file baru, tampilkan preview file baru. Jika tidak, tampilkan gambar yang sudah ada di server.
   const currentPreviewUrls = newPreviewUrls.length > 0 ? newPreviewUrls : existingImageUrls;
 
   /* =====================
@@ -137,11 +137,6 @@ function EditProductContent() {
     setIsUpdating(true);
 
     const token = getCookie("token");
-    
-    /**
-     * MENGGUNAKAN FORMDATA
-     * Penting agar file gambar bisa terkirim ke Laravel Railway
-     */
     const formData = new FormData();
     formData.append("name", product.name);
     formData.append("price", product.price.toString());
@@ -149,20 +144,19 @@ function EditProductContent() {
     formData.append("jenis_barang", product.jenis_barang);
     formData.append("stock", product.stock.toString());
     
-    // Method Spoofing karena HTML Form tidak mendukung PUT dengan FormData secara native di beberapa versi Laravel
+    // METHOD SPOOFING: Sangat penting agar Laravel menerima FormData di rute PUT
     formData.append("_method", "PUT"); 
 
-    // Tambahkan gambar baru jika ada
     selectedImageFiles.forEach((file) => formData.append("images[]", file));
 
     try {
       const res = await fetch(`${BACKEND_BASE}/api/products/${product.id}`, {
-        method: "POST", // Menggunakan POST + _method PUT (Spoofing)
+        method: "POST", // Tetap POST karena kita pakai spoofing _method PUT
         headers: {
           Accept: "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: formData, // Browser akan otomatis set Content-Type: multipart/form-data
+        body: formData,
       });
 
       if (!res.ok) {
@@ -184,11 +178,11 @@ function EditProductContent() {
   if (loading) return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
       <Loader2 className="animate-spin text-[#FF6D1F]" size={40} />
-      <p className="font-black text-[#234C6A] uppercase tracking-widest text-xs">Menghubungkan ke Storage...</p>
+      <p className="font-black text-[#234C6A] uppercase tracking-widest text-xs">Menghubungkan ke Railway...</p>
     </div>
   );
 
-  const inputStyle = "w-full bg-gray-50 border-2 border-transparent p-4 rounded-2xl font-bold text-slate-800 outline-none focus:border-[#FF6D1F] focus:bg-white transition-all";
+  const inputStyle = "w-full bg-gray-50 border-2 border-transparent p-4 rounded-2xl font-bold text-slate-800 outline-none focus:border-[#FF6D1F] focus:bg-white transition-all shadow-sm";
 
   return (
     <div className="max-w-4xl mx-auto p-4 md:p-8">
@@ -196,7 +190,7 @@ function EditProductContent() {
         onClick={() => router.back()}
         className="flex items-center gap-2 mb-6 font-black text-[#234C6A] hover:text-[#FF6D1F] transition-colors uppercase text-xs tracking-widest"
       >
-        <ArrowLeft size={20} /> Kembali
+        <ArrowLeft size={20} /> Kembali ke Daftar
       </button>
 
       <div className="bg-white shadow-2xl rounded-[2.5rem] overflow-hidden border border-gray-100">
@@ -205,7 +199,7 @@ function EditProductContent() {
             <Package className="text-[#FF6D1F]" size={32} /> 
             Edit Produk
           </h1>
-          <p className="text-blue-100 text-xs font-bold mt-1 opacity-70 uppercase">ID Produk: #{product?.id} — Update via Railway Storage</p>
+          <p className="text-blue-100 text-xs font-bold mt-1 opacity-70 uppercase">ID: #{product?.id} — Safe Storage Railway</p>
         </div>
 
         <form onSubmit={handleSubmit} className="p-8 space-y-6">
@@ -244,7 +238,6 @@ function EditProductContent() {
             </div>
           </div>
 
-          {/* Upload Section */}
           <div className="border-4 border-dashed border-gray-100 rounded-4xl p-8 bg-gray-50/50">
             <label className="block text-center cursor-pointer group">
               <input type="file" multiple accept="image/*" onChange={handleUpload} className="hidden" />
@@ -253,7 +246,7 @@ function EditProductContent() {
                   <Upload size={28} />
                 </div>
                 <p className="font-black text-[#234C6A] uppercase text-xs">Ganti Gambar Produk</p>
-                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Memilih file baru akan menggantikan gambar lama</p>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Akan diunggah ke storage/app/public/products</p>
               </div>
             </label>
 
@@ -298,6 +291,7 @@ function EditProductContent() {
   );
 }
 
+// Komponen Pembungkus dengan Suspense
 export default function EditProductPage() {
   return (
     <Suspense fallback={
