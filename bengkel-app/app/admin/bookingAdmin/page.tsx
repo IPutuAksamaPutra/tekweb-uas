@@ -32,35 +32,22 @@ export default function AdminBookingPage() {
   const [error, setError] = useState<string | null>(null);
   const [isMount, setIsMount] = useState(false);
 
-  // URL API (env / fallback)
+  // URL API
   const apiUrl =
     process.env.NEXT_PUBLIC_API_URL ||
     "https://tekweb-uas-production.up.railway.app";
-
-  // Ambil token
-  const getAuthToken = useCallback(() => {
-    if (typeof document === "undefined") return null;
-    const cookieToken = document.cookie.match(/token=([^;]+)/)?.[1];
-    if (cookieToken) return cookieToken;
-    return localStorage.getItem("token");
-  }, []);
 
   const fetchBookings = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
-      const token = getAuthToken();
-      if (!token) {
-        throw new Error("Token tidak ditemukan. Silakan login kembali.");
-      }
-
-      // 🔥 FIX FINAL (PAKSA /api)
+      // 🔥 AUTH VIA COOKIE (credentials include)
       const res = await fetch(`${apiUrl}/api/bookings/manage`, {
+        credentials: "include",
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
       });
 
@@ -83,7 +70,7 @@ export default function AdminBookingPage() {
     } finally {
       setLoading(false);
     }
-  }, [apiUrl, getAuthToken]);
+  }, [apiUrl]);
 
   useEffect(() => {
     setIsMount(true);
@@ -99,15 +86,13 @@ export default function AdminBookingPage() {
         )
       );
 
-      const token = getAuthToken();
-
-      // 🔥 FIX FINAL (PAKSA /api)
+      // 🔥 AUTH VIA COOKIE (credentials include)
       const res = await fetch(`${apiUrl}/api/bookings/${id}`, {
         method: "PUT",
+        credentials: "include",
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ status: newStatus }),
       });
