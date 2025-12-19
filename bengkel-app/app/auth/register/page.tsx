@@ -5,9 +5,6 @@ import { useRouter } from "next/navigation";
 import { Mail, Lock, User, UserPlus, Eye, EyeOff, Loader2 } from "lucide-react";
 import { alertSuccess, alertError } from "@/components/Alert";
 
-/* ===============================
-   MAIN PAGE
-================================ */
 export default function RegisterPage() {
   const router = useRouter();
   const [isMount, setIsMount] = useState(false);
@@ -22,7 +19,6 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Pre-render guard
   useEffect(() => {
     setIsMount(true);
   }, []);
@@ -43,7 +39,7 @@ export default function RegisterPage() {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
-          "Accept": "application/json" // 🔥 Penting untuk menangkap error validasi Laravel
+          "Accept": "application/json" 
         },
         body: JSON.stringify({
           name: fullName,
@@ -56,7 +52,6 @@ export default function RegisterPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        // Jika ada error validasi spesifik dari Laravel (misal email sudah ada)
         const errorDetail = data.errors 
           ? Object.values(data.errors).flat().join(", ") 
           : data.message;
@@ -66,14 +61,11 @@ export default function RegisterPage() {
         return;
       }
 
-      // SIMPAN SESI (Konsisten dengan LoginPage)
-      if (typeof document !== "undefined") {
-        document.cookie = `token=${data.token}; path=/; max-age=86400; samesite=lax`;
-        document.cookie = `user=${encodeURIComponent(JSON.stringify(data.user))}; path=/; max-age=86400; samesite=lax`;
-      }
-
-      alertSuccess("Registrasi Berhasil! Silakan Login.");
-      router.push("/auth/login");
+      // 🔥 LOGIKA BARU: Beritahu user untuk cek email (Mailtrap)
+      alertSuccess("Registrasi Berhasil! Silakan cek email");
+      
+      // Kita arahkan ke login dengan membawa parameter email agar user tidak perlu ketik ulang
+      router.push(`/auth/login?registered=true&email=${email}`);
       
     } catch (err) {
       alertError("Gagal terhubung ke server!");
@@ -95,7 +87,7 @@ export default function RegisterPage() {
             <UserPlus size={32} />
           </div>
           <h1 className="text-3xl font-black text-[#234C6A] tracking-tighter uppercase">Buat Akun</h1>
-          <p className="text-gray-400 text-sm font-medium mt-1">Daftar untuk menikmati layanan bengkel kami</p>
+          <p className="text-gray-400 text-sm font-medium mt-1">Satu langkah lagi menuju layanan terbaik</p>
         </div>
 
         {errorMsg && (
@@ -105,8 +97,6 @@ export default function RegisterPage() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-
-          {/* Nama */}
           <InputField 
             icon={<User size={18}/>} 
             placeholder="Nama Lengkap" 
@@ -114,7 +104,6 @@ export default function RegisterPage() {
             setValue={setFullName}
           />
 
-          {/* Email */}
           <InputField 
             icon={<Mail size={18}/>} 
             placeholder="Alamat Email" 
@@ -123,59 +112,39 @@ export default function RegisterPage() {
             setValue={setEmail}
           />
 
-          {/* Password */}
-          <div className="space-y-1">
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
-                <Lock size={18}/>
-              </span>
-              <input
-                type={showPass1 ? "text" : "password"}
-                placeholder="Kata Sandi"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="w-full pl-12 pr-12 py-4 bg-gray-50 border-none rounded-2xl text-gray-700 font-bold focus:ring-2 focus:ring-[#FF6D1F] outline-none transition"
-              />
-              <button 
-                type="button" 
-                onClick={() => setShowPass1(!showPass1)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[#FF6D1F]"
-              >
-                {showPass1 ? <EyeOff size={20}/> : <Eye size={20}/>}
-              </button>
-            </div>
+          {/* Password Fields (Sama seperti kode asli Anda) */}
+          <div className="relative">
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+              <Lock size={18}/>
+            </span>
+            <input
+              type={showPass1 ? "text" : "password"}
+              placeholder="Kata Sandi"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              className="w-full pl-12 pr-12 py-4 bg-gray-50 border-none rounded-2xl text-gray-700 font-bold focus:ring-2 focus:ring-[#FF6D1F] outline-none transition"
+            />
+            <button type="button" onClick={() => setShowPass1(!showPass1)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[#FF6D1F]">
+              {showPass1 ? <EyeOff size={20}/> : <Eye size={20}/>}
+            </button>
           </div>
 
-          {/* Konfirmasi Password */}
-          <div className="space-y-1">
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
-                <Lock size={18}/>
-              </span>
-              <input
-                type={showPass2 ? "text" : "password"}
-                placeholder="Ulangi Kata Sandi"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                className="w-full pl-12 pr-12 py-4 bg-gray-50 border-none rounded-2xl text-gray-700 font-bold focus:ring-2 focus:ring-[#FF6D1F] outline-none transition"
-              />
-              <button 
-                type="button" 
-                onClick={() => setShowPass2(!showPass2)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[#FF6D1F]"
-              >
-                {showPass2 ? <EyeOff size={20}/> : <Eye size={20}/>}
-              </button>
-            </div>
-          </div>
-
-          <div className="pt-2">
-            <label className="flex items-center text-xs font-bold text-gray-500 cursor-pointer group">
-              <input type="checkbox" className="mr-3 w-4 h-4 accent-[#FF6D1F] rounded" required/>
-              <span>Saya setuju dengan <span className="text-[#FF6D1F] group-hover:underline">Syarat & Ketentuan</span></span>
-            </label>
+          <div className="relative">
+            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+              <Lock size={18}/>
+            </span>
+            <input
+              type={showPass2 ? "text" : "password"}
+              placeholder="Ulangi Kata Sandi"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+              className="w-full pl-12 pr-12 py-4 bg-gray-50 border-none rounded-2xl text-gray-700 font-bold focus:ring-2 focus:ring-[#FF6D1F] outline-none transition"
+            />
+            <button type="button" onClick={() => setShowPass2(!showPass2)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[#FF6D1F]">
+              {showPass2 ? <EyeOff size={20}/> : <Eye size={20}/>}
+            </button>
           </div>
 
           <button
@@ -183,22 +152,13 @@ export default function RegisterPage() {
             disabled={loading}
             className="w-full bg-[#FF6D1F] hover:bg-orange-600 text-white font-black uppercase tracking-widest py-5 rounded-2xl shadow-lg shadow-orange-200 transition-all flex items-center justify-center gap-3 active:scale-[0.98] disabled:bg-gray-300"
           >
-            {loading ? (
-              <>
-                <Loader2 className="animate-spin" size={20} />
-                Mendaftarkan...
-              </>
-            ) : "Daftar Sekarang"}
+            {loading ? <Loader2 className="animate-spin" size={20} /> : "Daftar & Kirim Verifikasi"}
           </button>
-
         </form>
 
         <p className="text-center text-xs font-bold uppercase tracking-widest mt-8 text-gray-400">
           Sudah punya akun?
-          <button 
-            onClick={() => router.push("/auth/login")} 
-            className="text-[#FF6D1F] hover:text-[#234C6A] ml-2 transition-colors"
-          >
+          <button onClick={() => router.push("/auth/login")} className="text-[#FF6D1F] hover:text-[#234C6A] ml-2 transition-colors">
             Masuk Disini
           </button>
         </p>
@@ -207,22 +167,9 @@ export default function RegisterPage() {
   );
 }
 
-/* ===============================
-   SUB-COMPONENT: INPUT FIELD
-================================ */
-interface InputFieldProps {
-  icon: React.ReactNode;
-  value: string;
-  setValue: (v: string) => void;
-  placeholder: string;
-  type?: string;
-}
-
-const InputField = ({ icon, value, setValue, placeholder, type = "text" }: InputFieldProps) => (
+const InputField = ({ icon, value, setValue, placeholder, type = "text" }: any) => (
   <div className="relative">
-    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
-      {icon}
-    </span>
+    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">{icon}</span>
     <input
       type={type}
       placeholder={placeholder}

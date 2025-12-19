@@ -2,14 +2,16 @@
 
 namespace App\Models;
 
+// 1. Tambahkan baris MustVerifyEmail di bawah ini
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Laravel\Sanctum\HasApiTokens; // <--- BARIS INI WAJIB DITAMBAHKAN!
+use Laravel\Sanctum\HasApiTokens;
 
-class User extends Authenticatable
+// 2. Tambahkan "implements MustVerifyEmail" setelah nama class
+class User extends Authenticatable implements MustVerifyEmail
 {
-    // Pastikan urutan uses tidak menjadi masalah, tapi HasApiTokens harus dideklarasikan.
     use HasApiTokens, HasFactory, Notifiable; 
 
     protected $fillable = [
@@ -22,5 +24,10 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+    ];
+
+    protected $casts = [
+        'email_verified_at' => 'datetime',
+        'password' => 'hashed',
     ];
 }

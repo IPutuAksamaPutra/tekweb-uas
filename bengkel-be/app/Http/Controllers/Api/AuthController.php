@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
+// Tambahkan import event ini di bagian atas
+use Illuminate\Auth\Events\Registered; 
 
 class AuthController extends Controller
 {
@@ -25,10 +27,13 @@ class AuthController extends Controller
             'role' => 'customer'
         ]);
 
+        // 🔥 Tambahkan baris ini untuk memicu pengiriman email verifikasi
+        event(new Registered($user));
+
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
-            'message' => 'Registrasi berhasil',
+            'message' => 'Registrasi berhasil. Silakan cek email untuk verifikasi.',
             'user' => $user,
             'token' => $token
         ], 201);

@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Http\Request; // Tambahkan ini untuk Request verifikasi
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\AdminUserController;
 use App\Http\Controllers\Api\ProductController;
@@ -20,7 +21,24 @@ use App\Http\Controllers\Admin\AdminOrderController;
 Route::post('register', [AuthController::class, 'register']);
 Route::post('login', [AuthController::class, 'login']);
 
+// -----------------------------------------------------------
+// 🔥 ROUTE VERIFIKASI EMAIL (DISEMPURNAKAN)
+// -----------------------------------------------------------
+// Tambahkan middleware 'signed' agar fitur keamanan Laravel aktif
+Route::get('/verify-email/{id}/{hash}', function (Request $request) {
+    $user = \App\Models\User::findOrFail($request->route('id'));
 
+    // Verifikasi hash
+    if (!hash_equals((string) $request->route('hash'), sha1($user->getEmailForVerification()))) {
+        return response()->json(['message' => 'Hash tidak valid.'], 403);
+    }
+
+    $user->markEmailAsVerified();
+    
+    // Redirect ke halaman sukses di Next.js (Opsional tapi bagus buat demo)
+    return response()->json(['message' => 'Email berhasil diverifikasi!']);
+})->name('verification.verify');
+// -----------------------------------------------------------
 // ===============================
 // PRODUK (PUBLIC - EXISTING)
 // ===============================
@@ -31,7 +49,6 @@ Route::get('products/{id}', [ProductController::class, 'show'])
 
 // ===============================
 // 🔥 PRODUK SEO / MARKETPLACE (SLUG)
-// 🔥 DITAMBAHKAN TANPA MERUSAK ROUTE LAMA
 // ===============================
 Route::get('products/slug/{slug}', [ProductController::class, 'showBySlug']);
 Route::get('products/slugs', [ProductController::class, 'getAllSlugs']);

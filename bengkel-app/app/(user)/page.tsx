@@ -1,4 +1,16 @@
-import MyMaps from "@/components/user/MyMap";
+"use client";
+
+import dynamic from "next/dynamic";
+
+// 🔥 Perbaikan utama: Menggunakan Dynamic Import untuk MyMaps agar tidak error "window is not defined"
+const MyMaps = dynamic(() => import("@/components/user/MyMap"), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-full bg-slate-200 animate-pulse flex items-center justify-center text-slate-500 font-medium">
+      Memuat Peta Bengkel...
+    </div>
+  ),
+});
 
 export default function Home() {
   return (
@@ -12,7 +24,7 @@ export default function Home() {
         {/* GRID HERO */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
 
-          {/* ================= KIRI (TIDAK DIUBAH) ================= */}
+          {/* ================= KIRI (KONTEN HERO) ================= */}
           <div>
             <h1 className="text-4xl font-bold mb-4">
               Selamat Datang di BengkelApp
@@ -28,7 +40,7 @@ export default function Home() {
               {/* TOMBOL BOOKING */}
               <a
                 href="/booking"
-                className="text-white font-semibold px-5 py-2 rounded-lg shadow transition"
+                className="text-white font-semibold px-5 py-2 rounded-lg shadow transition hover:brightness-110"
                 style={{ backgroundColor: "#FF6D1F" }}
               >
                 Booking Sekarang
@@ -37,7 +49,7 @@ export default function Home() {
               {/* TOMBOL LIHAT PRODUK */}
               <a
                 href="/marketplace"
-                className="font-semibold px-5 py-2 rounded-lg transition"
+                className="font-semibold px-5 py-2 rounded-lg transition hover:bg-white/10"
                 style={{
                   color: "#FF6D1F",
                   border: "2px solid #FF6D1F",
@@ -49,7 +61,7 @@ export default function Home() {
             </div>
           </div>
 
-          {/* ================= KANAN (MAP – TAMBAHAN SAJA) ================= */}
+          {/* ================= KANAN (MAP) ================= */}
           <div className="w-full h-[280px] lg:h-[260px] rounded-xl overflow-hidden shadow-lg border border-white/20">
             <MyMaps />
           </div>
@@ -57,7 +69,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* FITUR SECTION */}
+      {/* FITUR SECTION (SEMUA CARD DIKEMBALIKAN) */}
       <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
 
         {/* CARD 1 */}
