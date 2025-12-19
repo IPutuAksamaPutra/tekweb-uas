@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import ProductCard from "@/components/user/ProductCard";
 import ProductCardPromo from "@/components/user/ProductCardPromo";
-import { ShoppingCart, ClipboardList, Search, Filter } from "lucide-react";
+import { ShoppingCart, ClipboardList, Search, Filter, Loader2 } from "lucide-react";
 import {
   alertSuccess,
   alertError,
@@ -12,7 +12,7 @@ import {
 } from "@/components/Alert";
 
 /* ===============================
-   INTERFACE
+    INTERFACE
 ================================ */
 interface Product {
   id: number;
@@ -45,6 +45,7 @@ export default function MarketplacePage() {
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [cartCount, setCartCount] = useState(0);
   const [isMount, setIsMount] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
@@ -59,6 +60,7 @@ export default function MarketplacePage() {
 
   /* ================= FETCH DATA ================= */
   const fetchData = useCallback(async () => {
+    setLoading(true);
     try {
       const [prodReq, promoReq] = await Promise.all([
         fetch("https://tekweb-uas-production.up.railway.app/api/products"),
@@ -68,8 +70,12 @@ export default function MarketplacePage() {
       const prodRes = await prodReq.json();
       const promoRes = await promoReq.json();
 
-      // ================= NORMALIZE PRODUCTS (FIX)
-      const normalizedProds: Product[] = (prodRes.products || []).map(
+      // DEBUGGING: Cek struktur di console
+      console.log("Promo Res:", promoRes);
+
+      // ================= NORMALIZE PRODUCTS
+      const rawProducts = prodRes.products || prodRes.data || [];
+      const normalizedProds: Product[] = rawProducts.map(
         (p: any) => ({
           ...p,
           img_urls: p.img_urls || [],
@@ -77,8 +83,10 @@ export default function MarketplacePage() {
         })
       );
 
-      // ================= NORMALIZE PROMOTIONS (FIX)
-      const normalizedPromos: Promotion[] = (promoRes.promotions ?? []).map(
+      // ================= NORMALIZE PROMOTIONS (FIXED KEY)
+      // Terkadang Laravel mengembalikan promoRes.promotions atau promoRes.data
+      const rawPromos = promoRes.promotions || promoRes.data || [];
+      const normalizedPromos: Promotion[] = rawPromos.map(
         (promo: any) => ({
           ...promo,
           products: (promo.products || []).map((p: any) => ({
@@ -93,6 +101,8 @@ export default function MarketplacePage() {
       setPromotions(normalizedPromos);
     } catch (error) {
       console.error("Fetch error:", error);
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -239,72 +249,81 @@ export default function MarketplacePage() {
         </div>
       </div>
 
-      {/* PROMO */}
-      {promotions.length > 0 && (
-        <div className="mb-12">
-          <div className="flex items-center gap-3 mb-6">
-            <span className="bg-red-500 text-white text-xs font-black px-3 py-1 rounded-full animate-pulse">
-              HOT DEAL
-            </span>
-            <h2 className="text-2xl font-black text-[#234C6A]">
-              Penawaran Terbatas
-            </h2>
-          </div>
+      {loading ? (
+        <div className="flex flex-col items-center justify-center py-20">
+            <Loader2 className="animate-spin text-[#FF6D1F]" size={40} />
+            <p className="mt-4 text-gray-500 font-bold uppercase tracking-widest text-xs">Menyinkronkan Data...</p>
+        </div>
+      ) : (
+        <>
+          {/* PROMO SECTION */}
+          {promotions.length > 0 && (
+            <div className="mb-12">
+              <div className="flex items-center gap-3 mb-6">
+                <span className="bg-red-500 text-white text-[10px] font-black px-3 py-1 rounded-full animate-pulse uppercase tracking-wider">
+                  Hot Deal
+                </span>
+                <h2 className="text-2xl font-black text-[#234C6A] uppercase tracking-tighter">
+                  Penawaran Terbatas
+                </h2>
+              </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {promotions.map((promo) =>
-              promo.products.map((p) => {
-                const discountedPrice =
-                  promo.discount_type === "percentage"
-                    ? p.price - (p.price * promo.discount_value) / 100
-                    : p.price - promo.discount_value;
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                {promotions.map((promo) =>
+                  promo.products.map((p) => {
+                    const discountedPrice =
+                      promo.discount_type === "percentage"
+                        ? p.price - (p.price * promo.discount_value) / 100
+                        : p.price - promo.discount_value;
 
-                return (
-                  <ProductCardPromo
-                    key={`promo-${promo.id}-${p.id}`}
-                    product={{
-                      ...p,
-                      original_price: p.price,
-                      price: discountedPrice,
-                      is_promo: true,
-                    }}
-                    promo={promo}
+                    return (
+                      <ProductCardPromo
+                        key={`promo-${promo.id}-${p.id}`}
+                        product={{
+                          ...p,
+                          original_price: p.price,
+                          price: discountedPrice,
+                          is_promo: true,
+                        }}
+                        promo={promo}
+                        onAdd={() => handleAddToCart(p)}
+                        onClick={() =>
+                          router.push(`/marketplace/detail-produk/${p.slug}`)
+                        }
+                      />
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ALL PRODUCTS */}
+          <div className="space-y-6">
+            <h2 className="text-2xl font-black text-[#234C6A] uppercase tracking-tighter">Semua Produk</h2>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {filtered.length > 0 ? (
+                filtered.map((p) => (
+                  <ProductCard
+                    key={p.id}
+                    product={p}
                     onAdd={() => handleAddToCart(p)}
                     onClick={() =>
                       router.push(`/marketplace/detail-produk/${p.slug}`)
                     }
                   />
-                );
-              })
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ALL PRODUCTS */}
-      <div className="space-y-6">
-        <h2 className="text-2xl font-black text-[#234C6A]">Semua Produk</h2>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {filtered.length > 0 ? (
-            filtered.map((p) => (
-              <ProductCard
-                key={p.id}
-                product={p}
-                onAdd={() => handleAddToCart(p)}
-                onClick={() =>
-                  router.push(`/marketplace/detail-produk/${p.slug}`)
-                }
-              />
-            ))
-          ) : (
-            <div className="col-span-full py-20 text-center bg-white rounded-3xl border border-dashed">
-              <p className="text-gray-400 font-medium">
-                Produk tidak ditemukan.
-              </p>
+                ))
+              ) : (
+                <div className="col-span-full py-20 text-center bg-white rounded-3xl border border-dashed">
+                  <p className="text-gray-400 font-medium">
+                    Produk tidak ditemukan.
+                  </p>
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
