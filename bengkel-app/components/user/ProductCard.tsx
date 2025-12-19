@@ -37,7 +37,7 @@ export default function ProductCard({ product, onAdd, onClick }: Props) {
       {/* IMAGE */}
       <div className="w-full h-44 bg-gray-100 overflow-hidden">
         <img
-          src={product.img_url || "/no-image.png"}
+          src={product.img_urls?.[0] || "/no-image.png"}
           alt={product.name}
           onError={(e) => (e.currentTarget.src = "/no-image.png")}
           className="w-full h-full object-cover group-hover:scale-105 transition"
