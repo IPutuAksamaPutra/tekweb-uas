@@ -52,7 +52,8 @@ export default function AdminDashboardPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    const API = process.env.NEXT_PUBLIC_API_URL || "https://tekweb-uas-production.up.railway.app/api";
+    // PAKSA URL RAILWAY DENGAN PREFIX /API AGAR TIDAK 404
+    const API = "https://tekweb-uas-production.up.railway.app/api";
     
     const formatRupiah = (amount: number) => {
         return new Intl.NumberFormat("id-ID", {
@@ -80,11 +81,14 @@ export default function AdminDashboardPage() {
         }
 
         try {
-            const authHeader = { Authorization: `Bearer ${token}` };
+            const authHeader = { 
+                Authorization: `Bearer ${token}`,
+                "Accept": "application/json" 
+            };
             const now = new Date();
             const currentYear = now.getFullYear();
-            const currentMonth = now.getMonth();
 
+            // Fetch semua data secara paralel
             const [productRes, bookingRes, userRes, cashierRes, ordersRes] = await Promise.all([
                 fetch(`${API}/products`, { headers: authHeader }),
                 fetch(`${API}/bookings`, { headers: authHeader }),
@@ -94,79 +98,89 @@ export default function AdminDashboardPage() {
             ]);
             
             // 1. Produk
-            const productData = await productRes.json();
-            setProductCount(productData?.products?.length ?? 0);
+            if (productRes.ok) {
+                const productData = await productRes.json();
+                setProductCount(productData?.products?.length ?? 0);
+            }
 
             // 2. Booking Aggregation
-            const bookingData = await bookingRes.json();
-            const bookingArray: Booking[] = bookingData?.bookings ?? bookingData?.data ?? [];
-            setBookingCount(Array.isArray(bookingArray) ? bookingArray.length : 0);
+            if (bookingRes.ok) {
+                const bookingData = await bookingRes.json();
+                const bookingArray: Booking[] = bookingData?.bookings ?? bookingData?.data ?? [];
+                setBookingCount(Array.isArray(bookingArray) ? bookingArray.length : 0);
 
-            const monthlyBookingCounts: { [key: string]: number } = {};
-            bookingArray.forEach((b) => {
-                const dateString = b.start_time || b.booking_date; 
-                if (!dateString) return;
-                const date = new Date(dateString);
-                if (date.getFullYear() === currentYear) {
-                    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-                    monthlyBookingCounts[key] = (monthlyBookingCounts[key] || 0) + 1;
+                const monthlyBookingCounts: { [key: string]: number } = {};
+                bookingArray.forEach((b) => {
+                    const dateString = b.start_time || b.booking_date; 
+                    if (!dateString) return;
+                    const date = new Date(dateString);
+                    if (date.getFullYear() === currentYear) {
+                        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+                        monthlyBookingCounts[key] = (monthlyBookingCounts[key] || 0) + 1;
+                    }
+                });
+                
+                const chartBData = [];
+                for (let i = 5; i >= 0; i--) { 
+                    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                    chartBData.push(monthlyBookingCounts[key] || 0);
                 }
-            });
-            
-            const chartBData = [];
-            for (let i = 5; i >= 0; i--) { 
-                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-                const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-                chartBData.push(monthlyBookingCounts[key] || 0);
+                setMonthlyBookingData(chartBData);
             }
-            setMonthlyBookingData(chartBData);
 
-            // 3. User Count
-            const userData = await userRes.json();
-            setUserCount(userData?.total_users ?? (Array.isArray(userData?.data) ? userData.data.length : 0));
+            // 3. User/Staff Count
+            if (userRes.ok) {
+                const userData = await userRes.json();
+                setUserCount(userData?.total_users ?? (Array.isArray(userData?.data) ? userData.data.length : 0));
+            } else if (userRes.status === 500) {
+                console.error("Staff API 500: Cek migrasi database di Railway");
+            }
 
             // 4. Income (POS + Orders)
-            const cashierData = await cashierRes.json();
-            const ordersData = await ordersRes.json();
-            const posTransactions: Transaction[] = cashierData?.transactions ?? [];
-            const orderPelunasan: Transaction[] = ordersData?.orders ?? ordersData?.data ?? [];
-            
-            const combined: Transaction[] = [
-                ...posTransactions,
-                ...orderPelunasan.map(o => ({
-                    total: o.total_amount || o.total || 0,
-                    transaction_date: o.updated_at || o.created_at || new Date().toISOString(),
-                }))
-            ];
+            if (cashierRes.ok && ordersRes.ok) {
+                const cashierData = await cashierRes.json();
+                const ordersData = await ordersRes.json();
+                const posTransactions: Transaction[] = cashierData?.transactions ?? [];
+                const orderPelunasan: Transaction[] = ordersData?.orders ?? ordersData?.data ?? [];
+                
+                const combined: Transaction[] = [
+                    ...posTransactions,
+                    ...orderPelunasan.map(o => ({
+                        total: o.total_amount || o.total || 0,
+                        transaction_date: o.updated_at || o.created_at || new Date().toISOString(),
+                    }))
+                ];
 
-            let totalIncome = 0;
-            const monthlyRevenue: { [key: string]: number } = {};
-            
-            combined.forEach((t) => {
-                const amount = parseFloat(String(t.total || t.total_amount || '0')); 
-                if (isNaN(amount) || amount <= 0) return;
+                let totalIncome = 0;
+                const monthlyRevenue: { [key: string]: number } = {};
+                
+                combined.forEach((t) => {
+                    const amount = parseFloat(String(t.total || t.total_amount || '0')); 
+                    if (isNaN(amount) || amount <= 0) return;
 
-                totalIncome += amount;
-                const date = new Date(t.transaction_date || t.updated_at || t.created_at || ""); 
-                if (date.getFullYear() === currentYear) {
-                    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-                    monthlyRevenue[key] = (monthlyRevenue[key] || 0) + amount;
+                    totalIncome += amount;
+                    const date = new Date(t.transaction_date || ""); 
+                    if (date.getFullYear() === currentYear) {
+                        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+                        monthlyRevenue[key] = (monthlyRevenue[key] || 0) + amount;
+                    }
+                });
+                
+                setIncomeTotal(totalIncome);
+
+                const chartRData = [];
+                for (let i = 5; i >= 0; i--) { 
+                    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                    chartRData.push(monthlyRevenue[key] || 0);
                 }
-            });
-            
-            setIncomeTotal(totalIncome);
-
-            const chartRData = [];
-            for (let i = 5; i >= 0; i--) { 
-                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-                const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-                chartRData.push(monthlyRevenue[key] || 0);
+                setMonthlyRevenueData(chartRData);
             }
-            setMonthlyRevenueData(chartRData);
 
         } catch (err) {
-            setError("Gagal memuat data dashboard.");
-            alertError("Terjadi kesalahan sinkronisasi data.");
+            setError("Gagal sinkronisasi dengan Railway API");
+            alertError("Koneksi server terputus.");
         } finally {
             setLoading(false);
         }
@@ -201,7 +215,7 @@ export default function AdminDashboardPage() {
                 </div>
                 <div className="bg-white px-4 py-2 rounded-xl shadow-sm border border-gray-100 flex items-center gap-2">
                     <Activity className="text-green-500" size={18} />
-                    <span className="text-sm font-bold text-gray-600 uppercase tracking-widest">Live System</span>
+                    <span className="text-sm font-bold text-gray-600 uppercase tracking-widest">Railway Live</span>
                 </div>
             </header>
 
@@ -277,28 +291,16 @@ export default function AdminDashboardPage() {
             <div className="space-y-4">
                 <h2 className="text-2xl font-black text-[#234C6A] uppercase tracking-tighter">Manajemen Cepat</h2>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <QuickLink 
-                        href="/admin/produk" 
-                        title="Produk" 
-                        color="bg-[#234C6A]" 
-                    />
-                    <QuickLink 
-                        href="/admin/bookingAdmin" 
-                        title="Booking" 
-                        color="bg-[#FF6D1F]" 
-                    />
-                    <QuickLink 
-                        href="/admin/transaksi" 
-                        title="Transaksi" 
-                        color="bg-green-600" 
-                    />
+                    <QuickLink href="/admin/produk" title="Produk" color="bg-[#234C6A]" />
+                    <QuickLink href="/admin/bookingAdmin" title="Booking" color="bg-[#FF6D1F]" />
+                    <QuickLink href="/admin/transaksi" title="Transaksi" color="bg-green-600" />
                 </div>
             </div>
         </div>
     );
 }
 
-/* ================= SUB-COMPONENTS ================= */
+/* ================= SUB-COMPONENTS (TETAP SAMA) ================= */
 
 function StatCard({ icon, title, value, desc }: any) {
     return (

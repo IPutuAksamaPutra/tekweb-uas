@@ -9,13 +9,13 @@ export const metadata: Metadata = {
     title: "Booking Servis Motor Online - Bengkel Pedia",
     description: "Rawat kendaraan Anda tanpa antre. Booking sekarang!",
     url: "https://bengkelanda.com/booking",
-    siteName: "Bengkel Pedia",
+    siteName: "DEXAR",
     images: [
       {
         url: "/images/og-booking.jpg", // Pastikan gambar ini ada di folder public
         width: 1200,
         height: 630,
-        alt: "Booking Servis Bengkel Pedia",
+        alt: "Booking Servis DEXAR",
       },
     ],
     locale: "id_ID",
@@ -24,7 +24,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Booking Servis Motor Online",
-    description: "Jadwalkan perawatan motor Anda dengan mudah di Bengkel Pedia.",
+    description: "Jadwalkan perawatan motor Anda dengan mudah di Dexar Motor.",
     images: ["/images/og-booking.jpg"],
   },
 };
