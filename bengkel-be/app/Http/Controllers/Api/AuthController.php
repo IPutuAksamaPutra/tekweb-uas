@@ -1,114 +1,72 @@
 <?php
 
 namespace App\Http\Controllers\Api;
-
 use App\Http\Controllers\Controller;
+
 use Illuminate\Http\Request;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Auth\Events\Registered;
+// Tambahkan import event ini di bagian atas
+use Illuminate\Auth\Events\Registered; 
 
 class AuthController extends Controller
 {
-    // =========================
     // REGISTER
-    // =========================
     public function register(Request $request)
     {
         $request->validate([
-            'name'     => 'required|string',
-            'email'    => 'required|email|unique:users,email',
+            'name' => 'required|string',
+            'email' => 'required|email|unique:users,email',
             'password' => 'required|min:6'
         ]);
 
         $user = User::create([
-            'name'     => $request->name,
-            'email'    => $request->email,
+            'name' => $request->name,
+            'email' => $request->email,
             'password' => Hash::make($request->password),
-            'role'     => 'customer'
+            'role' => 'customer'
         ]);
 
-        // Kirim email verifikasi
+        // 🔥 Tambahkan baris ini untuk memicu pengiriman email verifikasi
         event(new Registered($user));
 
-        // Token hanya untuk keperluan internal (opsional)
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
             'message' => 'Registrasi berhasil. Silakan cek email untuk verifikasi.',
-            'user'    => $user,
-            'token'   => $token
+            'user' => $user,
+            'token' => $token
         ], 201);
     }
 
-    // =========================
-    // LOGIN (🔥 FIX FINAL)
-    // =========================
+    // LOGIN
     public function login(Request $request)
     {
         $request->validate([
-            'email'    => 'required|email',
+            'email' => 'required|email',
             'password' => 'required'
         ]);
 
         $user = User::where('email', $request->email)->first();
 
         if (!$user || !Hash::check($request->password, $user->password)) {
-            return response()->json([
-                'message' => 'Email atau password salah'
-            ], 401);
+            return response()->json(['message' => 'Email atau password salah'], 401);
         }
 
-        // Hapus token lama
+        // Hapus token lama dan buat yang baru
         $user->tokens()->delete();
-
-        // Buat token baru
         $token = $user->createToken('auth_token')->plainTextToken;
 
-        // 🔥 SIMPAN TOKEN KE COOKIE (INI KUNCI)
         return response()->json([
             'message' => 'Login berhasil',
-            'user'    => $user
-        ])->withCookie(
-            cookie(
-                'token',
-                $token,
-                60 * 24,        // 1 hari (menit)
-                '/',
-                '.up.railway.app', // 🔥 penting (domain backend)
-                true,            // Secure (HTTPS)
-                true,            // HttpOnly
-                false,
-                'None'           // 🔥 SameSite=None (WAJIB)
-            )
-        );
+            'token' => $token, // <-- TOKEN DI BODY JSON
+            'user' => $user
+        ]);
     }
 
-    // =========================
-    // PROFILE (AUTH REQUIRED)
-    // =========================
+    // PROFILE USER LOGIN
     public function profile(Request $request)
     {
         return response()->json($request->user());
-    }
-
-    // =========================
-    // LOGOUT (OPSIONAL TAPI DISARANKAN)
-    // =========================
-    public function logout(Request $request)
-    {
-        $request->user()->tokens()->delete();
-
-        return response()->json([
-            'message' => 'Logout berhasil'
-        ])->withCookie(
-            cookie(
-                'token',
-                '',
-                -1,
-                '/',
-                '.up.railway.app'
-            )
-        );
     }
 }
