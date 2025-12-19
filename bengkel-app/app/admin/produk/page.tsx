@@ -42,8 +42,8 @@ const ImageCarousel = ({ urls, alt }: { urls: string[], alt: string }) => {
     const images = Array.isArray(urls) ? urls.filter(Boolean) : [];
     const totalImages = images.length;
     
-    // Alamat base untuk gambar dari Laravel Railway
-    const STORAGE_URL = "https://tekweb-uas-production.up.railway.app/storage";
+    // Alamat base Railway (sesuaikan dengan lokasi penyimpanan di Laravel)
+    const BASE_URL = "https://tekweb-uas-production.up.railway.app";
 
     if (totalImages === 0) {
         return (
@@ -54,9 +54,12 @@ const ImageCarousel = ({ urls, alt }: { urls: string[], alt: string }) => {
     }
 
     const getImageUrl = (url: string) => {
+        // 1. Jika sudah berupa URL lengkap (mengandung http), langsung pakai
         if (url.startsWith('http')) return url;
-        // Menyesuaikan folder penyimpanan di Laravel (asumsi folder 'products')
-        return `${STORAGE_URL}/products/${url}`;
+
+        // 2. Jika hanya nama file, arahkan ke folder images sesuai Model Laravel Anda
+        // Pastikan di Laravel file benar-benar ada di public/images/
+        return `${BASE_URL}/images/${url}`;
     };
 
     return (
@@ -72,7 +75,8 @@ const ImageCarousel = ({ urls, alt }: { urls: string[], alt: string }) => {
                         alt={`${alt} ${i}`} 
                         className="w-12 h-12 object-cover shrink-0" 
                         onError={(e) => {
-                            (e.target as HTMLImageElement).src = "https://placehold.co/100x100?text=Error";
+                            // Jika gambar gagal dimuat, tampilkan placeholder default
+                            (e.target as HTMLImageElement).src = `${BASE_URL}/images/default_product.png`;
                         }}
                     />
                 ))}
@@ -110,7 +114,6 @@ export default function AdminProductsPage() {
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedCategory, setSelectedCategory] = useState("Semua");
 
-    // PAKSA URL API KE RAILWAY
     const API_URL = "https://tekweb-uas-production.up.railway.app/api";
 
     const fetchProducts = useCallback(async () => {
@@ -130,12 +133,12 @@ export default function AdminProductsPage() {
             }
 
             const data = await res.json();
-            // Menangani berbagai kemungkinan struktur JSON (data.products atau data.data)
+            // Samakan dengan kunci JSON dari Backend (products atau data)
             const list = data.products ?? data.data ?? [];
             setProducts(Array.isArray(list) ? list : []);
         } catch (err) {
             console.error(err);
-            alertError("Gagal menyinkronkan data produk");
+            alertError("Gagal sinkronisasi data produk");
         } finally {
             setLoading(false);
         }
@@ -160,7 +163,7 @@ export default function AdminProductsPage() {
                 },
             });
 
-            if (!res.ok) throw new Error("Gagal menghapus produk dari server");
+            if (!res.ok) throw new Error("Gagal menghapus produk");
             
             setProducts(prev => prev.filter(p => p.id !== id));
             alertSuccess("Produk telah dihapus");
@@ -196,8 +199,7 @@ export default function AdminProductsPage() {
             Nama: p.name,
             Kategori: p.jenis_barang,
             Harga: p.price,
-            Stok: p.stock,
-            Deskripsi: p.description
+            Stok: p.stock
         }));
 
         const worksheet = XLSX.utils.json_to_sheet(exportData);
@@ -211,7 +213,7 @@ export default function AdminProductsPage() {
     return (
         <div className="p-4 md:p-8 space-y-8 max-w-7xl mx-auto bg-gray-50 min-h-screen">
             
-            {/* --- HEADER --- */}
+            {/* HEADER */}
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 bg-white p-6 rounded-4xl shadow-sm border border-gray-100">
                 <div className="flex items-center gap-4">
                     <div className="p-3 bg-[#234C6A] text-white rounded-2xl">
@@ -219,42 +221,42 @@ export default function AdminProductsPage() {
                     </div>
                     <div>
                         <h1 className="text-3xl font-black text-[#234C6A] tracking-tighter uppercase">Inventaris Produk</h1>
-                        <p className="text-sm text-gray-500 font-medium">Kelola stok dan informasi produk marketplace</p>
+                        <p className="text-sm text-gray-500 font-medium">Monitoring stok produk Railway Live</p>
                     </div>
                 </div>
                 
-                <div className="flex flex-wrap gap-3 w-full lg:w-auto">
-                    <div className="relative flex-1 sm:flex-none">
+                <div className="flex gap-3">
+                    <div className="relative">
                         <button 
                             onClick={() => setIsDropdownOpen(!isDropdownOpen)} 
-                            className="w-full flex items-center justify-center bg-white text-gray-700 px-5 py-3 rounded-2xl border-2 border-gray-100 hover:bg-gray-50 transition-all text-xs font-black uppercase tracking-widest"
+                            className="bg-white text-gray-700 px-5 py-3 rounded-2xl border-2 border-gray-100 hover:bg-gray-50 transition-all text-xs font-black uppercase tracking-widest flex items-center"
                         >
                             Ekspor <ChevronDown className={`w-4 h-4 ml-2 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
                         </button>
                         {isDropdownOpen && (
-                            <div className="absolute right-0 mt-3 w-56 bg-white border border-gray-100 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2">
-                                <button onClick={exportToExcel} className="flex items-center w-full px-5 py-4 text-xs font-bold text-gray-600 hover:bg-gray-50 border-b border-gray-50 transition-colors">
+                            <div className="absolute right-0 mt-3 w-56 bg-white border border-gray-100 rounded-2xl shadow-2xl z-50 overflow-hidden">
+                                <button onClick={exportToExcel} className="flex items-center w-full px-5 py-4 text-xs font-bold text-gray-600 hover:bg-gray-50 border-b border-gray-50">
                                     <FileText className="w-4 h-4 mr-3 text-emerald-600" /> Excel (.xlsx)
                                 </button>
-                                <button onClick={() => {setIsDropdownOpen(false); window.print();}} className="flex items-center w-full px-5 py-4 text-xs font-bold text-gray-600 hover:bg-gray-50 transition-colors">
-                                    <Printer className="w-4 h-4 mr-3 text-blue-600" /> Cetak Laporan (PDF)
+                                <button onClick={() => {setIsDropdownOpen(false); window.print();}} className="flex items-center w-full px-5 py-4 text-xs font-bold text-gray-600 hover:bg-gray-50">
+                                    <Printer className="w-4 h-4 mr-3 text-blue-600" /> Cetak (PDF)
                                 </button>
                             </div>
                         )}
                     </div>
                     <button 
                         onClick={() => router.push("/admin/produk/create")} 
-                        className="flex-1 sm:flex-none flex items-center justify-center bg-[#FF6D1F] text-white px-6 py-3 rounded-2xl shadow-lg shadow-orange-200 hover:bg-orange-600 transition-all text-xs font-black uppercase tracking-widest"
+                        className="bg-[#FF6D1F] text-white px-6 py-3 rounded-2xl shadow-lg hover:bg-orange-600 transition-all text-xs font-black uppercase tracking-widest flex items-center"
                     >
                         <Plus className="w-5 h-5 mr-2" /> Tambah Produk
                     </button>
                 </div>
             </div>
 
-            {/* --- SEARCH & FILTER BAR --- */}
+            {/* SEARCH & FILTER */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="relative md:col-span-2 group">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 group-focus-within:text-[#FF6D1F] transition-colors" />
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 group-focus-within:text-[#FF6D1F]" />
                     <input 
                         type="text" 
                         placeholder="Cari berdasarkan nama atau kategori..." 
@@ -263,76 +265,65 @@ export default function AdminProductsPage() {
                         className="w-full pl-12 pr-4 py-4 bg-white border-2 border-transparent rounded-2xl shadow-sm focus:border-[#FF6D1F] focus:outline-none transition-all text-sm font-bold text-slate-700"
                     />
                 </div>
-                <div className="relative group">
-                    <Filter className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 group-focus-within:text-[#FF6D1F]" />
+                <div className="relative">
+                    <Filter className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
                     <select 
                         value={selectedCategory}
                         onChange={(e) => setSelectedCategory(e.target.value)}
-                        className="w-full pl-12 pr-4 py-4 bg-white border-2 border-transparent rounded-2xl shadow-sm focus:border-[#FF6D1F] focus:outline-none appearance-none text-sm font-bold text-slate-700 cursor-pointer transition-all"
+                        className="w-full pl-12 pr-4 py-4 bg-white border-2 border-transparent rounded-2xl shadow-sm focus:border-[#FF6D1F] focus:outline-none appearance-none text-sm font-bold text-slate-700"
                     >
                         {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                     </select>
                 </div>
             </div>
 
-            {/* --- CONTENT --- */}
+            {/* TABLE CONTENT */}
             {loading ? (
-                <div className="bg-white p-32 rounded-[2.5rem] shadow-sm border border-gray-100 text-center flex flex-col items-center justify-center">
+                <div className="bg-white p-32 rounded-[2.5rem] shadow-sm text-center flex flex-col items-center">
                     <Loader2 className="animate-spin text-[#FF6D1F] mb-4" size={48} />
-                    <p className="text-[#234C6A] font-black uppercase tracking-widest text-xs">Menyinkronkan Database...</p>
+                    <p className="text-[#234C6A] font-black uppercase text-xs">Menyinkronkan...</p>
                 </div>
             ) : (
-                <div className="bg-white rounded-[2.5rem] shadow-xl shadow-blue-900/5 border border-gray-100 overflow-hidden">
+                <div className="bg-white rounded-[2.5rem] shadow-xl border border-gray-100 overflow-hidden">
                     <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
+                        <table className="w-full text-left">
                             <thead className="bg-gray-50/50 border-b border-gray-100">
                                 <tr>
                                     <th className="p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Preview</th>
                                     <th className="p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Nama & Kategori</th>
                                     <th className="p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Harga</th>
-                                    <th className="p-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest">Status Stok</th>
+                                    <th className="p-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest">Stok</th>
                                     <th className="p-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50">
                                 {filteredProducts.map((p) => (
-                                    <tr key={p.id} className="hover:bg-gray-50/50 transition-colors group">
+                                    <tr key={p.id} className="hover:bg-gray-50/50 transition-colors">
                                         <td className="p-6 w-24">
                                             <ImageCarousel urls={p.img_urls} alt={p.name} />
                                         </td>
                                         <td className="p-6">
-                                            <p className="font-black text-[#234C6A] text-base leading-tight mb-1">{p.name}</p>
-                                            <span className="text-[9px] bg-blue-50 text-blue-600 px-3 py-1 rounded-full font-black uppercase tracking-tighter shadow-sm border border-blue-100">
+                                            <p className="font-black text-[#234C6A] text-base mb-1">{p.name}</p>
+                                            <span className="text-[9px] bg-blue-50 text-blue-600 px-3 py-1 rounded-full font-black uppercase tracking-tighter">
                                                 {p.jenis_barang}
                                             </span>
                                         </td>
-                                        <td className="p-6 whitespace-nowrap">
+                                        <td className="p-6">
                                             <p className="text-sm font-black text-[#FF6D1F]">
                                                 Rp {Number(p.price).toLocaleString("id-ID")}
                                             </p>
                                         </td>
                                         <td className="p-6 text-center">
-                                            <div className="flex flex-col items-center gap-1">
-                                                <span className={`text-xs font-black px-4 py-1.5 rounded-xl border ${p.stock < 10 ? 'bg-red-50 text-red-600 border-red-100' : 'bg-green-50 text-green-600 border-green-100'}`}>
-                                                    {p.stock} <span className="text-[10px] opacity-70">Unit</span>
-                                                </span>
-                                                {p.stock < 10 && <p className="text-[8px] font-black text-red-400 uppercase animate-pulse">Stok Menipis!</p>}
-                                            </div>
+                                            <span className={`text-xs font-black px-4 py-1.5 rounded-xl border ${p.stock < 10 ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
+                                                {p.stock} Unit
+                                            </span>
                                         </td>
                                         <td className="p-6 text-center">
                                             <div className="flex justify-center gap-2">
-                                                <button 
-                                                    onClick={() => router.push(`/admin/produk/edit?id=${p.id}`)} 
-                                                    className="p-3 text-blue-500 bg-blue-50 hover:bg-blue-600 hover:text-white rounded-2xl transition-all shadow-sm"
-                                                    title="Edit Produk"
-                                                >
+                                                <button onClick={() => router.push(`/admin/produk/edit?id=${p.id}`)} className="p-3 text-blue-500 bg-blue-50 hover:bg-blue-600 hover:text-white rounded-2xl transition-all shadow-sm">
                                                     <Edit size={18}/>
                                                 </button>
-                                                <button 
-                                                    onClick={() => deleteProduct(p.id)} 
-                                                    className="p-3 text-red-500 bg-red-50 hover:bg-red-600 hover:text-white rounded-2xl transition-all shadow-sm"
-                                                    title="Hapus Produk"
-                                                >
+                                                <button onClick={() => deleteProduct(p.id)} className="p-3 text-red-500 bg-red-50 hover:bg-red-600 hover:text-white rounded-2xl transition-all shadow-sm">
                                                     <Trash2 size={18}/>
                                                 </button>
                                             </div>
@@ -341,22 +332,6 @@ export default function AdminProductsPage() {
                                 ))}
                             </tbody>
                         </table>
-                        
-                        {filteredProducts.length === 0 && (
-                            <div className="p-32 text-center flex flex-col items-center justify-center">
-                                <div className="p-6 bg-gray-50 rounded-full mb-4">
-                                    <Search className="w-12 h-12 text-gray-200" />
-                                </div>
-                                <h3 className="text-lg font-black text-[#234C6A] uppercase tracking-tighter">Produk Tidak Ditemukan</h3>
-                                <p className="text-gray-400 text-sm font-medium mt-1">Coba gunakan kata kunci pencarian yang lain.</p>
-                                <button 
-                                    onClick={() => {setSearchQuery(""); setSelectedCategory("Semua")}} 
-                                    className="mt-6 text-[#FF6D1F] font-black text-xs uppercase tracking-widest hover:underline"
-                                >
-                                    Reset Semua Filter
-                                </button>
-                            </div>
-                        )}
                     </div>
                 </div>
             )}
