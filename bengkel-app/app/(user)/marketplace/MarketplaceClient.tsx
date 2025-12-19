@@ -12,7 +12,7 @@ import {
 } from "@/components/Alert";
 
 /* ===============================
-    INTERFACE (FIXED)
+    INTERFACE (DIPASTIKAN KONSISTEN)
 ================================ */
 export interface Product {
   id: number;
@@ -21,7 +21,8 @@ export interface Product {
   price: number;
   stock: number;
   jenis_barang: string;
-  img_urls: string[]; // Sesuai dengan hasil Accessor Laravel
+  // Kita gunakan 'img_urls' agar sesuai dengan saran TypeScript kamu
+  img_urls: string[]; 
   original_price?: number;
   is_promo?: boolean;
   rating?: number;
@@ -58,17 +59,22 @@ export default function MarketplacePage() {
     return match ? decodeURIComponent(match[2]) : null;
   };
 
-  /* ================= LOGIK GAMBAR RAILWAY ================= */
-  const getFullImageUrl = (imgUrls: string[]) => {
-    const firstImg = imgUrls?.[0];
+  /* ================= FIX LOGIK GAMBAR ================= */
+  const getSafeImageUrl = (p: any) => {
+    // Ambil dari image_urls (accessor Laravel) atau img_urls (database)
+    const urls = p.image_urls || p.img_urls || [];
+    const firstImg = urls[0];
+
     if (!firstImg) return `${BASE_URL}/images/default_product.png`;
+    
+    // Jika sudah berupa URL lengkap dari Laravel asset()
     if (firstImg.startsWith("http")) return firstImg;
     
-    // Paksa arahkan ke folder storage/products di Railway
-    const fileName = firstImg.replace("public/products/", "");
-    return `${BASE_URL}/storage/products/${fileName}`;
+    // Jika hanya nama file, arahkan ke folder images sesuai Model Laravel kamu
+    return `${BASE_URL}/images/${firstImg}`;
   };
 
+  /* ================= FETCH DATA ================= */
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
@@ -80,11 +86,26 @@ export default function MarketplacePage() {
       const prodRes = await prodReq.json();
       const promoRes = await promoReq.json();
 
+      // Normalisasi Produk
       const rawProducts = prodRes.products || prodRes.data || [];
-      const rawPromos = promoRes.promotions || promoRes.data || [];
+      const normalizedProds: Product[] = rawProducts.map((p: any) => ({
+        ...p,
+        // Pastikan properti yang dikirim ke state adalah 'img_urls'
+        img_urls: p.image_urls || p.img_urls || [], 
+      }));
 
-      setProducts(rawProducts);
-      setPromotions(rawPromos);
+      // Normalisasi Promo
+      const rawPromos = promoRes.promotions || promoRes.data || [];
+      const normalizedPromos: Promotion[] = rawPromos.map((promo: any) => ({
+        ...promo,
+        products: (promo.products || []).map((p: any) => ({
+          ...p,
+          img_urls: p.image_urls || p.img_urls || [],
+        })),
+      }));
+
+      setProducts(normalizedProds);
+      setPromotions(normalizedPromos);
     } catch (error) {
       console.error("Fetch error:", error);
     } finally {
@@ -95,7 +116,6 @@ export default function MarketplacePage() {
   const updateCartCount = useCallback(async () => {
     const token = getCookie("token");
     if (!token) return;
-
     try {
       const req = await fetch(`${API_URL}/cart`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -131,7 +151,6 @@ export default function MarketplacePage() {
       if (r.isConfirmed) router.push("/auth/login");
       return;
     }
-
     try {
       const res = await fetch(`${API_URL}/cart`, {
         method: "POST",
@@ -145,7 +164,6 @@ export default function MarketplacePage() {
           quantity: 1,
         }),
       });
-
       if (res.ok) {
         updateCartCount();
         alertSuccess("Berhasil masuk keranjang!");
@@ -166,7 +184,7 @@ export default function MarketplacePage() {
           <p className="text-gray-500 font-medium">Railway Production Mode</p>
         </div>
 
-        <div className="flex items-center gap-4 bg-white p-2 rounded-2xl shadow-sm border border-gray-100">
+        <div className="flex items-center gap-4 bg-white p-2 rounded-2xl shadow-sm border">
           <button onClick={() => router.push("/marketplace/pesanan")} className="flex items-center gap-2 px-4 py-2 font-bold text-[#234C6A] hover:bg-gray-50 rounded-xl transition-all">
             <ClipboardList size={22} />
             <span className="hidden sm:inline">Pesanan</span>
@@ -190,7 +208,7 @@ export default function MarketplacePage() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cari sparepart..."
+            placeholder="Cari produk..."
             className="w-full pl-12 pr-4 py-4 bg-white border border-gray-200 rounded-2xl outline-none focus:border-[#FF6D1F] shadow-sm font-bold text-slate-700"
           />
         </div>
@@ -199,7 +217,7 @@ export default function MarketplacePage() {
           <select
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            className="w-full pl-12 pr-4 py-4 bg-white border border-gray-200 rounded-2xl outline-none appearance-none cursor-pointer focus:border-[#FF6D1F] shadow-sm font-bold text-gray-700"
+            className="w-full pl-12 pr-4 py-4 bg-white border border-gray-200 rounded-2xl appearance-none cursor-pointer font-medium text-gray-700 focus:border-[#FF6D1F]"
           >
             <option value="all">Semua Kategori</option>
             <option value="sparepart">⚙️ Sparepart</option>
@@ -211,7 +229,7 @@ export default function MarketplacePage() {
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20">
             <Loader2 className="animate-spin text-[#FF6D1F] mb-4" size={40} />
-            <p className="text-gray-400 font-black text-xs uppercase tracking-widest">Memuat Marketplace...</p>
+            <p className="text-gray-400 font-black text-xs uppercase tracking-widest">Sinkronisasi Railway...</p>
         </div>
       ) : (
         <>
@@ -234,7 +252,8 @@ export default function MarketplacePage() {
                         key={`promo-${promo.id}-${p.id}`}
                         product={{ 
                             ...p, 
-                            img_urls: [getFullImageUrl(p.img_urls)], // Ambil URL Lengkap
+                            // KIRIM PROPERTI YANG SESUAI DENGAN INTERFACE (img_urls)
+                            img_urls: [getSafeImageUrl(p)],
                             original_price: p.price, 
                             price: discountedPrice, 
                             is_promo: true 
@@ -260,14 +279,15 @@ export default function MarketplacePage() {
                     key={p.id}
                     product={{
                         ...p,
-                        img_urls: [getFullImageUrl(p.img_urls)] // Ambil URL Lengkap
+                        // KIRIM PROPERTI YANG SESUAI DENGAN INTERFACE (img_urls)
+                        img_urls: [getSafeImageUrl(p)]
                     }}
                     onAdd={() => handleAddToCart(p)}
                     onClick={() => router.push(`/marketplace/detail-produk/${p.slug}`)}
                   />
                 ))
               ) : (
-                <div className="col-span-full py-20 text-center bg-white rounded-3xl border border-dashed border-gray-200">
+                <div className="col-span-full py-20 text-center bg-white rounded-3xl border border-dashed">
                   <p className="text-gray-400 font-medium">Produk tidak ditemukan.</p>
                 </div>
               )}
