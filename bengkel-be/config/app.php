@@ -27,6 +27,17 @@ return [
     */
 
     'env' => env('APP_ENV', 'production'),
+    /*
+|--------------------------------------------------------------------------
+| Frontend URL
+|--------------------------------------------------------------------------
+|
+| URL aplikasi frontend (Next.js / Vercel)
+| Digunakan untuk email verification, redirect, dll
+|
+*/
+
+'frontend_url' => env('FRONTEND_URL', 'http://localhost:3000'),
 
     /*
     |--------------------------------------------------------------------------
