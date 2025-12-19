@@ -39,9 +39,12 @@ function getCookie(name: string): string | null {
 // ================================================================
 const ImageCarousel = ({ urls, alt }: { urls: string[], alt: string }) => {
     const [activeIndex, setActiveIndex] = useState(0);
-    const images = urls?.filter(Boolean) || [];
+    const images = Array.isArray(urls) ? urls.filter(Boolean) : [];
     const totalImages = images.length;
     
+    // Alamat base untuk gambar dari Laravel Railway
+    const STORAGE_URL = "https://tekweb-uas-production.up.railway.app/storage";
+
     if (totalImages === 0) {
         return (
             <div className="w-12 h-12 bg-gray-50 flex items-center justify-center rounded-lg border border-gray-200">
@@ -49,6 +52,12 @@ const ImageCarousel = ({ urls, alt }: { urls: string[], alt: string }) => {
             </div>
         );
     }
+
+    const getImageUrl = (url: string) => {
+        if (url.startsWith('http')) return url;
+        // Menyesuaikan folder penyimpanan di Laravel (asumsi folder 'products')
+        return `${STORAGE_URL}/products/${url}`;
+    };
 
     return (
         <div className="relative w-12 h-12 overflow-hidden rounded-lg border border-gray-200 group bg-white">
@@ -59,9 +68,12 @@ const ImageCarousel = ({ urls, alt }: { urls: string[], alt: string }) => {
                 {images.map((url, i) => (
                     <img 
                         key={i} 
-                        src={url.startsWith('http') ? url : `https://tekweb-uas-production.up.railway.app/images/${url}`} 
+                        src={getImageUrl(url)} 
                         alt={`${alt} ${i}`} 
                         className="w-12 h-12 object-cover shrink-0" 
+                        onError={(e) => {
+                            (e.target as HTMLImageElement).src = "https://placehold.co/100x100?text=Error";
+                        }}
                     />
                 ))}
             </div>
@@ -98,7 +110,8 @@ export default function AdminProductsPage() {
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedCategory, setSelectedCategory] = useState("Semua");
 
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://tekweb-uas-production.up.railway.app/api";
+    // PAKSA URL API KE RAILWAY
+    const API_URL = "https://tekweb-uas-production.up.railway.app/api";
 
     const fetchProducts = useCallback(async () => {
         setLoading(true);
@@ -117,7 +130,9 @@ export default function AdminProductsPage() {
             }
 
             const data = await res.json();
-            setProducts(data.products ?? data.data ?? []);
+            // Menangani berbagai kemungkinan struktur JSON (data.products atau data.data)
+            const list = data.products ?? data.data ?? [];
+            setProducts(Array.isArray(list) ? list : []);
         } catch (err) {
             console.error(err);
             alertError("Gagal menyinkronkan data produk");
@@ -176,7 +191,6 @@ export default function AdminProductsPage() {
         if (filteredProducts.length === 0) return alertError("Tidak ada data untuk diekspor.");
         setIsDropdownOpen(false);
         
-        // Format data agar lebih rapi di Excel
         const exportData = filteredProducts.map(p => ({
             ID: p.id,
             Nama: p.name,
