@@ -12,7 +12,7 @@ return [
     'http://localhost:3001',
     'http://127.0.0.1:3000',
     'http://127.0.0.1:3001',
-     env('FRONTEND_URL'),
+    'https://tekweb-uas.vercel.app',
 ],
 
     'allowed_origins_patterns' => [],
