@@ -1,12 +1,13 @@
 <?php
 
 namespace App\Http\Controllers\Api;
-
 use App\Http\Controllers\Controller;
+
 use Illuminate\Http\Request;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Auth\Events\Registered;
+// Tambahkan import event ini di bagian atas
+use Illuminate\Auth\Events\Registered; 
 
 class AuthController extends Controller
 {
@@ -26,6 +27,7 @@ class AuthController extends Controller
             'role' => 'customer'
         ]);
 
+        // 🔥 Tambahkan baris ini untuk memicu pengiriman email verifikasi
         event(new Registered($user));
 
         $token = $user->createToken('auth_token')->plainTextToken;
@@ -37,7 +39,7 @@ class AuthController extends Controller
         ], 201);
     }
 
-    // LOGIN (🔥 FIX FINAL)
+    // LOGIN
     public function login(Request $request)
     {
         $request->validate([
@@ -51,32 +53,18 @@ class AuthController extends Controller
             return response()->json(['message' => 'Email atau password salah'], 401);
         }
 
-        // Hapus token lama
+        // Hapus token lama dan buat yang baru
         $user->tokens()->delete();
-
-        // Buat token baru
         $token = $user->createToken('auth_token')->plainTextToken;
 
-        // 🔥 SET TOKEN KE COOKIE (INI KUNCI)
         return response()->json([
             'message' => 'Login berhasil',
+            'token' => $token, // <-- TOKEN DI BODY JSON
             'user' => $user
-        ])->withCookie(
-            cookie(
-                'token',
-                $token,
-                60 * 24,     // 1 hari
-                '/',
-                null,
-                true,        // ✅ Secure (HTTPS)
-                true,        // ✅ HttpOnly
-                false,
-                'None'       // ✅ SameSite=None (WAJIB)
-            )
-        );
+        ]);
     }
 
-    // PROFILE
+    // PROFILE USER LOGIN
     public function profile(Request $request)
     {
         return response()->json($request->user());
