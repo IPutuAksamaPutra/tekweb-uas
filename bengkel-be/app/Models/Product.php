@@ -4,10 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
-use Illuminate\Database\Eloquent\Casts\Attribute; 
-use Illuminate\Support\Facades\File; // Tambahkan untuk cek keberadaan file di public_path
+use Illuminate\Database\Eloquent\Casts\Attribute;
 
 class Product extends Model
 {
@@ -24,38 +21,27 @@ class Product extends Model
     ];
 
     /**
-     * Accessor untuk mendapatkan daftar URL gambar produk.
-     * Menggunakan asset() dengan path 'images/' karena controller menyimpan di public/images.
+     * Accessor imageUrls
+     * Mengirimkan array nama file mentah ke Frontend.
      */
-   protected function imageUrls(): Attribute
-{
-    return Attribute::make(
-        get: function () {
-            $value = $this->getRawOriginal('img_url');
-            $defaultUrl = asset('images/default_product.png');
-            $urls = [];
-
-            if (is_string($value)) {
-                $decoded = json_decode($value, true);
-                if (json_last_error() === JSON_ERROR_NONE) {
-                    $value = $decoded;
-                } else {
-                    $value = [$value];
+    protected function imageUrls(): Attribute
+    {
+        return Attribute::make(
+            get: function () {
+                $value = $this->getRawOriginal('img_url');
+                
+                if (is_string($value)) {
+                    $decoded = json_decode($value, true);
+                    $value = (json_last_error() === JSON_ERROR_NONE) ? $decoded : [$value];
                 }
-            }
 
-            if (is_array($value)) {
-                foreach ($value as $fileName) {
-                    if ($fileName) {
-                        // ⬇️ LANGSUNG URL, JANGAN CEK FILE
-                        $urls[] = asset('images/' . $fileName);
-                    }
+                if (is_array($value)) {
+                    // Hanya ambil nama filenya saja, jangan pakai asset()
+                    return array_filter($value);
                 }
+
+                return [];
             }
-
-            return $urls ?: [$defaultUrl];
-        }
-    );
-}
-
+        );
+    }
 }
