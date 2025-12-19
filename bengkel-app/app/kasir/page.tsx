@@ -1,12 +1,10 @@
 'use client';
 
-import React, { useState, useMemo, useEffect, FormEvent } from 'react';
-import { Trash2 } from 'lucide-react'; 
-
-
+import React, { useState, useMemo, useEffect, useCallback, FormEvent } from 'react';
+import { Trash2, Search, Plus, CreditCard, Banknote, Landmark, Loader2, UserPlus, Receipt } from 'lucide-react'; 
 
 /* =======================
-    TIPE DATA (Tidak Berubah)
+    TIPE DATA & INTERFACES
 ======================= */
 interface CartItem {
     id: string;
@@ -14,7 +12,7 @@ interface CartItem {
     name: string;
     price: number;
     quantity: number;
-    originalId: number | null; // ID produk/booking di database
+    originalId: number | null;
 }
 
 interface Product {
@@ -30,275 +28,76 @@ interface Booking {
     user_id: number | null;
     jenis_service: string;
     remaining_due?: number;
-    no_wa: string | null;
     nama_kendaraan: string | null;
-    user_name?: string; // Properti yang di-inject dari backend
+    user_name?: string;
 }
 
-/* =======================
-    TYPE GUARD & TOKEN COOKIE (Tidak Berubah)
-======================= */
-const isBooking = (item: Product | Booking): item is Booking => {
-    return (item as Booking).user_id !== undefined && (item as Product).jenis_barang === undefined;
-};
+const API_URL = process.env.NEXT_PUBLIC_LARAVEL_API_URL || 'http://localhost:8000/api';
 
-const getTokenFromCookies = (): string | undefined => {
+/* =======================
+    UTILITIES
+======================= */
+const getAuthToken = (): string | undefined => {
     if (typeof document === 'undefined') return undefined;
-    const name = 'token=';
-    const cookies = decodeURIComponent(document.cookie).split(';');
-    for (let c of cookies) {
-        while (c.charAt(0) === ' ') c = c.substring(1);
-        if (c.indexOf(name) === 0) return c.substring(name.length);
-    }
-    return undefined;
+    return document.cookie.match(/token=([^;]+)/)?.[1];
+};
+
+const isBooking = (item: Product | Booking): item is Booking => {
+    return (item as Booking).jenis_service !== undefined;
 };
 
 /* =======================
-    INPUT JASA MANUAL (AMAN) (Tidak Berubah)
-======================= */
-const ServiceInput: React.FC<{ onAddItem: (item: CartItem) => void }> = ({ onAddItem }) => {
-    const [name, setName] = useState('');
-    const [price, setPrice] = useState('');
-
-    const handleAdd = (e: FormEvent) => {
-        e.preventDefault();
-        
-        const trimmedName = name.trim();
-        const parsedPrice = parseFloat(price);
-
-        if (!trimmedName || isNaN(parsedPrice) || parsedPrice <= 0) {
-            alert("Nama Jasa dan Harga harus diisi dengan benar (tidak boleh kosong atau nol).");
-            return;
-        }
-
-        onAddItem({
-            id: `manual-${Date.now()}`,
-            type: 'service_manual',
-            name: `Jasa: ${trimmedName}`, 
-            price: parsedPrice,
-            quantity: 1,
-            originalId: null,
-        });
-
-        setName('');
-        setPrice('');
-    };
-
-    return (
-        <form onSubmit={handleAdd} className="bg-yellow-50 border border-yellow-300 rounded-xl p-5 shadow text-black">
-            <h4 className="font-bold mb-3 text-black">Tambah Jasa Manual</h4>
-            <input
-                type="text"
-                placeholder="Nama Jasa"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full mb-2 p-2 rounded border text-black placeholder:text-gray-400"
-                required
-            />
-            <input
-                type="number"
-                placeholder="Harga"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                className="w-full mb-3 p-2 rounded border text-black placeholder:text-gray-400"
-                required
-                min="1"
-            />
-            <button type="submit" className="w-full bg-yellow-600 text-black py-2 rounded-lg font-semibold hover:bg-yellow-700">
-                Tambah Jasa
-            </button>
-        </form>
-    );
-};
-
-/* =======================
-    SEARCH INPUT (Tidak Berubah)
-======================= */
-const ItemSearchInput: React.FC<{ onSelect: (item: CartItem) => void }> = ({ onSelect }) => {
-    const [searchTerm, setSearchTerm] = useState('');
-    const [results, setResults] = useState<(Product | Booking)[]>([]);
-    const [loading, setLoading] = useState(false);
-
-    const API_URL = process.env.NEXT_PUBLIC_LARAVEL_API_URL || 'http://localhost:8000/api';
-
-    useEffect(() => {
-        if (searchTerm.length < 2) {
-            setResults([]);
-            return;
-        }
-
-        const timer = setTimeout(async () => {
-            setLoading(true);
-            const token = getTokenFromCookies();
-
-            try {
-                const [pRes, bRes] = await Promise.all([
-                    fetch(`${API_URL}/products/search/cashier?q=${searchTerm}`, {
-                        headers: { Authorization: `Bearer ${token}` },
-                    }),
-                    fetch(`${API_URL}/bookings/search/cashier?q=${searchTerm}`, { 
-                        headers: { Authorization: `Bearer ${token}` },
-                    }),
-                ]);
-
-                const products = pRes.ok ? (await pRes.json()).products || [] : [];
-                const bookings = bRes.ok ? (await bRes.json()).data || [] : []; 
-
-                setResults([...products, ...bookings]);
-            } catch (error) {
-                 console.error("API Search Failed:", error); 
-                 setResults([]);
-            } finally {
-                setLoading(false);
-            }
-        }, 300);
-
-        return () => clearTimeout(timer);
-    }, [searchTerm, API_URL]);
-
-    const handleSelect = (item: Product | Booking) => {
-        let cartItem: CartItem;
-
-        if (isBooking(item)) {
-            const bookingItem = item as Booking;
-            const customerName = bookingItem.user_name ? ` (${bookingItem.user_name})` : '';
-
-            cartItem = {
-                id: `booking-${bookingItem.id}`,
-                type: 'booking_pelunasan',
-                name: `PELUNASAN: ${bookingItem.jenis_service} (${bookingItem.nama_kendaraan || 'Booking'})${customerName}`, 
-                price: bookingItem.remaining_due ?? 0,
-                quantity: 1,
-                originalId: bookingItem.id,
-            };
-        } else {
-            const productItem = item as Product;
-            cartItem = {
-                id: `prod-${productItem.id}`,
-                type: 'product',
-                name: productItem.name,
-                price: productItem.price ?? 0,
-                quantity: 1,
-                originalId: productItem.id,
-            };
-        }
-
-        onSelect(cartItem);
-        setSearchTerm('');
-        setResults([]);
-    };
-
-    return (
-        <div className="relative text-black">
-            <input
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Cari produk / booking..."
-                className="w-full p-4 rounded-xl border shadow text-black placeholder:text-gray-400"
-            />
-
-            {/* Kontainer Hasil Pencarian */}
-            {(loading || results.length > 0) && (
-                <div 
-                    className="absolute z-20 w-full bg-white rounded-xl border shadow mt-2 max-h-60 overflow-y-auto text-black"
-                >
-                    {loading && <p className="p-3 text-center">Memuat...</p>}
-                    {!loading &&
-                        results.map((item) => (
-                            <div
-                                key={item.id}
-                                onClick={() => handleSelect(item)}
-                                className="p-3 hover:bg-indigo-50 cursor-pointer border-b"
-                            >
-                                {isBooking(item) ? (
-                                    <>
-                                        {/* TAMPILAN NAMA PELANGGAN */}
-                                        <p className="font-semibold text-black">
-                                            [BOOKING] {item.user_name || item.jenis_service} 
-                                        </p>
-                                        <p className="text-xs text-green-600">
-                                            Sisa: Rp {(item.remaining_due ?? 0).toLocaleString('id-ID')} | Service: {item.jenis_service}
-                                        </p>
-                                    </>
-                                ) : (
-                                    <>
-                                        {/* TAMPILAN NAMA PRODUK */}
-                                        <p className="font-semibold text-black">{item.name}</p> 
-                                        <p className="text-xs text-gray-500">
-                                            Rp {(item.price ?? 0).toLocaleString('id-ID')} | Stok {item.stock ?? 0}
-                                        </p>
-                                    </>
-                                )}
-                            </div>
-                        ))}
-                </div>
-            )}
-        </div>
-    );
-};
-
-/* =======================
-    HELPER: FUNGSI CETAK STRUK (Tidak Berubah)
+    FUNGSI CETAK STRUK
 ======================= */
 const printReceipt = (items: CartItem[], total: number, paymentMethod: string, paidAmount: number, change: number) => {
     const date = new Date().toLocaleString('id-ID');
-    
     const receiptContent = `
-        <!DOCTYPE html>
         <html>
         <head>
-            <title>Struk Transaksi</title>
+            <title>Struk POS - Bengkel Dexar</title>
             <style>
-                body { font-family: monospace; font-size: 10px; margin: 0; padding: 10px; }
-                .center { text-align: center; margin-bottom: 10px; }
-                .item-list { width: 100%; border-collapse: collapse; margin: 10px 0; }
-                .item-list td { padding: 2px 0; }
-                .footer { margin-top: 15px; text-align: center; }
+                body { font-family: 'Courier New', Courier, monospace; font-size: 12px; line-height: 1.2; width: 80mm; margin: 0 auto; padding: 20px; color: #000; }
+                .text-center { text-align: center; }
+                .text-right { text-align: right; }
+                .header { margin-bottom: 15px; border-bottom: 1px dashed #000; padding-bottom: 10px; }
+                .item-row { margin-bottom: 5px; }
+                .totals { margin-top: 10px; border-top: 1px dashed #000; padding-top: 10px; }
+                .footer { margin-top: 20px; border-top: 1px dashed #000; padding-top: 10px; font-size: 10px; }
+                table { width: 100%; border-collapse: collapse; }
+                @media print { body { width: 100%; padding: 0; } }
             </style>
         </head>
         <body>
-            <div class="center">
-                <h3>POS BENGKEL DEXAR</h3>
-                <p>Jl. UDAYANA, Kota SINGARAJA</p>
-                <p>Telp: 0812-9932-1122</p>
+            <div class="header text-center">
+                <h2 style="margin:0">BENGKEL DEXAR</h2>
+                <p style="margin:2px">Jl. Udayana No. 10, Singaraja</p>
+                <p style="margin:2px">Telp: 0812-3456-7890</p>
             </div>
-
-            <p>----------------------------------</p>
-            <p>Tgl: ${date}</p>
-            <p>Kasir: VERDY</p>
-            <p>----------------------------------</p>
-
-            <table class="item-list">
+            <p>Tgl: ${date}<br>Kasir: Administrator</p>
+            <p>--------------------------------</p>
+            <table>
                 ${items.map(item => `
-                    <tr>
-                        <td colspan="3">${item.name}</td>
+                    <tr class="item-row">
+                        <td colspan="2">${item.name}</td>
                     </tr>
                     <tr>
-                        <td>${item.quantity} x ${item.price?.toLocaleString('id-ID')}</td>
-                        <td style="text-align: right;">Rp ${((item.price ?? 0) * item.quantity).toLocaleString('id-ID')}</td>
+                        <td>${item.quantity} x ${item.price.toLocaleString('id-ID')}</td>
+                        <td class="text-right">Rp ${(item.price * item.quantity).toLocaleString('id-ID')}</td>
                     </tr>
                 `).join('')}
             </table>
-
-            <p>----------------------------------</p>
-            <table class="item-list">
-                <tr>
-                    <td>TOTAL:</td>
-                    <td style="text-align: right;">Rp ${total.toLocaleString('id-ID')}</td>
-                </tr>
-                <tr>
-                    <td>BAYAR (${paymentMethod}):</td>
-                    <td style="text-align: right;">Rp ${paidAmount.toLocaleString('id-ID')}</td>
-                </tr>
-                <tr>
-                    <td>KEMBALI:</td>
-                    <td style="text-align: right;">Rp ${change.toLocaleString('id-ID')}</td>
-                </tr>
-            </table>
-
-            <div class="footer">
-                <p>--- TERIMA KASIH ---</p>
+            <div class="totals">
+                <table>
+                    <tr><td><b>TOTAL</b></td><td class="text-right"><b>Rp ${total.toLocaleString('id-ID')}</b></td></tr>
+                    <tr><td>Bayar (${paymentMethod})</td><td class="text-right">Rp ${paidAmount.toLocaleString('id-ID')}</td></tr>
+                    <tr><td>Kembali</td><td class="text-right">Rp ${change.toLocaleString('id-ID')}</td></tr>
+                </table>
             </div>
+            <div class="footer text-center">
+                <p>Terima kasih atas kunjungan Anda.<br>Barang yang sudah dibeli tidak dapat ditukar/dikembalikan.</p>
+                <p>*** LAYANAN PRIMA MOTOR ANDA ***</p>
+            </div>
+            <script>window.onload = function() { window.print(); window.close(); }</script>
         </body>
         </html>
     `;
@@ -307,10 +106,145 @@ const printReceipt = (items: CartItem[], total: number, paymentMethod: string, p
     if (printWindow) {
         printWindow.document.write(receiptContent);
         printWindow.document.close();
-        printWindow.print();
-    } else {
-        alert('Gagal membuka jendela cetak. Periksa pengaturan browser Anda.');
     }
+};
+
+/* =======================
+    SUB-COMPONENT: JASA MANUAL
+======================= */
+const ServiceInput: React.FC<{ onAddItem: (item: CartItem) => void }> = ({ onAddItem }) => {
+    const [name, setName] = useState('');
+    const [price, setPrice] = useState('');
+
+    const handleAdd = (e: FormEvent) => {
+        e.preventDefault();
+        const parsedPrice = parseFloat(price);
+        if (!name.trim() || isNaN(parsedPrice) || parsedPrice <= 0) return;
+
+        onAddItem({
+            id: `manual-${Date.now()}`,
+            type: 'service_manual',
+            name: `Jasa: ${name.trim()}`, 
+            price: parsedPrice,
+            quantity: 1,
+            originalId: null,
+        });
+        setName(''); setPrice('');
+    };
+
+    return (
+        <form onSubmit={handleAdd} className="bg-[#234C6A] rounded-4xl p-6 shadow-lg">
+            <div className="flex items-center gap-2 mb-4">
+                <div className="p-2 bg-white/10 rounded-lg text-white">
+                    <Plus size={18} />
+                </div>
+                <h4 className="font-black text-white uppercase text-xs tracking-widest">Tambah Biaya Jasa Manual</h4>
+            </div>
+            <div className="space-y-4">
+                <div>
+                    <p className="text-[9px] font-black text-blue-200 uppercase tracking-widest ml-1 mb-1">Nama Layanan</p>
+                    <input
+                        type="text"
+                        placeholder="Contoh: Tambal Ban / Stel Rantai"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        className="w-full p-4 rounded-2xl border-none bg-white shadow-inner font-bold text-sm outline-none focus:ring-2 focus:ring-[#FF6D1F]"
+                        required
+                    />
+                </div>
+                <div>
+                    <p className="text-[9px] font-black text-blue-200 uppercase tracking-widest ml-1 mb-1">Nominal Harga (Rp)</p>
+                    <input
+                        type="number"
+                        placeholder="0"
+                        value={price}
+                        onChange={(e) => setPrice(e.target.value)}
+                        className="w-full p-4 rounded-2xl border-none bg-white shadow-inner font-bold text-sm outline-none focus:ring-2 focus:ring-[#FF6D1F]"
+                        required
+                    />
+                </div>
+                <button type="submit" className="w-full bg-[#FF6D1F] text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-orange-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-orange-900/20">
+                    Masukkan ke Keranjang
+                </button>
+            </div>
+        </form>
+    );
+};
+
+/* =======================
+    SUB-COMPONENT: SEARCH
+======================= */
+const ItemSearchInput: React.FC<{ onSelect: (item: CartItem) => void }> = ({ onSelect }) => {
+    const [searchTerm, setSearchTerm] = useState('');
+    const [results, setResults] = useState<(Product | Booking)[]>([]);
+    const [loading, setLoading] = useState(false);
+
+    useEffect(() => {
+        if (searchTerm.length < 2) { setResults([]); return; }
+        const timer = setTimeout(async () => {
+            setLoading(true);
+            const token = getAuthToken();
+            try {
+                const [pRes, bRes] = await Promise.all([
+                    fetch(`${API_URL}/products/search/cashier?q=${searchTerm}`, { headers: { Authorization: `Bearer ${token}` } }),
+                    fetch(`${API_URL}/bookings/search/cashier?q=${searchTerm}`, { headers: { Authorization: `Bearer ${token}` } }),
+                ]);
+                const products = pRes.ok ? (await pRes.json()).products || [] : [];
+                const bookings = bRes.ok ? (await bRes.json()).data || [] : []; 
+                setResults([...products, ...bookings]);
+            } catch (error) { setResults([]); } finally { setLoading(false); }
+        }, 400);
+        return () => clearTimeout(timer);
+    }, [searchTerm]);
+
+    const handleSelect = (item: Product | Booking) => {
+        const cartItem: CartItem = isBooking(item) ? {
+            id: `booking-${item.id}`,
+            type: 'booking_pelunasan',
+            name: `Pelunasan: ${item.jenis_service} (${item.user_name || 'Guest'})`, 
+            price: item.remaining_due ?? 0,
+            quantity: 1,
+            originalId: item.id,
+        } : {
+            id: `prod-${item.id}`,
+            type: 'product',
+            name: item.name,
+            price: item.price ?? 0,
+            quantity: 1,
+            originalId: item.id,
+        };
+        onSelect(cartItem);
+        setSearchTerm('');
+        setResults([]);
+    };
+
+    return (
+        <div className="relative">
+            <div className="relative group">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#FF6D1F] transition-colors" size={20} />
+                <input
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Cari part motor atau sisa pembayaran booking..."
+                    className="w-full pl-12 pr-4 py-5 rounded-3xl border-none bg-white shadow-lg text-slate-800 font-bold focus:ring-2 focus:ring-[#FF6D1F] outline-none"
+                />
+            </div>
+            {(loading || results.length > 0) && (
+                <div className="absolute z-50 w-full bg-white rounded-2xl border shadow-2xl mt-2 max-h-80 overflow-y-auto p-2">
+                    {loading && <div className="p-4 text-center text-gray-400 font-bold">Mencari...</div>}
+                    {results.map((item) => (
+                        <div key={item.id} onClick={() => handleSelect(item)} className="p-4 hover:bg-orange-50 rounded-xl cursor-pointer flex justify-between items-center border-b last:border-0">
+                            <div>
+                                <p className="font-black text-[#234C6A] uppercase text-[9px] tracking-widest">{isBooking(item) ? '📅 Booking' : '📦 Part'}</p>
+                                <p className="font-bold text-slate-700">{isBooking(item) ? (item as Booking).jenis_service : (item as Product).name}</p>
+                            </div>
+                            <p className="font-black text-[#FF6D1F]">Rp {(isBooking(item) ? (item as Booking).remaining_due : (item as Product).price)?.toLocaleString('id-ID')}</p>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
 };
 
 /* =======================
@@ -321,83 +255,33 @@ const CashierPage: React.FC = () => {
     const [paymentMethod, setPaymentMethod] = useState<'Cash' | 'Card' | 'Transfer'>('Cash');
     const [isProcessing, setIsProcessing] = useState(false);
     const [cashReceived, setCashReceived] = useState(0); 
-    
-    const API_URL = process.env.NEXT_PUBLIC_LARAVEL_API_URL || 'http://localhost:8000/api';
+    const [isMount, setIsMount] = useState(false);
 
-    const total = useMemo(
-        () => cartItems.reduce((sum, item) => sum + (item.price ?? 0) * item.quantity, 0),
-        [cartItems]
-    );
+    useEffect(() => { setIsMount(true); }, []);
 
-    // Hitung kembalian
-    const change = useMemo(() => {
-        if (paymentMethod === 'Cash') {
-            return cashReceived - total;
-        }
-        return 0;
-    }, [paymentMethod, cashReceived, total]);
-
-    // Reset cashReceived saat metode pembayaran berubah
-    useEffect(() => {
-        setCashReceived(0);
-    }, [paymentMethod]);
-
+    const total = useMemo(() => cartItems.reduce((sum, item) => sum + (item.price ?? 0) * item.quantity, 0), [cartItems]);
+    const change = useMemo(() => paymentMethod === 'Cash' ? cashReceived - total : 0, [paymentMethod, cashReceived, total]);
 
     const handleAddItem = (item: CartItem) => {
-        // Cek apakah produk sudah ada di keranjang (hanya berlaku untuk produk fisik)
-        const index = cartItems.findIndex(
-            (i) => i.originalId === item.originalId && i.type === 'product'
-        );
-
-        if (index > -1) {
+        const index = cartItems.findIndex((i) => i.originalId === item.originalId && i.type === 'product');
+        if (index > -1 && item.type === 'product') {
             const updated = [...cartItems];
             updated[index].quantity += 1;
             setCartItems(updated);
         } else {
-            // Untuk service manual dan booking, selalu tambah sebagai item baru
             setCartItems((prev) => [...prev, item]);
         }
     };
 
-    const handleRemoveItem = (id: string) => {
-        setCartItems((prev) => prev.filter((i) => i.id !== id));
-    };
-    
-    // FUNGSI UPDATE ITEM DETAIL TIDAK DIGUNAKAN LAGI KARENA INPUT DIHAPUS
-
     const handleProcessTransaction = async () => {
-        if (cartItems.length === 0) {
-            alert('Keranjang kosong');
-            return;
-        }
-
-        // Final check for name before sending (preventing 422 if user deletes name input)
-        const isAnyNameEmpty = cartItems.some(item => !item.name || item.name.trim() === '');
-        if (isAnyNameEmpty) {
-            alert('Nama item tidak boleh kosong.');
-            return;
-        }
-
-
-        // VALIDASI UNTUK CASH
-        if (paymentMethod === 'Cash' && change < 0) {
-            alert('Uang yang diterima kurang dari total belanja.');
-            return;
-        }
+        if (cartItems.length === 0) return;
+        if (paymentMethod === 'Cash' && change < 0) return alert('Uang tidak cukup!');
 
         setIsProcessing(true);
-        const token = getTokenFromCookies();
+        const token = getAuthToken();
 
-        // Siapkan data yang akan masuk ke tabel Transaksi di backend
         const transactionData = {
-            items: cartItems.map(item => ({
-                item_id: item.originalId, 
-                type: item.type,
-                name: item.name,
-                price: item.price,
-                quantity: item.quantity,
-                subtotal: item.price * item.quantity,
-            })),
+            items: cartItems.map(item => ({ item_id: item.originalId, type: item.type, name: item.name, price: item.price, quantity: item.quantity, subtotal: item.price * item.quantity })),
             total_amount: total,
             payment_method: paymentMethod,
             paid_amount: paymentMethod === 'Cash' ? cashReceived : total, 
@@ -405,113 +289,71 @@ const CashierPage: React.FC = () => {
         };
 
         try {
-            // Panggilan API ke endpoint baru
             const response = await fetch(`${API_URL}/cashier/process-transaction`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
-                },
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, Accept: 'application/json' },
                 body: JSON.stringify(transactionData),
             });
 
-            const data = await response.json();
+            if (!response.ok) throw new Error('Gagal memproses transaksi.');
 
-            if (!response.ok) {
-                // Tampilkan error validasi Laravel atau error lainnya
-                let errorMessage = data.message || `HTTP Error: ${response.status}`;
-                if (data.errors) {
-                    // Jika ada error validasi detail dari Laravel
-                    errorMessage += "\n\nDetail Error:";
-                    Object.values(data.errors).forEach((errs: any) => {
-                        errs.forEach((err: any) => {
-                            errorMessage += `\n- ${err}`;
-                        });
-                    });
-                }
-                throw new Error(errorMessage);
-            }
-
-            // Jika API berhasil:
+            // 🔥 CETAK STRUK SEBELUM RESET
             printReceipt(cartItems, total, paymentMethod, transactionData.paid_amount, change);
-            
-            // Reset state
-            setCartItems([]);
-            setPaymentMethod('Cash');
-            setCashReceived(0);
-            alert('Transaksi berhasil disimpan dan struk dicetak!');
 
+            setCartItems([]);
+            setCashReceived(0);
         } catch (error: any) {
-            console.error("Transaction Error:", error);
-            alert(`TERJADI KESALAHAN:\n\n${error.message || 'Terjadi masalah saat memproses transaksi.'}`);
+            alert(error.message);
         } finally {
             setIsProcessing(false);
         }
     };
 
+    if (!isMount) return null;
+
     return (
-        <div className="min-h-screen bg-slate-100 p-4 lg:p-6 text-black">
-            {/* CONTAINER UTAMA - RESPONSIVE GRID */}
-            <div className="max-w-7xl mx-auto grid grid-cols-12 gap-4 lg:gap-6">
+        <div className="min-h-screen bg-slate-50 p-4 lg:p-10">
+            <div className="max-w-7xl mx-auto grid grid-cols-12 gap-8">
                 
-                {/* KOLOM KIRI (Search, Jasa Manual, Keranjang) */}
-                {/* Default: Col-span-12 (Full width di Mobile) | Large: Col-span-8 (2/3 width di Desktop) */}
-                <div className="col-span-12 lg:col-span-8 space-y-4 lg:space-y-6">
-                    <h1 className="text-2xl lg:text-3xl font-extrabold text-black">Point of Sale</h1>
+                {/* LEFT SIDE */}
+                <div className="col-span-12 lg:col-span-8 space-y-8">
+                    <header className="flex justify-between items-center">
+                        <h1 className="text-4xl font-black text-[#234C6A] tracking-tighter uppercase">Point of Sale</h1>
+                        <span className="p-3 bg-white rounded-2xl border shadow-sm font-black text-[10px] text-gray-400 uppercase tracking-widest">Store: Singaraja</span>
+                    </header>
 
                     <ItemSearchInput onSelect={handleAddItem} />
 
-                    {/* GRUP INPUT JASA MANUAL DAN MANAJEMEN PELANGGAN - RESPONSIVE */}
-                    {/* Default: Col-span-1 (Stacked di Mobile) | Large: Col-span-2 (Bersebelahan di Desktop) */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <ServiceInput onAddItem={handleAddItem} />
-                        <div className="bg-white rounded-xl shadow p-6 text-center text-black">
-                            Manajemen Pelanggan (Coming Soon)
+                        <div className="bg-white rounded-[2.5rem] border-2 border-dashed border-gray-200 flex flex-col items-center justify-center p-8 text-center grayscale opacity-50">
+                            <UserPlus size={40} className="text-gray-300 mb-2" />
+                            <p className="font-black text-[#234C6A] text-xs uppercase tracking-widest">Customer Member</p>
+                            <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">Maintenance Mode</p>
                         </div>
                     </div>
 
-                    {/* TABEL KERANJANG */}
-                    <div className="bg-white rounded-xl shadow overflow-x-auto">
-                        <table className="min-w-full text-sm text-black">
-                             <thead className="bg-slate-200">
-                                <tr>
-                                    <th className="p-3 text-left font-semibold">Item & Harga</th> 
-                                    <th className="p-3 text-center font-semibold">Qty</th>
-                                    <th className="p-3 text-right font-semibold">Subtotal</th>
-                                    <th className="p-3 text-center font-semibold">Aksi</th>
+                    <div className="bg-white rounded-[2.5rem] shadow-xl overflow-hidden border border-gray-100">
+                        <table className="w-full">
+                             <thead className="bg-gray-50 border-b border-gray-100">
+                                <tr className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                                    <th className="p-6 text-left">Daftar Item</th> 
+                                    <th className="p-6 text-center">Qty</th>
+                                    <th className="p-6 text-right">Subtotal</th>
+                                    <th className="p-6 text-center"></th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody className="divide-y divide-gray-50">
                                 {cartItems.map((item) => (
-                                    <tr key={item.id} className="border-t">
-                                        
-                                        {/* KOLOM ITEM & HARGA (DISPLAY ONLY) */}
-                                        <td className="p-3 min-w-[200px]">
-                                            <p className="w-full font-semibold text-black mb-1">
-                                                {item.name}
-                                            </p>
-                                            <div className="flex items-center space-x-1">
-                                                <span className="text-sm text-gray-600">Harga Satuan:</span>
-                                                <p className="font-bold text-sm text-gray-700">
-                                                    Rp {(item.price ?? 0).toLocaleString('id-ID')}
-                                                </p>
-                                            </div>
+                                    <tr key={item.id} className="hover:bg-gray-50/50 transition-colors">
+                                        <td className="p-6">
+                                            <p className="font-black text-[#234C6A]">{item.name}</p>
+                                            <p className="text-[10px] font-black text-[#FF6D1F] uppercase tracking-widest">Rp {item.price.toLocaleString('id-ID')}</p>
                                         </td>
-                                        
-                                        {/* KOLOM QTY (DISPLAY ONLY) */}
-                                        <td className="p-3 text-center">
-                                            <p className="w-16 p-1 text-center font-semibold">
-                                                {item.quantity}
-                                            </p>
-                                        </td>
-                                        
-                                        <td className="p-3 text-right font-bold min-w-[120px]">
-                                            Rp {((item.price ?? 0) * item.quantity).toLocaleString('id-ID')}
-                                        </td>
-                                        <td className="p-3 text-center">
-                                            <button onClick={() => handleRemoveItem(item.id)}>
-                                                <Trash2 size={16} className="text-red-600" />
-                                            </button>
+                                        <td className="p-6 text-center font-black text-slate-400">{item.quantity}</td>
+                                        <td className="p-6 text-right font-black text-[#234C6A]">Rp {(item.price * item.quantity).toLocaleString('id-ID')}</td>
+                                        <td className="p-6 text-center">
+                                            <button onClick={() => setCartItems(prev => prev.filter(i => i.id !== item.id))} className="text-gray-300 hover:text-red-500"><Trash2 size={18} /></button>
                                         </td>
                                     </tr>
                                 ))}
@@ -520,52 +362,36 @@ const CashierPage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* KOLOM KANAN (Checkout & Pembayaran) */}
-                {/* Default: Col-span-12 (Full width di Mobile) | Large: Col-span-4 (1/3 width di Desktop) */}
-                <div className="col-span-12 lg:col-span-4 lg:sticky lg:top-6 h-fit">
-                    <div className="bg-white rounded-2xl shadow-xl p-6 space-y-6 text-black">
-                        <h2 className="text-xl lg:text-2xl font-bold text-black">Checkout</h2>
+                {/* RIGHT SIDE (PAYMENT) */}
+                <div className="col-span-12 lg:col-span-4 space-y-6">
+                    <div className="bg-[#234C6A] rounded-[2.5rem] p-8 text-white shadow-2xl relative overflow-hidden">
+                        <div className="absolute top-0 right-0 p-4 opacity-10"><Receipt size={100} /></div>
+                        <h2 className="text-xs font-black uppercase tracking-widest mb-2 opacity-60">Grand Total</h2>
+                        <p className="text-5xl font-black">Rp {total.toLocaleString('id-ID')}</p>
+                    </div>
 
-                        <div className="bg-indigo-600 text-white rounded-xl p-5">
-                            <p className="text-sm">Total</p>
-                            <p className="text-3xl lg:text-4xl font-extrabold">
-                                Rp {total.toLocaleString('id-ID')}
-                            </p>
-                        </div>
-
-                        {/* Pilihan Metode Pembayaran - Menggunakan grid-cols-3 yang responsif */}
-                        <div className="grid grid-cols-3 gap-2">
-                            {['Cash', 'Card', 'Transfer'].map((m) => (
-                                <button
-                                    key={m}
-                                    onClick={() => setPaymentMethod(m as any)}
-                                    className={`p-3 rounded-lg font-semibold text-sm ${
-                                        paymentMethod === m
-                                            ? 'bg-indigo-600 text-white'
-                                            : 'bg-gray-200 text-black'
-                                    }`}
-                                >
-                                    {m}
-                                </button>
-                            ))}
+                    <div className="bg-white rounded-[2.5rem] shadow-xl p-8 border border-gray-100 space-y-8">
+                        <div className="grid grid-cols-3 gap-3">
+                            <PaymentButton active={paymentMethod === 'Cash'} onClick={() => setPaymentMethod('Cash')} icon={<Banknote />} label="Tunai" />
+                            <PaymentButton active={paymentMethod === 'Card'} onClick={() => setPaymentMethod('Card')} icon={<CreditCard />} label="Kartu" />
+                            <PaymentButton active={paymentMethod === 'Transfer'} onClick={() => setPaymentMethod('Transfer')} icon={<Landmark />} label="Bank" />
                         </div>
                         
-                        {/* INPUT UANG TUNAI & KEMBALIAN */}
                         {paymentMethod === 'Cash' && (
-                            <div className="space-y-3 pt-2 pb-2 border-t border-gray-200">
-                                <label className="text-sm font-semibold block">
-                                    Uang Diterima (Tunai)
-                                </label>
-                                <input
-                                    type="number"
-                                    value={cashReceived || ''}
-                                    onChange={(e) => setCashReceived(parseFloat(e.target.value) || 0)}
-                                    placeholder="Masukkan jumlah uang"
-                                    className="w-full p-3 rounded-lg border text-black font-bold text-lg"
-                                    min={0}
-                                />
-                                <div className={`p-3 rounded-lg font-bold text-lg text-white ${change < 0 ? 'bg-red-500' : 'bg-green-600'}`}>
-                                    Kembalian: Rp {change.toLocaleString('id-ID')}
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block">Uang Masuk</label>
+                                    <input
+                                        type="number"
+                                        value={cashReceived || ''}
+                                        onChange={(e) => setCashReceived(parseFloat(e.target.value) || 0)}
+                                        className="w-full p-5 rounded-2xl bg-gray-50 border-none font-black text-3xl text-[#234C6A] focus:ring-2 focus:ring-[#FF6D1F]"
+                                        placeholder="0"
+                                    />
+                                </div>
+                                <div className={`p-5 rounded-2xl flex justify-between items-center ${change < 0 ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-700'}`}>
+                                    <span className="text-[10px] font-black uppercase tracking-widest">Kembalian</span>
+                                    <span className="font-black text-2xl">Rp {Math.max(0, change).toLocaleString('id-ID')}</span>
                                 </div>
                             </div>
                         )}
@@ -573,9 +399,9 @@ const CashierPage: React.FC = () => {
                         <button
                             disabled={isProcessing || (paymentMethod === 'Cash' && change < 0) || cartItems.length === 0}
                             onClick={handleProcessTransaction}
-                            className="w-full bg-green-600 text-white py-4 rounded-xl font-bold text-lg lg:text-xl disabled:bg-gray-400"
+                            className="w-full bg-[#FF6D1F] hover:bg-orange-600 text-white py-6 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-orange-200 transition-all flex items-center justify-center gap-3 active:scale-95 disabled:bg-gray-200 disabled:shadow-none"
                         >
-                            {isProcessing ? 'Memproses...' : 'SELESAIKAN TRANSAKSI'}
+                            {isProcessing ? <Loader2 className="animate-spin" /> : 'Selesaikan Transaksi'}
                         </button>
                     </div>
                 </div>
@@ -583,5 +409,12 @@ const CashierPage: React.FC = () => {
         </div>
     );
 };
+
+/* --- MINI COMPONENT --- */
+const PaymentButton = ({ active, onClick, icon, label }: any) => (
+    <button onClick={onClick} className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${active ? 'bg-orange-50 border-[#FF6D1F] text-[#FF6D1F]' : 'bg-white border-gray-100 text-gray-400'}`}>
+        {icon} <span className="text-[9px] font-black uppercase tracking-widest">{label}</span>
+    </button>
+);
 
 export default CashierPage;

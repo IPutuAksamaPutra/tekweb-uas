@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { CheckCircle, Clock, Wrench, Calendar, Tag, Car, Phone, BookOpen, User } from "lucide-react";
-import { alertSuccess, alertError, alertLoginRequired } from "@/components/Alert";
+import { CheckCircle, Clock, Wrench, Calendar, Tag, Car, Phone, BookOpen, User as UserIcon } from "lucide-react";
+import { alertSuccess, alertError } from "@/components/Alert";
 
 // === Interface ===
 interface Booking {
@@ -17,166 +17,192 @@ interface Booking {
   user_id: number;
 }
 
-// ==== Baca cookie hanya jika client ====
-function getCookie(name: string) {
-  if (typeof document === "undefined") return null; // FIX document is not defined
-  const match = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
-  return match ? decodeURIComponent(match[2]) : null;
-}
-
 export default function RiwayatBooking() {
-
   const [riwayat, setRiwayat] = useState<Booking[]>([]);
-  const [userId, setUserId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isMount, setIsMount] = useState(false); // Untuk cegah Hydration Error
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 
+  /* ================= HELPER: TOKEN ================= */
+  const getCookie = (name: string) => {
+    if (typeof document === "undefined") return null;
+    const match = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
+    return match ? decodeURIComponent(match[2]) : null;
+  };
 
-  // ================= GET PROFILE USER =================
-  async function loadUser() {
-    const token = getCookie("token");
-    if (!token) return alertError("Silahkan login terlebih dahulu!");
+  /* ================= DATA FETCHING ================= */
+  useEffect(() => {
+    setIsMount(true);
 
-    const res = await fetch(`${apiUrl}/auth/profile`, {
-      headers: { Authorization: `Bearer ${token}` }
+    async function fetchData() {
+      const token = getCookie("token");
+      if (!token) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        // 1. Get User Profile
+        const userRes = await fetch(`${apiUrl}/auth/profile`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const userData = await userRes.json();
+        const uid = userData.id || userData.user?.id;
+
+        if (!uid) throw new Error("User ID tidak ditemukan");
+
+        // 2. Get All Bookings
+        const bookingRes = await fetch(`${apiUrl}/bookings`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const bookingData = await bookingRes.json();
+
+        const list = Array.isArray(bookingData) ? bookingData :
+                     bookingData.bookings || bookingData.data || [];
+
+        // 3. Filter by User Login
+        const filtered = list.filter((b: Booking) => b.user_id === uid);
+        
+        setRiwayat(filtered.reverse()); // Reverse agar booking terbaru di atas
+      } catch (err) {
+        console.error(err);
+        alertError("Gagal memuat data riwayat.");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchData();
+  }, [apiUrl]);
+
+  /* ================= UI Helpers ================= */
+  const statusConfig = {
+    Pending: {
+      badge: "bg-yellow-100 text-yellow-700",
+      border: "border-yellow-500",
+      icon: <Clock size={18} />,
+      iconBg: "bg-yellow-100 text-yellow-700"
+    },
+    Diterima: {
+      badge: "bg-blue-100 text-blue-700",
+      border: "border-blue-500",
+      icon: <Wrench size={18} />,
+      iconBg: "bg-blue-100 text-blue-700"
+    },
+    Selesai: {
+      badge: "bg-green-100 text-green-700",
+      border: "border-green-500",
+      icon: <CheckCircle size={18} />,
+      iconBg: "bg-green-100 text-green-700"
+    }
+  };
+
+  const formatDate = (date: string) =>
+    new Date(date).toLocaleString("id-ID", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit"
     });
 
-    const data = await res.json();
-    setUserId(data.id || data.user?.id);
+  // Cegah Hydration Error
+  if (!isMount) return null;
+
+  // Loading State
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col justify-center items-center bg-gray-50 gap-4">
+        <div className="animate-spin rounded-full h-12 w-12 border-4 border-t-transparent border-[#FF6D1F]"></div>
+        <p className="text-[#234C6A] font-bold animate-pulse">Memuat Riwayat Booking...</p>
+      </div>
+    );
   }
 
-  // ================= GET BOOKING FILTER USER =================
-  async function loadBooking(uid:number) {
-    const token = getCookie("token");
-    if (!token) return;
+  return (
+    <div className="min-h-screen bg-gray-50 py-12 px-4">
+      <div className="max-w-4xl mx-auto">
+        
+        <header className="text-center mb-12">
+          <h1 className="text-4xl font-black text-[#234C6A] mb-2">
+            Riwayat Booking Anda 🗓️
+          </h1>
+          <p className="text-gray-500">Pantau status servis kendaraan Anda secara real-time</p>
+        </header>
 
-    const res = await fetch(`${apiUrl}/bookings`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
+        {riwayat.length === 0 ? (
+          <div className="bg-white p-16 rounded-3xl text-center shadow-sm border-2 border-dashed border-gray-200">
+            <div className="bg-gray-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Calendar className="text-gray-400" size={32} />
+            </div>
+            <h3 className="text-xl font-bold text-gray-800">Belum Ada Riwayat</h3>
+            <p className="text-gray-500 mt-2">Anda belum melakukan booking servis apapun.</p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {riwayat.map((item) => {
+              const config = statusConfig[item.status] || statusConfig.Pending;
+              return (
+                <div
+                  key={item.id}
+                  className={`bg-white p-6 rounded-2xl shadow-sm hover:shadow-md transition-all border-l-8 ${config.border}`}
+                >
+                  {/* Header Card */}
+                  <div className="flex flex-wrap justify-between items-center border-b pb-4 mb-5 gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className={`${config.iconBg} p-2.5 rounded-xl shadow-sm`}>
+                        {config.icon}
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-bold text-[#234C6A] flex items-center gap-2">
+                          {item.nama_kendaraan}
+                        </h2>
+                        <span className="text-xs font-mono text-gray-400">ID BOOKING: #{item.id}</span>
+                      </div>
+                    </div>
+                    <span className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider ${config.badge}`}>
+                      {item.status}
+                    </span>
+                  </div>
 
-    const data = await res.json();
+                  {/* Detail Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-4 text-gray-700">
+                    <DetailItem icon={<Car size={18} />} title="Jenis Kendaraan" value={item.jenis_kendaraan} />
+                    <DetailItem icon={<Tag size={18} />} title="Jenis Servis" value={item.jenis_service} />
+                    <DetailItem icon={<Calendar size={18} />} title="Waktu Servis" value={formatDate(item.booking_date)} />
+                    <DetailItem icon={<Phone size={18} />} title="No. WhatsApp" value={item.no_wa} />
+                  </div>
 
-    const list = Array.isArray(data) ? data :
-                 data.bookings || data.data || [];
-
-    // 🔥 filter by user login
-    const filtered = list.filter((b:Booking)=> b.user_id === uid);
-
-    setRiwayat(filtered);
-    setLoading(false);
-  }
-
-
-  // running
-  useEffect(()=>{
-    if(typeof window !== "undefined") loadUser();
-  },[]);
-
-  useEffect(()=>{
-    if(userId) loadBooking(userId);
-  },[userId]);
-
-  
-  // ================= UI Helper =================
-  const statusBadge = (s:Booking["status"]) => ({
-    Pending:  <span className="px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-sm font-semibold">Pending</span>,
-    Diterima: <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-semibold">Diterima</span>,
-    Selesai:  <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-semibold">Selesai</span>
-  }[s]);
-
-  const borderStatus = (s:Booking["status"]) => ({
-    Pending:"border-yellow-500",
-    Diterima:"border-blue-500",
-    Selesai:"border-green-500"
-  }[s]);
-
-  const statusIcon = (s:Booking["status"]) => ({
-    Pending:<span className="bg-yellow-100 text-yellow-700 p-2 rounded-full shadow"><Clock size={18}/></span>,
-    Diterima:<span className="bg-blue-100 text-blue-700 p-2 rounded-full shadow"><Wrench size={18}/></span>,
-    Selesai:<span className="bg-green-100 text-green-700 p-2 rounded-full shadow"><CheckCircle size={18}/></span>
-  }[s]);
-
-  const formatDate = (date:string)=>
-    new Date(date).toLocaleString("id-ID",{day:"numeric",month:"long",year:"numeric",hour:"2-digit",minute:"2-digit"});
-
-
-  // ================= LOADING =================
-  if(loading)
-  return(
-    <div className="min-h-screen flex justify-center items-center bg-gray-100 gap-3">
-      <div className="animate-spin rounded-full h-8 w-8 border-4 border-t-transparent border-orange-500"></div>
-      <p className="text-[#234C6A] font-semibold">Memuat Riwayat...</p>
-    </div>
-  );
-
-
-  // ================= UI =================
-  return(
-    <div className="min-h-screen bg-gray-50 py-12">
-      <div className="max-w-4xl mx-auto px-5">
-
-        <h1 className="text-4xl font-extrabold text-[#234C6A] text-center mb-10">
-          Riwayat Booking Anda 🗓️
-        </h1>
-
-        {/* jika kosong */}
-        {riwayat.length === 0 && (
-          <div className="bg-white p-10 rounded-xl text-center shadow border">
-            <p className="text-gray-500 text-lg">Belum ada booking.</p>
+                  {/* Notes Section */}
+                  {item.notes && (
+                    <div className="mt-6 bg-blue-50/50 border border-blue-100 p-4 rounded-xl">
+                      <p className="text-xs font-bold text-blue-600 uppercase flex items-center gap-2 mb-1">
+                        <BookOpen size={14} /> Catatan Tambahan
+                      </p>
+                      <p className="text-gray-700 text-sm italic">"{item.notes}"</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
-
-
-        <div className="space-y-6">
-        {riwayat.map(item=>(
-          <div key={item.id}
-            className={`bg-white p-6 rounded-xl shadow hover:shadow-xl transition border-l-4 ${borderStatus(item.status)}`}>
-
-            {/* Header */}
-            <div className="flex justify-between items-center border-b pb-4 mb-4">
-              <div className="flex items-center gap-3">
-                {statusIcon(item.status)}
-                <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                  <User size={18}/> {item.nama_kendaraan}
-                </h2>
-              </div>
-              {statusBadge(item.status)}
-            </div>
-
-            {/* Detail */}
-            <div className="grid sm:grid-cols-2 gap-6 text-gray-700 ">
-              <Detail icon={<Car/>} title="Jenis Kendaraan" value={item.jenis_kendaraan}/>
-              <Detail icon={<Tag/>} title="Jenis Servis" value={item.jenis_service}/>
-              <Detail icon={<Calendar/>} title="Tanggal" value={formatDate(item.booking_date)}/>
-              <Detail icon={<Phone/>} title="WhatsApp" value={item.no_wa}/>
-            </div>
-
-            {item.notes && (
-              <div className="mt-6 border-t pt-4">
-                <p className="font-semibold flex items-center gap-2 text-[#234C6A]"><BookOpen size={16}/> Catatan</p>
-                <p className="bg-gray-50 border p-3 rounded-lg italic text-gray-700 mt-2">{item.notes}</p>
-              </div>
-            )}
-
-          </div>
-        ))}
-        </div>
-
       </div>
     </div>
   );
 }
 
-
-// DETAIL COMPONENT
-function Detail({icon,title,value}:{icon:any,title:string,value:string}){
-  return(
-    <div className="flex items-center gap-3">
-      <div className="p-2 rounded-full bg-orange-100 text-orange-600 shadow">{icon}</div>
+/* ================= COMPONENT: DETAIL ITEM ================= */
+function DetailItem({ icon, title, value }: { icon: React.ReactNode; title: string; value: string }) {
+  return (
+    <div className="flex items-start gap-3">
+      <div className="p-2 rounded-lg bg-orange-50 text-[#FF6D1F]">
+        {icon}
+      </div>
       <div>
-        <p className="text-xs uppercase text-gray-500">{title}</p>
-        <p className="font-semibold">{value}</p>
+        <p className="text-[10px] uppercase font-bold text-gray-400 tracking-tight leading-none mb-1">{title}</p>
+        <p className="font-semibold text-gray-800 wrap-break-word">{value}</p>
       </div>
     </div>
   );

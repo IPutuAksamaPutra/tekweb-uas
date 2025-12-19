@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import ProductCard from "@/components/user/ProductCard";
 import ProductCardPromo from "@/components/user/ProductCardPromo";
-import { ShoppingCart, ClipboardList } from "lucide-react";
+import { ShoppingCart, ClipboardList, Search, Filter } from "lucide-react";
 import {
   alertSuccess,
   alertError,
@@ -42,113 +42,87 @@ export default function MarketplacePage() {
   const [filtered, setFiltered] = useState<Product[]>([]);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [cartCount, setCartCount] = useState(0);
+  const [isMount, setIsMount] = useState(false); // Untuk cegah hydration error
 
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
 
-  /* ================= FETCH PRODUCTS ================= */
-  const fetchProducts = async () => {
-    try {
-      const req = await fetch("http://localhost:8000/api/products");
-      const res = await req.json();
-
-      const normalized: Product[] = res.products.map((p: any) => {
-        const imgs = Array.isArray(p.img_urls) ? p.img_urls : [];
-
-        return {
-          id: p.id,
-          slug: p.slug,
-          name: p.name,
-          price: p.price,
-          stock: p.stock,
-          jenis_barang: p.jenis_barang,
-          img_urls: imgs,
-          img_url: imgs.length > 0 ? imgs[0] : "/no-image.png",
-        };
-      });
-
-      setProducts(normalized);
-      setFiltered(normalized);
-    } catch (error) {
-      console.error("Gagal mengambil produk:", error);
-    }
+  const getCookie = (name: string) => {
+    if (typeof document === "undefined") return null;
+    const match = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
+    return match ? decodeURIComponent(match[2]) : null;
   };
 
-  /* ================= FETCH PROMO ================= */
-  const fetchPromotions = async () => {
+  /* ================= FETCH DATA ================= */
+  const fetchData = useCallback(async () => {
     try {
-      const req = await fetch("http://localhost:8000/api/promotions");
-      const res = await req.json();
+      const [prodReq, promoReq] = await Promise.all([
+        fetch("http://localhost:8000/api/products"),
+        fetch("http://localhost:8000/api/promotions")
+      ]);
 
-      const normalized: Promotion[] = (res.promotions ?? []).map(
-        (promo: any) => ({
-          ...promo,
-          products: promo.products.map((p: any) => {
-            const imgs = Array.isArray(p.img_urls) ? p.img_urls : [];
-            return {
-              ...p,
-              img_urls: imgs,
-              img_url: imgs.length > 0 ? imgs[0] : "/no-image.png",
-            };
-          }),
-        })
-      );
+      const prodRes = await prodReq.json();
+      const promoRes = await promoReq.json();
 
-      setPromotions(normalized);
+      // Normalize Products
+      const normalizedProds: Product[] = (prodRes.products || []).map((p: any) => ({
+        ...p,
+        img_url: p.img_urls?.[0] || "/no-image.png",
+      }));
+
+      // Normalize Promotions
+      const normalizedPromos: Promotion[] = (promoRes.promotions ?? []).map((promo: any) => ({
+        ...promo,
+        products: (promo.products || []).map((p: any) => ({
+          ...p,
+          img_url: p.img_urls?.[0] || "/no-image.png",
+        })),
+      }));
+
+      setProducts(normalizedProds);
+      setPromotions(normalizedPromos);
     } catch (error) {
-      console.error("Gagal mengambil promosi:", error);
+      console.error("Fetch error:", error);
     }
-  };
+  }, []);
 
-  /* ================= CART COUNT ================= */
-  const updateCartCount = async () => {
-    const token = document.cookie.match(/token=([^;]+)/)?.[1];
+  const updateCartCount = useCallback(async () => {
+    const token = getCookie("token");
     if (!token) return;
 
     try {
       const req = await fetch("http://localhost:8000/api/cart", {
         headers: { Authorization: `Bearer ${token}` },
       });
-
       const res = await req.json();
       setCartCount(res.cart_items?.length || 0);
     } catch (error) {
-      console.error("Gagal menghitung keranjang:", error);
+      console.error("Cart count error:", error);
     }
-  };
-
-  useEffect(() => {
-    fetchProducts();
-    fetchPromotions();
-    updateCartCount();
   }, []);
 
-  /* ================= FILTER ================= */
   useEffect(() => {
-    let result = [...products];
+    setIsMount(true);
+    fetchData();
+    updateCartCount();
+  }, [fetchData, updateCartCount]);
 
-    if (category !== "all") {
-      result = result.filter(
-        (p) => p.jenis_barang?.toLowerCase() === category.toLowerCase()
-      );
-    }
-
-    if (search.trim()) {
-      result = result.filter((p) =>
-        p.name.toLowerCase().includes(search.toLowerCase())
-      );
-    }
-
+  /* ================= FILTER LOGIC ================= */
+  useEffect(() => {
+    let result = products.filter(p => {
+      const matchesCategory = category === "all" || p.jenis_barang?.toLowerCase() === category.toLowerCase();
+      const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase());
+      return matchesCategory && matchesSearch;
+    });
     setFiltered(result);
   }, [search, category, products]);
 
-  /* ================= ADD TO CART ================= */
+  /* ================= ACTIONS ================= */
   const handleAddToCart = async (prod: Product) => {
-    const token = document.cookie.match(/token=([^;]+)/)?.[1];
+    const token = getCookie("token");
     if (!token) {
-      alertLoginRequired().then((r) => {
-        if (r.isConfirmed) router.push("/auth/login");
-      });
+      const r = await alertLoginRequired();
+      if (r.isConfirmed) router.push("/auth/login");
       return;
     }
 
@@ -159,108 +133,102 @@ export default function MarketplacePage() {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          product_id: prod.id,
-          price: prod.price,
-          quantity: 1,
-        }),
+        body: JSON.stringify({ product_id: prod.id, price: prod.price, quantity: 1 }),
       });
 
       if (res.ok) {
         updateCartCount();
-        alertSuccess("Produk berhasil ditambahkan ke keranjang!");
+        alertSuccess("Berhasil masuk keranjang!");
       }
     } catch (error) {
-      console.error(error);
-      alertError("Terjadi kesalahan jaringan.");
+      alertError("Gagal menambah produk.");
     }
   };
 
-  /* ================= DETAIL PAGE ================= */
-  const handleDetailClick = (p: Product) => {
-    localStorage.setItem("selectedProduct", JSON.stringify(p));
-    router.push(`/marketplace/detail-produk/${p.slug}`);
-  };
+  if (!isMount) return null;
 
-  /* ================= JSX ================= */
   return (
-    <div className="max-w-6xl mx-auto p-6">
-      {/* HEADER */}
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-[#234C6A]">
-          Marketplace Produk
-        </h1>
+    <div className="max-w-6xl mx-auto p-6 bg-gray-50 min-h-screen">
+      {/* HEADER SECTION */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
+        <div>
+          <h1 className="text-4xl font-black text-[#234C6A] tracking-tight">Marketplace</h1>
+          <p className="text-gray-500 font-medium">Temukan suku cadang & aksesoris terbaik</p>
+        </div>
 
-        <div className="flex items-center gap-5">
+        <div className="flex items-center gap-4 bg-white p-2 rounded-2xl shadow-sm border">
           <button
             onClick={() => router.push("/marketplace/pesanan")}
-            className="flex items-center gap-1 font-bold text-[#234C6A]"
+            className="flex items-center gap-2 px-4 py-2 font-bold text-[#234C6A] hover:bg-gray-50 rounded-xl transition-all"
           >
-            <ClipboardList size={28} />
+            <ClipboardList size={22} />
             <span className="hidden sm:inline">Pesanan</span>
           </button>
 
-          <a href="/cart" className="relative">
-            <ShoppingCart size={32} className="text-[#FF6D1F]" />
+          <div className="h-8 w-px bg-gray-200"></div>
+
+          <button 
+            onClick={() => router.push("/cart")} 
+            className="relative p-2 bg-orange-50 rounded-xl text-[#FF6D1F] hover:bg-orange-100 transition-all"
+          >
+            <ShoppingCart size={24} />
             {cartCount > 0 && (
-              <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs rounded-full px-2">
+              <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-black rounded-full h-5 w-5 flex items-center justify-center border-2 border-white">
                 {cartCount}
               </span>
             )}
-          </a>
+          </button>
         </div>
       </div>
 
-      {/* SEARCH */}
-      <div className="flex gap-3 mb-8 flex-col sm:flex-row">
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Cari produk..."
-          className="border p-3 rounded-xl w-full"
-        />
+      {/* SEARCH & FILTER */}
+      <div className="flex gap-4 mb-10 flex-col sm:flex-row">
+        <div className="relative flex-1">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Cari sparepart atau aksesoris..."
+            className="w-full pl-12 pr-4 py-4 bg-white border border-gray-200 rounded-2xl outline-none focus:border-[#FF6D1F] focus:ring-1 focus:ring-[#FF6D1F] transition-all shadow-sm"
+          />
+        </div>
 
-        <select
-          value={category}
-          onChange={(e) => setCategory(e.target.value)}
-          className="border p-3 rounded-xl sm:w-52"
-        >
-          <option value="all">Semua Produk</option>
-          <option value="sparepart">Sparepart</option>
-          <option value="aksesoris">Aksesoris</option>
-        </select>
+        <div className="relative sm:w-64">
+          <Filter className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            className="w-full pl-12 pr-4 py-4 bg-white border border-gray-200 rounded-2xl outline-none appearance-none cursor-pointer focus:border-[#FF6D1F] shadow-sm font-medium text-gray-700"
+          >
+            <option value="all">Semua Kategori</option>
+            <option value="sparepart">⚙️ Sparepart</option>
+            <option value="aksesoris">🕶️ Aksesoris</option>
+          </select>
+        </div>
       </div>
 
-      {/* PROMO PRODUCTS */}
+      {/* PROMO SECTION */}
       {promotions.length > 0 && (
-        <div className="mb-10">
-          <h2 className="text-2xl font-bold text-[#FF6D1F] mb-4">
-            🔥 Produk Promo
-          </h2>
+        <div className="mb-12">
+          <div className="flex items-center gap-3 mb-6">
+            <span className="bg-red-500 text-white text-xs font-black px-3 py-1 rounded-full animate-pulse">HOT DEAL</span>
+            <h2 className="text-2xl font-black text-[#234C6A]">Penawaran Terbatas</h2>
+          </div>
 
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {promotions.map((promo) =>
               promo.products.map((p) => {
-                const discountedPrice =
-                  promo.discount_type === "percentage"
-                    ? Math.max(
-                        p.price - p.price * (promo.discount_value / 100),
-                        0
-                      )
-                    : Math.max(p.price - promo.discount_value, 0);
+                const discountedPrice = promo.discount_type === "percentage"
+                  ? p.price - (p.price * promo.discount_value / 100)
+                  : p.price - promo.discount_value;
 
                 return (
                   <ProductCardPromo
                     key={`promo-${promo.id}-${p.id}`}
-                    product={{
-                      ...p,
-                      original_price: p.price,
-                      price: discountedPrice,
-                      is_promo: true,
-                    }}
+                    product={{ ...p, original_price: p.price, price: discountedPrice, is_promo: true }}
                     promo={promo}
                     onAdd={() => handleAddToCart(p)}
-                    onClick={() => handleDetailClick(p)}
+                    onClick={() => router.push(`/marketplace/detail-produk/${p.slug}`)}
                   />
                 );
               })
@@ -269,16 +237,25 @@ export default function MarketplacePage() {
         </div>
       )}
 
-      {/* PRODUCTS */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-        {filtered.map((p) => (
-          <ProductCard
-            key={p.id}
-            product={p}
-            onAdd={() => handleAddToCart(p)}
-            onClick={() => handleDetailClick(p)}
-          />
-        ))}
+      {/* ALL PRODUCTS SECTION */}
+      <div className="space-y-6">
+        <h2 className="text-2xl font-black text-[#234C6A]">Semua Produk</h2>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          {filtered.length > 0 ? (
+            filtered.map((p) => (
+              <ProductCard
+                key={p.id}
+                product={p}
+                onAdd={() => handleAddToCart(p)}
+                onClick={() => router.push(`/marketplace/detail-produk/${p.slug}`)}
+              />
+            ))
+          ) : (
+            <div className="col-span-full py-20 text-center bg-white rounded-3xl border border-dashed">
+              <p className="text-gray-400 font-medium">Produk tidak ditemukan.</p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

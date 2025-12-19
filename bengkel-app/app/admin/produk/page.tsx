@@ -1,15 +1,18 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import * as XLSX from "xlsx";
-import { saveAs } from "file-saver";
 import { 
   ChevronDown, FileText, Printer, Plus, 
-  ChevronLeft, ChevronRight, Edit, Trash2, Search, Filter 
+  ChevronLeft, ChevronRight, Edit, Trash2, Search, Filter,
+  Loader2, Package, Image as ImageIcon
 } from "lucide-react";
 import { alertError, alertConfirmDelete, alertSuccess } from "@/components/Alert";
 
+/* ================================================================
+   INTERFACE
+================================================================ */
 export interface Product {
     id: number;
     name: string;
@@ -20,7 +23,10 @@ export interface Product {
     img_urls: string[];
 }
 
-function getCookie(name: string) {
+/* ================================================================
+   HELPER FUNCTIONS
+================================================================ */
+function getCookie(name: string): string | null {
     if (typeof document === "undefined") return null;
     const value = `; ${document.cookie}`;
     const parts = value.split(`; ${name}=`);
@@ -29,25 +35,50 @@ function getCookie(name: string) {
 }
 
 // ================================================================
-// KOMPONEN: ImageCarousel
+// KOMPONEN: ImageCarousel (Mini Preview di Tabel)
 // ================================================================
 const ImageCarousel = ({ urls, alt }: { urls: string[], alt: string }) => {
     const [activeIndex, setActiveIndex] = useState(0);
-    const totalImages = urls.length;
+    const images = urls?.filter(Boolean) || [];
+    const totalImages = images.length;
     
-    if (totalImages === 0) return <div className="w-12 h-12 bg-gray-100 flex items-center justify-center text-[8px] text-gray-400 rounded">No Image</div>;
+    if (totalImages === 0) {
+        return (
+            <div className="w-12 h-12 bg-gray-50 flex items-center justify-center rounded-lg border border-gray-200">
+                <ImageIcon size={16} className="text-gray-300" />
+            </div>
+        );
+    }
 
     return (
-        <div className="relative w-12 h-12 overflow-hidden rounded border border-gray-100 group">
-            <div className="flex transition-transform duration-300 h-full" style={{ transform: `translateX(-${activeIndex * 100}%)` }}>
-                {urls.map((url, i) => (
-                    <img key={i} src={url.startsWith('http') ? url : `http://localhost:8000/images/${url}`} alt={alt} className="w-12 h-12 object-cover shrink-0" />
+        <div className="relative w-12 h-12 overflow-hidden rounded-lg border border-gray-200 group bg-white">
+            <div 
+                className="flex transition-transform duration-300 h-full" 
+                style={{ transform: `translateX(-${activeIndex * 100}%)` }}
+            >
+                {images.map((url, i) => (
+                    <img 
+                        key={i} 
+                        src={url.startsWith('http') ? url : `http://localhost:8000/images/${url}`} 
+                        alt={`${alt} ${i}`} 
+                        className="w-12 h-12 object-cover shrink-0" 
+                    />
                 ))}
             </div>
             {totalImages > 1 && (
-                <div className="absolute inset-0 flex justify-between items-center opacity-0 group-hover:opacity-100 transition-opacity px-0.5">
-                    <button onClick={(e) => {e.stopPropagation(); setActiveIndex((a) => (a - 1 + totalImages) % totalImages)}} className="bg-black/50 text-white rounded-full p-0.5"><ChevronLeft size={8}/></button>
-                    <button onClick={(e) => {e.stopPropagation(); setActiveIndex((a) => (a + 1) % totalImages)}} className="bg-black/50 text-white rounded-full p-0.5"><ChevronRight size={8}/></button>
+                <div className="absolute inset-0 flex justify-between items-center opacity-0 group-hover:opacity-100 transition-opacity px-0.5 bg-black/10">
+                    <button 
+                        onClick={(e) => { e.preventDefault(); setActiveIndex((a) => (a - 1 + totalImages) % totalImages) }} 
+                        className="bg-white/80 rounded-full p-0.5 shadow-sm hover:bg-white"
+                    >
+                        <ChevronLeft size={10}/>
+                    </button>
+                    <button 
+                        onClick={(e) => { e.preventDefault(); setActiveIndex((a) => (a + 1) % totalImages) }} 
+                        className="bg-white/80 rounded-full p-0.5 shadow-sm hover:bg-white"
+                    >
+                        <ChevronRight size={10}/>
+                    </button>
                 </div>
             )}
         </div>
@@ -62,119 +93,168 @@ export default function AdminProductsPage() {
     const [products, setProducts] = useState<Product[]>([]);
     const [loading, setLoading] = useState(true);
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const [isMount, setIsMount] = useState(false);
     
-    // 🔥 State Baru untuk Search & Filter
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedCategory, setSelectedCategory] = useState("Semua");
 
-    async function fetchProducts() {
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+
+    const fetchProducts = useCallback(async () => {
         setLoading(true);
         try {
             const token = getCookie("token");
-            const res = await fetch(`http://localhost:8000/api/products`, {
-                headers: { Authorization: `Bearer ${token}` },
+            const res = await fetch(`${API_URL}/products`, {
+                headers: { 
+                    "Accept": "application/json",
+                    "Authorization": `Bearer ${token}` 
+                },
             });
+
+            if (res.status === 401) {
+                router.push("/auth/login");
+                return;
+            }
+
             const data = await res.json();
-            setProducts(data.products ?? []);
+            setProducts(data.products ?? data.data ?? []);
         } catch (err) {
-            alertError("Gagal memuat produk");
+            console.error(err);
+            alertError("Gagal menyinkronkan data produk");
         } finally {
             setLoading(false);
         }
-    }
+    }, [API_URL, router]);
+
+    useEffect(() => {
+        setIsMount(true);
+        fetchProducts();
+    }, [fetchProducts]);
 
     async function deleteProduct(id: number) {
         try {
             const confirm = await alertConfirmDelete();
             if (!confirm.isConfirmed) return;
+            
             const token = getCookie("token");
-            const res = await fetch(`http://localhost:8000/api/products/${id}`, {
+            const res = await fetch(`${API_URL}/products/${id}`, {
                 method: "DELETE",
-                headers: { Authorization: `Bearer ${token}` },
+                headers: { 
+                    "Accept": "application/json",
+                    "Authorization": `Bearer ${token}` 
+                },
             });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.message || "Gagal menghapus produk");
+
+            if (!res.ok) throw new Error("Gagal menghapus produk dari server");
             
             setProducts(prev => prev.filter(p => p.id !== id));
-            alertSuccess("Produk berhasil dihapus");
+            alertSuccess("Produk telah dihapus");
         } catch (err: any) {
             alertError(err.message);
         }
     }
 
-    useEffect(() => { fetchProducts(); }, []);
-
-    // 🔥 LOGIKA FILTERING (useMemo agar performa kencang)
     const filteredProducts = useMemo(() => {
         return products.filter((p) => {
-            const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                                 p.jenis_barang.toLowerCase().includes(searchQuery.toLowerCase());
+            const name = p.name?.toLowerCase() || "";
+            const category = p.jenis_barang?.toLowerCase() || "";
+            const query = searchQuery.toLowerCase();
+
+            const matchesSearch = name.includes(query) || category.includes(query);
             const matchesCategory = selectedCategory === "Semua" || p.jenis_barang === selectedCategory;
+            
             return matchesSearch && matchesCategory;
         });
     }, [products, searchQuery, selectedCategory]);
 
-    // 🔥 Ambil list kategori unik untuk dropdown filter
     const categories = useMemo(() => {
-        const unique = Array.from(new Set(products.map(p => p.jenis_barang)));
+        const unique = Array.from(new Set(products.map(p => p.jenis_barang).filter(Boolean)));
         return ["Semua", ...unique];
     }, [products]);
 
     const exportToExcel = () => {
         if (filteredProducts.length === 0) return alertError("Tidak ada data untuk diekspor.");
         setIsDropdownOpen(false);
-        const worksheet = XLSX.utils.json_to_sheet(filteredProducts);
+        
+        // Format data agar lebih rapi di Excel
+        const exportData = filteredProducts.map(p => ({
+            ID: p.id,
+            Nama: p.name,
+            Kategori: p.jenis_barang,
+            Harga: p.price,
+            Stok: p.stock,
+            Deskripsi: p.description
+        }));
+
+        const worksheet = XLSX.utils.json_to_sheet(exportData);
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "Data Produk");
-        XLSX.writeFile(workbook, `Data_Produk_${new Date().getTime()}.xlsx`);
+        XLSX.writeFile(workbook, `Laporan_Stok_${new Date().toLocaleDateString('id-ID')}.xlsx`);
     };
 
+    if (!isMount) return null;
+
     return (
-        <div className="p-4 md:p-6 space-y-6 max-w-7xl mx-auto">
+        <div className="p-4 md:p-8 space-y-8 max-w-7xl mx-auto bg-gray-50 min-h-screen">
             
             {/* --- HEADER --- */}
-            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-800">Manajemen Produk</h1>
-                    <p className="text-sm text-gray-500">Total: {filteredProducts.length} Produk ditemukan</p>
+            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 bg-white p-6 rounded-4xl shadow-sm border border-gray-100">
+                <div className="flex items-center gap-4">
+                    <div className="p-3 bg-[#234C6A] text-white rounded-2xl">
+                        <Package size={28} />
+                    </div>
+                    <div>
+                        <h1 className="text-3xl font-black text-[#234C6A] tracking-tighter uppercase">Inventaris Produk</h1>
+                        <p className="text-sm text-gray-500 font-medium">Kelola stok dan informasi produk marketplace</p>
+                    </div>
                 </div>
                 
-                <div className="flex flex-wrap gap-2 w-full lg:w-auto">
+                <div className="flex flex-wrap gap-3 w-full lg:w-auto">
                     <div className="relative flex-1 sm:flex-none">
-                        <button onClick={() => setIsDropdownOpen(!isDropdownOpen)} className="w-full flex items-center justify-center bg-gray-100 text-gray-700 px-4 py-2.5 rounded-lg border hover:bg-gray-200 transition-all text-sm font-medium">
+                        <button 
+                            onClick={() => setIsDropdownOpen(!isDropdownOpen)} 
+                            className="w-full flex items-center justify-center bg-white text-gray-700 px-5 py-3 rounded-2xl border-2 border-gray-100 hover:bg-gray-50 transition-all text-xs font-black uppercase tracking-widest"
+                        >
                             Ekspor <ChevronDown className={`w-4 h-4 ml-2 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
                         </button>
                         {isDropdownOpen && (
-                            <div className="absolute right-0 mt-2 w-48 bg-white border rounded-xl shadow-xl z-50 overflow-hidden">
-                                <button onClick={exportToExcel} className="flex items-center w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 border-b"><FileText className="w-4 h-4 mr-2 text-emerald-600" /> Excel (.xlsx)</button>
-                                <button onClick={() => {setIsDropdownOpen(false); window.print();}} className="flex items-center w-full px-4 py-3 text-sm text-gray-700 hover:bg-gray-50"><Printer className="w-4 h-4 mr-2 text-blue-600" /> Cetak PDF</button>
+                            <div className="absolute right-0 mt-3 w-56 bg-white border border-gray-100 rounded-2xl shadow-2xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2">
+                                <button onClick={exportToExcel} className="flex items-center w-full px-5 py-4 text-xs font-bold text-gray-600 hover:bg-gray-50 border-b border-gray-50 transition-colors">
+                                    <FileText className="w-4 h-4 mr-3 text-emerald-600" /> Excel (.xlsx)
+                                </button>
+                                <button onClick={() => {setIsDropdownOpen(false); window.print();}} className="flex items-center w-full px-5 py-4 text-xs font-bold text-gray-600 hover:bg-gray-50 transition-colors">
+                                    <Printer className="w-4 h-4 mr-3 text-blue-600" /> Cetak Laporan (PDF)
+                                </button>
                             </div>
                         )}
                     </div>
-                    <button onClick={() => router.push("/admin/produk/create")} className="flex-1 sm:flex-none flex items-center justify-center bg-[#FF6D1F] text-white px-5 py-2.5 rounded-lg shadow-lg shadow-orange-100 hover:bg-orange-600 transition-all text-sm font-bold">
-                        <Plus className="w-5 h-5 mr-1" /> Tambah Produk
+                    <button 
+                        onClick={() => router.push("/admin/produk/create")} 
+                        className="flex-1 sm:flex-none flex items-center justify-center bg-[#FF6D1F] text-white px-6 py-3 rounded-2xl shadow-lg shadow-orange-200 hover:bg-orange-600 transition-all text-xs font-black uppercase tracking-widest"
+                    >
+                        <Plus className="w-5 h-5 mr-2" /> Tambah Produk
                     </button>
                 </div>
             </div>
 
-            {/* 🔥 --- SEARCH & FILTER BAR --- */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-                <div className="relative md:col-span-2">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
+            {/* --- SEARCH & FILTER BAR --- */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="relative md:col-span-2 group">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 group-focus-within:text-[#FF6D1F] transition-colors" />
                     <input 
                         type="text" 
-                        placeholder="Cari nama produk atau jenis barang..." 
+                        placeholder="Cari berdasarkan nama atau kategori..." 
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:outline-none transition-all text-sm"
+                        className="w-full pl-12 pr-4 py-4 bg-white border-2 border-transparent rounded-2xl shadow-sm focus:border-[#FF6D1F] focus:outline-none transition-all text-sm font-bold text-slate-700"
                     />
                 </div>
-                <div className="relative">
-                    <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <div className="relative group">
+                    <Filter className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 group-focus-within:text-[#FF6D1F]" />
                     <select 
                         value={selectedCategory}
                         onChange={(e) => setSelectedCategory(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-500 focus:outline-none appearance-none text-sm transition-all"
+                        className="w-full pl-12 pr-4 py-4 bg-white border-2 border-transparent rounded-2xl shadow-sm focus:border-[#FF6D1F] focus:outline-none appearance-none text-sm font-bold text-slate-700 cursor-pointer transition-all"
                     >
                         {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                     </select>
@@ -183,51 +263,84 @@ export default function AdminProductsPage() {
 
             {/* --- CONTENT --- */}
             {loading ? (
-                <div className="bg-white p-20 rounded-2xl shadow-sm border border-gray-100 text-center">
-                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-500 mx-auto mb-4"></div>
-                    <p className="text-gray-500 font-medium">Menyelaraskan data...</p>
+                <div className="bg-white p-32 rounded-[2.5rem] shadow-sm border border-gray-100 text-center flex flex-col items-center justify-center">
+                    <Loader2 className="animate-spin text-[#FF6D1F] mb-4" size={48} />
+                    <p className="text-[#234C6A] font-black uppercase tracking-widest text-xs">Menyinkronkan Database...</p>
                 </div>
             ) : (
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                <div className="bg-white rounded-[2.5rem] shadow-xl shadow-blue-900/5 border border-gray-100 overflow-hidden">
                     <div className="overflow-x-auto">
-                        <table className="w-full">
+                        <table className="w-full text-left border-collapse">
                             <thead className="bg-gray-50/50 border-b border-gray-100">
                                 <tr>
-                                    <th className="p-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Info</th>
-                                    <th className="p-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Nama & Kategori</th>
-                                    <th className="p-4 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Harga</th>
-                                    <th className="p-4 text-center text-xs font-bold text-gray-400 uppercase tracking-wider">Stok</th>
-                                    <th className="p-4 text-center text-xs font-bold text-gray-400 uppercase tracking-wider">Aksi</th>
+                                    <th className="p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Preview</th>
+                                    <th className="p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Nama & Kategori</th>
+                                    <th className="p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Harga</th>
+                                    <th className="p-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest">Status Stok</th>
+                                    <th className="p-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-widest">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-50">
                                 {filteredProducts.map((p) => (
                                     <tr key={p.id} className="hover:bg-gray-50/50 transition-colors group">
-                                        <td className="p-4 w-20"><ImageCarousel urls={p.img_urls} alt={p.name} /></td>
-                                        <td className="p-4">
-                                            <p className="font-bold text-gray-800 text-sm">{p.name}</p>
-                                            <span className="text-[10px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full font-bold uppercase">{p.jenis_barang}</span>
+                                        <td className="p-6 w-24">
+                                            <ImageCarousel urls={p.img_urls} alt={p.name} />
                                         </td>
-                                        <td className="p-4 whitespace-nowrap text-sm font-semibold text-gray-700">Rp {Number(p.price).toLocaleString("id-ID")}</td>
-                                        <td className="p-4 text-center">
-                                            <span className={`text-xs font-bold px-3 py-1 rounded-lg ${p.stock < 10 ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
-                                                {p.stock}
+                                        <td className="p-6">
+                                            <p className="font-black text-[#234C6A] text-base leading-tight mb-1">{p.name}</p>
+                                            <span className="text-[9px] bg-blue-50 text-blue-600 px-3 py-1 rounded-full font-black uppercase tracking-tighter shadow-sm border border-blue-100">
+                                                {p.jenis_barang}
                                             </span>
                                         </td>
-                                        <td className="p-4 text-center">
-                                            <div className="flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <button onClick={() => router.push(`/admin/produk/edit?id=${p.id}`)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-all"><Edit size={18}/></button>
-                                                <button onClick={() => deleteProduct(p.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all"><Trash2 size={18}/></button>
+                                        <td className="p-6 whitespace-nowrap">
+                                            <p className="text-sm font-black text-[#FF6D1F]">
+                                                Rp {Number(p.price).toLocaleString("id-ID")}
+                                            </p>
+                                        </td>
+                                        <td className="p-6 text-center">
+                                            <div className="flex flex-col items-center gap-1">
+                                                <span className={`text-xs font-black px-4 py-1.5 rounded-xl border ${p.stock < 10 ? 'bg-red-50 text-red-600 border-red-100' : 'bg-green-50 text-green-600 border-green-100'}`}>
+                                                    {p.stock} <span className="text-[10px] opacity-70">Unit</span>
+                                                </span>
+                                                {p.stock < 10 && <p className="text-[8px] font-black text-red-400 uppercase animate-pulse">Stok Menipis!</p>}
+                                            </div>
+                                        </td>
+                                        <td className="p-6 text-center">
+                                            <div className="flex justify-center gap-2">
+                                                <button 
+                                                    onClick={() => router.push(`/admin/produk/edit?id=${p.id}`)} 
+                                                    className="p-3 text-blue-500 bg-blue-50 hover:bg-blue-600 hover:text-white rounded-2xl transition-all shadow-sm"
+                                                    title="Edit Produk"
+                                                >
+                                                    <Edit size={18}/>
+                                                </button>
+                                                <button 
+                                                    onClick={() => deleteProduct(p.id)} 
+                                                    className="p-3 text-red-500 bg-red-50 hover:bg-red-600 hover:text-white rounded-2xl transition-all shadow-sm"
+                                                    title="Hapus Produk"
+                                                >
+                                                    <Trash2 size={18}/>
+                                                </button>
                                             </div>
                                         </td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
+                        
                         {filteredProducts.length === 0 && (
-                            <div className="p-20 text-center">
-                                <Search className="w-12 h-12 text-gray-200 mx-auto mb-3" />
-                                <p className="text-gray-400 text-sm">Produk "{searchQuery}" tidak ditemukan.</p>
+                            <div className="p-32 text-center flex flex-col items-center justify-center">
+                                <div className="p-6 bg-gray-50 rounded-full mb-4">
+                                    <Search className="w-12 h-12 text-gray-200" />
+                                </div>
+                                <h3 className="text-lg font-black text-[#234C6A] uppercase tracking-tighter">Produk Tidak Ditemukan</h3>
+                                <p className="text-gray-400 text-sm font-medium mt-1">Coba gunakan kata kunci pencarian yang lain.</p>
+                                <button 
+                                    onClick={() => {setSearchQuery(""); setSelectedCategory("Semua")}} 
+                                    className="mt-6 text-[#FF6D1F] font-black text-xs uppercase tracking-widest hover:underline"
+                                >
+                                    Reset Semua Filter
+                                </button>
                             </div>
                         )}
                     </div>

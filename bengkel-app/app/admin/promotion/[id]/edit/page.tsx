@@ -1,9 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { alertSuccess, alertError, alertLoginRequired, alertConfirmDelete, alertValidation } from "@/components/Alert";
+import { 
+  alertSuccess, 
+  alertError 
+} from "@/components/Alert";
+import { 
+  ArrowLeft, 
+  Save, 
+  Tag, 
+  Calendar, 
+  CheckCircle2, 
+  Loader2, 
+  Package,
+  AlertCircle
+} from "lucide-react";
 
+/* ===============================
+   INTERFACES
+================================ */
 interface Product {
   id: number;
   name: string;
@@ -29,35 +45,41 @@ export default function EditPromotionPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [isMount, setIsMount] = useState(false);
 
-  const token =
-    typeof document !== "undefined"
-      ? document.cookie.match(/token=([^;]+)/)?.[1]
-      : null;
+  /* ================= HELPERS ================= */
+  const getCookie = (name: string): string | null => {
+    if (typeof document === "undefined") return null;
+    const match = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
+    return match ? decodeURIComponent(match[2]) : null;
+  };
 
-  /* ================= GET PROMO ================= */
-  const getPromo = async () => {
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+
+  /* ================= FETCH DATA ================= */
+  const fetchData = useCallback(async () => {
+    const token = getCookie("token");
+    if (!token) {
+      alertError("Sesi berakhir, silakan login ulang.");
+      router.push("/auth/login");
+      return;
+    }
+
     try {
-      const res = await fetch(
-        `http://localhost:8000/api/promotions/${promoId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const headers = { Authorization: `Bearer ${token}`, Accept: "application/json" };
+      
+      const [promoRes, productsRes] = await Promise.all([
+        fetch(`${API_URL}/promotions/${promoId}`, { headers }),
+        fetch(`${API_URL}/products`, { headers })
+      ]);
 
-      if (!res.ok) {
-        const text = await res.text();
-        console.error("GET PROMO ERROR:", text);
-        return;
-      }
+      if (!promoRes.ok) throw new Error("Gagal memuat data promosi");
+      
+      const promoJson = await promoRes.json();
+      const prodJson = await productsRes.json();
 
-      const data = await res.json();
-      console.log("PROMO RESPONSE:", data);
-
-      // 🔥 fleksibel handle response Laravel
-      const promoData = data.promotion ?? data.data ?? data;
+      const promoData = promoJson.promotion ?? promoJson.data ?? promoJson;
+      const productList = prodJson.products ?? prodJson.data ?? [];
 
       setPromo({
         name: promoData.name ?? "",
@@ -66,196 +88,220 @@ export default function EditPromotionPage() {
         start_date: promoData.start_date ?? "",
         end_date: promoData.end_date ?? "",
         is_active: Boolean(promoData.is_active),
-        product_ids:
-          promoData.products?.map((p: any) => p.id) ?? [],
+        product_ids: promoData.products?.map((p: any) => p.id) ?? [],
       });
-    } catch (err) {
-      console.error(err);
-    }
-  };
 
-  /* ================= GET PRODUCTS ================= */
-  const getProducts = async () => {
-    try {
-      const res = await fetch("http://localhost:8000/api/products");
-      const data = await res.json();
-      setProducts(data.products ?? data.data ?? []);
-    } catch (err) {
-      console.error(err);
+      setProducts(productList);
+    } catch (err: any) {
+      alertError(err.message);
+      router.push("/admin/promotion");
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [promoId, router, API_URL]);
 
   useEffect(() => {
-    if (!token) {
-      alertError("Login admin dulu!");
-      router.push("/login");
-      return;
-    }
+    setIsMount(true);
+    fetchData();
+  }, [fetchData]);
 
-    Promise.all([getPromo(), getProducts()]).finally(() =>
-      setLoading(false)
-    );
-  }, []);
-
-  /* ================= HANDLER ================= */
-  const handleChange = (e: any) => {
-    setPromo({
-      ...promo!,
-      [e.target.name]: e.target.value,
-    });
+  /* ================= HANDLERS ================= */
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    if (!promo) return;
+    setPromo({ ...promo, [e.target.name]: e.target.value });
   };
 
   const toggleProduct = (id: number) => {
     if (!promo) return;
-
-    setPromo({
-      ...promo,
-      product_ids: promo.product_ids.includes(id)
-        ? promo.product_ids.filter((p) => p !== id)
-        : [...promo.product_ids, id],
-    });
+    const currentIds = [...promo.product_ids];
+    const newIds = currentIds.includes(id)
+      ? currentIds.filter((pId) => pId !== id)
+      : [...currentIds, id];
+    setPromo({ ...promo, product_ids: newIds });
   };
 
-  /* ================= UPDATE PROMO ================= */
-  const updatePromo = async (e: any) => {
+  const updatePromo = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!promo) return;
 
     setSaving(true);
+    const token = getCookie("token");
 
     const payload = {
-      name: promo.name,
-      discount_type: promo.discount_type,
+      ...promo,
       discount_value: Number(promo.discount_value),
       start_date: promo.start_date.replace("T", " "),
       end_date: promo.end_date.replace("T", " "),
       is_active: promo.is_active ? 1 : 0,
-      product_ids: promo.product_ids,
     };
 
-    const res = await fetch(
-      `http://localhost:8000/api/promotions/${promoId}`,
-      {
+    try {
+      const res = await fetch(`${API_URL}/promotions/${promoId}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
+          Accept: "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
-      }
-    );
+      });
 
-    setSaving(false);
+      if (!res.ok) throw new Error();
 
-    if (!res.ok) {
-      const text = await res.text();
-      console.error("UPDATE ERROR:", text);
-      alertError("Gagal update promo");
-      return;
+      alertSuccess("Promosi berhasil diperbarui! ✨");
+      router.push("/admin/promotion");
+    } catch (err) {
+      alertError("Gagal memperbarui promosi.");
+    } finally {
+      setSaving(false);
     }
-
-    alertSuccess("Promo berhasil diupdate 🎉");
-    router.push("/admin/promotion");
   };
+
+  if (!isMount) return null;
 
   if (loading || !promo) {
     return (
-      <p className="text-center p-10 text-gray-500">
-        Memuat data...
-      </p>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
+        <Loader2 className="animate-spin text-[#FF6D1F] mb-4" size={40} />
+        <p className="text-[#234C6A] font-bold">Sinkronisasi Data Promo...</p>
+      </div>
     );
   }
 
+  const inputStyle = "w-full bg-gray-50 border-none p-4 rounded-2xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-[#FF6D1F] transition-all";
+
   return (
-    <div className="max-w-3xl mx-auto p-8 bg-white shadow-xl rounded-xl mt-10 border">
-      <h1 className="text-3xl font-bold text-[#234C6A] mb-6">
-        ✏ Edit Promotion
-      </h1>
-
-      <form onSubmit={updatePromo} className="space-y-4">
-        <input
-          name="name"
-          value={promo.name}
-          onChange={handleChange}
-          className="w-full border p-3 rounded-lg"
-          placeholder="Nama Promo"
-          required
-        />
-
-        <select
-          name="discount_type"
-          value={promo.discount_type}
-          onChange={handleChange}
-          className="w-full border p-3 rounded-lg"
-        >
-          <option value="percentage">Persentase (%)</option>
-          <option value="fixed">Potongan Harga (Rp)</option>
-        </select>
-
-        <input
-          type="number"
-          name="discount_value"
-          value={promo.discount_value}
-          onChange={handleChange}
-          className="w-full border p-3 rounded-lg"
-          required
-        />
-
-        <div className="grid grid-cols-2 gap-4">
-          <input
-            type="datetime-local"
-            name="start_date"
-            value={(promo.start_date ?? "").replace(" ", "T")}
-            onChange={handleChange}
-            className="border p-3 rounded-lg"
-          />
-          <input
-            type="datetime-local"
-            name="end_date"
-            value={(promo.end_date ?? "").replace(" ", "T")}
-            onChange={handleChange}
-            className="border p-3 rounded-lg"
-          />
-        </div>
-
-        <select
-          value={promo.is_active ? "1" : "0"}
-          onChange={(e) =>
-            setPromo({
-              ...promo,
-              is_active: e.target.value === "1",
-            })
-          }
-          className="w-full border p-3 rounded-lg"
-        >
-          <option value="1">Aktif</option>
-          <option value="0">Nonaktif</option>
-        </select>
-
-        <div className="border p-3 rounded-lg max-h-48 overflow-y-auto">
-          {products.map((p) => (
-            <label key={p.id} className="flex gap-3 mb-2">
-              <input
-                type="checkbox"
-                checked={promo.product_ids.includes(p.id)}
-                onChange={() => toggleProduct(p.id)}
-              />
-              {p.name} — Rp {p.price.toLocaleString()}
-            </label>
-          ))}
-        </div>
-
+    <div className="min-h-screen bg-gray-50 py-12 px-4">
+      <div className="max-w-4xl mx-auto">
+        
         <button
-          disabled={saving}
-          className={`w-full py-3 text-white rounded-lg font-bold ${
-            saving
-              ? "bg-gray-400"
-              : "bg-[#FF6D1F] hover:bg-[#e35a12]"
-          }`}
+          onClick={() => router.back()}
+          className="flex items-center gap-2 mb-8 font-bold text-[#234C6A] hover:text-[#FF6D1F] transition-colors"
         >
-          {saving ? "Menyimpan..." : "Update Promo"}
+          <ArrowLeft size={20} /> Kembali ke Daftar
         </button>
-      </form>
+
+        <div className="bg-white rounded-[2.5rem] shadow-xl overflow-hidden border border-gray-100">
+          <div className="bg-[#234C6A] p-8 text-white flex justify-between items-center">
+            <div>
+              <h1 className="text-3xl font-black uppercase tracking-tighter flex items-center gap-3">
+                <Tag className="text-[#FF6D1F]" size={32} /> 
+                Edit Promosi
+              </h1>
+              <p className="text-blue-100 text-sm mt-1">Kelola diskon dan partisipasi produk</p>
+            </div>
+            <div className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest border-2 ${promo.is_active ? 'bg-green-500/10 border-green-500 text-green-400' : 'bg-red-500/10 border-red-500 text-red-400'}`}>
+              {promo.is_active ? 'Aktif' : 'Nonaktif'}
+            </div>
+          </div>
+
+          <form onSubmit={updatePromo} className="p-8 space-y-8">
+            <div className="grid md:grid-cols-2 gap-8">
+              {/* Kolom Kiri: Informasi Utama */}
+              <div className="space-y-5">
+                <div>
+                  <label className="text-[10px] font-black text-gray-400 uppercase ml-1 tracking-widest">Nama Kampanye</label>
+                  <input name="name" value={promo.name} onChange={handleChange} className={inputStyle} placeholder="Contoh: Promo Akhir Tahun" required />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] font-black text-gray-400 uppercase ml-1 tracking-widest">Tipe Diskon</label>
+                    <select name="discount_type" value={promo.discount_type} onChange={handleChange} className={inputStyle}>
+                      <option value="percentage">Persentase (%)</option>
+                      <option value="fixed">Nominal (Rp)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black text-gray-400 uppercase ml-1 tracking-widest">Nilai Diskon</label>
+                    <input type="number" name="discount_value" value={promo.discount_value} onChange={handleChange} className={inputStyle} required />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] font-black text-gray-400 uppercase ml-1 tracking-widest">Mulai</label>
+                    <input type="datetime-local" name="start_date" value={promo.start_date.replace(" ", "T")} onChange={handleChange} className={inputStyle} />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black text-gray-400 uppercase ml-1 tracking-widest">Berakhir</label>
+                    <input type="datetime-local" name="end_date" value={promo.end_date.replace(" ", "T")} onChange={handleChange} className={inputStyle} />
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="text-[10px] font-black text-gray-400 uppercase ml-1 tracking-widest">Status Promo</label>
+                  <select 
+                    value={promo.is_active ? "1" : "0"} 
+                    onChange={(e) => setPromo({...promo, is_active: e.target.value === "1"})} 
+                    className={inputStyle}
+                  >
+                    <option value="1">Aktifkan Sekarang</option>
+                    <option value="0">Nonaktifkan</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Kolom Kanan: Daftar Produk */}
+              <div className="space-y-4">
+                <div className="flex justify-between items-center ml-1">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Pilih Produk Partisipan</label>
+                  <span className="text-[10px] font-black text-[#FF6D1F] bg-orange-50 px-2 py-1 rounded-md">
+                    {promo.product_ids.length} Terpilih
+                  </span>
+                </div>
+                
+                <div className="border-2 border-gray-100 rounded-4xl bg-gray-50/50 p-4 max-h-[380px] overflow-y-auto custom-scrollbar">
+                  {products.length === 0 ? (
+                    <div className="text-center py-10">
+                      <Package size={32} className="mx-auto text-gray-300 mb-2" />
+                      <p className="text-xs font-bold text-gray-400 uppercase">Tidak ada produk tersedia</p>
+                    </div>
+                  ) : (
+                    <div className="grid gap-2">
+                      {products.map((p) => {
+                        const isSelected = promo.product_ids.includes(p.id);
+                        return (
+                          <label 
+                            key={p.id} 
+                            className={`flex items-center justify-between p-4 rounded-2xl cursor-pointer transition-all border-2
+                              ${isSelected ? 'bg-white border-[#FF6D1F] shadow-sm' : 'bg-transparent border-transparent hover:bg-white/50'}
+                            `}
+                          >
+                            <div className="flex items-center gap-3">
+                              <input
+                                type="checkbox"
+                                className="hidden"
+                                checked={isSelected}
+                                onChange={() => toggleProduct(p.id)}
+                              />
+                              <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors ${isSelected ? 'bg-[#FF6D1F] border-[#FF6D1F]' : 'border-gray-300'}`}>
+                                {isSelected && <CheckCircle2 size={14} className="text-white" />}
+                              </div>
+                              <div>
+                                <p className={`text-sm font-black ${isSelected ? 'text-[#234C6A]' : 'text-gray-600'}`}>{p.name}</p>
+                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Rp {p.price.toLocaleString()}</p>
+                              </div>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={saving}
+              className="w-full bg-[#FF6D1F] hover:bg-orange-600 text-white py-5 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-orange-200 transition-all flex items-center justify-center gap-3 active:scale-95 disabled:bg-gray-300"
+            >
+              {saving ? <Loader2 className="animate-spin" size={24} /> : <><Save size={24} /> Simpan Perubahan Promo</>}
+            </button>
+          </form>
+        </div>
+      </div>
     </div>
   );
 }

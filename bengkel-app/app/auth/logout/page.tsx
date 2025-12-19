@@ -1,41 +1,63 @@
 "use client";
 
-import { LogOut } from "lucide-react";
+import { useEffect, useState } from "react";
+import { LogOut, Loader2, ShieldCheck } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { alertSuccess, alertError, alertLoginRequired } from "@/components/Alert";
-
-// Hapus cookie manual di browser
-const deleteCookie = (name: string) => {
-  document.cookie = `${name}=; Max-Age=0; path=/;`;
-};
+import { alertSuccess, alertError } from "@/components/Alert";
 
 export default function AdminNavbar() {
   const router = useRouter();
+  const [isMount, setIsMount] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  const API_LOGOUT_URL = "http://localhost:8000/api/auth/logout";
+  const API_LOGOUT_URL = process.env.NEXT_PUBLIC_API_URL 
+    ? `${process.env.NEXT_PUBLIC_API_URL}/auth/logout` 
+    : "http://localhost:8000/api/auth/logout";
+
+  useEffect(() => {
+    setIsMount(true);
+  }, []);
+
+  // Helper: Hapus cookie secara aman
+  const deleteCookie = (name: string) => {
+    if (typeof document !== "undefined") {
+      document.cookie = `${name}=; Max-Age=0; path=/; domain=${window.location.hostname};`;
+      document.cookie = `${name}=; Max-Age=0; path=/;`;
+    }
+  };
 
   const cleanUpClient = () => {
     console.log("Membersihkan semua session client...");
 
-    // Hapus localStorage
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
+    // 1. Hapus localStorage
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
+      localStorage.clear(); // Opsional: bersihkan semua jika perlu
+    }
 
-    // Hapus cookies yang mungkin tersisa
-    deleteCookie("laravel_session");
-    deleteCookie("XSRF-TOKEN");
-    deleteCookie("token");
-    deleteCookie("access_token");
+    // 2. Hapus cookies
+    const cookiesToClear = ["token", "user", "laravel_session", "XSRF-TOKEN", "access_token"];
+    cookiesToClear.forEach(deleteCookie);
 
-    // Redirect ke login
-    router.replace("/auth/login");
+    // 3. Beri notifikasi & Redirect
+    alertSuccess("Anda telah keluar dari sistem").then(() => {
+      router.replace("/auth/login");
+    });
   };
 
   const handleLogout = async () => {
-    const token = localStorage.getItem("token");
+    setIsLoggingOut(true);
+
+    // Coba ambil token dari localStorage atau Cookie
+    let token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+    
+    if (!token && typeof document !== "undefined") {
+      token = document.cookie.match(/token=([^;]+)/)?.[1] || null;
+    }
 
     if (!token) {
-      console.warn("Tidak ada token → langsung bersihkan client");
+      console.warn("Sesi sudah hilang, langsung cleanup.");
       cleanUpClient();
       return;
     }
@@ -45,34 +67,48 @@ export default function AdminNavbar() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`, // WAJIB
-          Accept: "application/json",
+          "Authorization": `Bearer ${token}`,
+          "Accept": "application/json",
         },
-        credentials: "include",
       });
 
       if (!res.ok) {
         console.error("Logout Server Error:", res.status);
-      } else {
-        console.log("Logout Server OK");
       }
     } catch (err) {
       console.error("Logout Network Error:", err);
+    } finally {
+      setIsLoggingOut(false);
+      cleanUpClient();
     }
-
-    // Tetap cleanup meskipun error
-    cleanUpClient();
   };
 
+  if (!isMount) return null;
+
   return (
-    <nav className="h-16 flex items-center justify-between bg-white px-6 shadow-sm rounded-md">
+    <nav className="h-20 flex items-center justify-between bg-white px-8 shadow-sm border-b border-gray-100">
+      <div className="flex items-center gap-3">
+        <div className="bg-[#234C6A] p-2 rounded-lg text-white">
+          <ShieldCheck size={20} />
+        </div>
+        <div>
+          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Access Control</p>
+          <p className="text-sm font-bold text-[#234C6A]">Administrator Panel</p>
+        </div>
+      </div>
+
       <div className="flex items-center gap-5">
         <button
           onClick={handleLogout}
-          className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 transition-colors"
+          disabled={isLoggingOut}
+          className="group flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest text-red-600 bg-red-50 hover:bg-red-600 hover:text-white transition-all duration-300 disabled:opacity-50 shadow-sm shadow-red-100"
         >
-          <LogOut size={18} />
-          Logout
+          {isLoggingOut ? (
+            <Loader2 size={16} className="animate-spin" />
+          ) : (
+            <LogOut size={16} className="group-hover:-translate-x-1 transition-transform" />
+          )}
+          {isLoggingOut ? "Keluar..." : "Logout"}
         </button>
       </div>
     </nav>
