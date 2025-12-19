@@ -1,7 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use Illuminate\Http\Request; // Tambahkan ini untuk Request verifikasi
+use Illuminate\Http\Request;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\AdminUserController;
 use App\Http\Controllers\Api\ProductController;
@@ -16,106 +16,53 @@ use App\Http\Controllers\Admin\AdminOrderController;
 
 
 // ==================================
-// 1. PUBLIC ROUTES (NO AUTH)
+// 1. PUBLIC ROUTES
 // ==================================
 Route::post('register', [AuthController::class, 'register']);
 Route::post('login', [AuthController::class, 'login']);
 
-// -----------------------------------------------------------
-// 🔥 ROUTE VERIFIKASI EMAIL (DISEMPURNAKAN)
-// -----------------------------------------------------------
-// Tambahkan middleware 'signed' agar fitur keamanan Laravel aktif
 Route::get('/verify-email/{id}/{hash}', function (Request $request) {
     $user = \App\Models\User::findOrFail($request->route('id'));
 
-    // Verifikasi hash
     if (!hash_equals((string) $request->route('hash'), sha1($user->getEmailForVerification()))) {
         return response()->json(['message' => 'Hash tidak valid.'], 403);
     }
 
     $user->markEmailAsVerified();
-    
-    // Redirect ke halaman sukses di Next.js (Opsional tapi bagus buat demo)
     return response()->json(['message' => 'Email berhasil diverifikasi!']);
 })->name('verification.verify');
-// -----------------------------------------------------------
-// ===============================
-// PRODUK (PUBLIC - EXISTING)
-// ===============================
+
+
+// ==================================
+// 2. PUBLIC DATA
+// ==================================
 Route::get('products', [ProductController::class, 'index']);
-Route::get('products/{id}', [ProductController::class, 'show'])
-    ->whereNumber('id'); // 🔒 aman ID only
-
-
-// ===============================
-// 🔥 PRODUK SEO / MARKETPLACE (SLUG)
-// ===============================
+Route::get('products/{id}', [ProductController::class, 'show'])->whereNumber('id');
 Route::get('products/slug/{slug}', [ProductController::class, 'showBySlug']);
 Route::get('products/slugs', [ProductController::class, 'getAllSlugs']);
 
-
-// ===============================
-// PROMOTIONS (PUBLIC)
-// ===============================
 Route::get('promotions', [PromotionController::class, 'index']);
-
-
-// ===============================
-// REVIEWS (PUBLIC)
-// ===============================
 Route::get('reviews', [ReviewController::class, 'index']);
 
 
-// ===========================================
-// 2. USER AUTHENTICATED ROUTES
-// ===========================================
-Route::middleware('auth:sanctum')->group(function () {
-
-    Route::get('auth/profile', [AuthController::class, 'profile']);
-    Route::post('auth/logout', [AuthController::class, 'logout']);
-
-    // CART
-    Route::get('cart', [CartController::class,'index']);
-    Route::post('cart', [CartController::class,'store']);
-    Route::put('cart/{id}', [CartController::class,'update']);
-    Route::delete('cart/{id}', [CartController::class,'destroy']);
-
-    // ORDERS
-    Route::apiResource('orders', OrderController::class);
-
-    // REVIEWS (LOGIN REQUIRED)
-    Route::post('reviews', [ReviewController::class, 'store']);
-    Route::put('reviews/{review}', [ReviewController::class, 'update']);
-
-    // BOOKINGS (USER)
-    Route::apiResource('bookings', BookingController::class)
-        ->only(['store','update','destroy','index','show']);
-});
-
-
 // =======================================================
-// 3. ADMIN / KASIR
+// 3. ADMIN / KASIR (BOOKINGS KHUSUS – HARUS DI ATAS)
 // =======================================================
 Route::middleware(['auth:sanctum', 'role:admin,super_admin,kasir'])->group(function () {
 
-    // Booking search cashier
-    Route::get('bookings/search/cashier', [BookingController::class, 'pendingForCashier']);
     Route::get('bookings/manage', [BookingController::class, 'indexAdmin']);
+    Route::get('bookings/search/cashier', [BookingController::class, 'pendingForCashier']);
 
-    // Cashier POS
+    // Cashier
     Route::post('cashier/process-transaction', [CashierController::class, 'processTransaction']);
-
-    // Transactions
     Route::get('transactions', [CashierController::class, 'index']);
     Route::post('transactions', [CashierController::class, 'processTransaction']);
 
-    // Products cashier/admin
     Route::get('products/search/cashier', [ProductController::class, 'searchForCashier']);
     Route::apiResource('products', ProductController::class)->except(['index','show']);
 
     Route::apiResource('cashier', CashierController::class);
 
-    // ADMIN ONLY
     Route::middleware('role:admin,super_admin')->group(function () {
         Route::apiResource('categories', CategoryController::class);
 
@@ -128,7 +75,31 @@ Route::middleware(['auth:sanctum', 'role:admin,super_admin,kasir'])->group(funct
 
 
 // =======================================================
-// 4. STAFF MANAGEMENT
+// 4. USER AUTH ROUTES (BOOKINGS UMUM – DI BAWAH)
+// =======================================================
+Route::middleware('auth:sanctum')->group(function () {
+
+    Route::get('auth/profile', [AuthController::class, 'profile']);
+    Route::post('auth/logout', [AuthController::class, 'logout']);
+
+    Route::get('cart', [CartController::class,'index']);
+    Route::post('cart', [CartController::class,'store']);
+    Route::put('cart/{id}', [CartController::class,'update']);
+    Route::delete('cart/{id}', [CartController::class,'destroy']);
+
+    Route::apiResource('orders', OrderController::class);
+
+    Route::post('reviews', [ReviewController::class, 'store']);
+    Route::put('reviews/{review}', [ReviewController::class, 'update']);
+
+    // ⚠️ INI HARUS PALING BAWAH
+    Route::apiResource('bookings', BookingController::class)
+        ->only(['store','update','destroy','index','show']);
+});
+
+
+// =======================================================
+// 5. STAFF
 // =======================================================
 Route::middleware(['auth:sanctum','role:admin,super_admin'])->group(function () {
     Route::get('staff', [AdminUserController::class,'index']);
@@ -139,7 +110,7 @@ Route::middleware(['auth:sanctum','role:admin,super_admin'])->group(function () 
 
 
 // =======================================================
-// 5. ADMIN ORDER MANAGEMENT
+// 6. ADMIN ORDERS
 // =======================================================
 Route::middleware(['auth:sanctum', 'role:admin,super_admin'])
     ->prefix('admin')
