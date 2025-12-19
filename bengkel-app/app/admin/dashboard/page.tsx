@@ -52,7 +52,7 @@ export default function AdminDashboardPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+    const API = process.env.NEXT_PUBLIC_API_URL || "https://tekweb-uas-production.up.railway.app/api";
     
     const formatRupiah = (amount: number) => {
         return new Intl.NumberFormat("id-ID", {

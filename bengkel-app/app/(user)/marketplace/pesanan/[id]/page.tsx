@@ -46,7 +46,7 @@ export default function DetailPesanan() {
   const fetchProductImages = async (items: Item[]) => {
     try {
       // Hanya ambil data produk yang ada di order ini untuk efisiensi
-      const res = await fetch("http://localhost:8000/api/products");
+      const res = await fetch("https://tekweb-uas-production.up.railway.app/api/products");
       const data = await res.json();
       
       const map: ProductImageMap = {};
@@ -58,7 +58,7 @@ export default function DetailPesanan() {
             ? p.img_urls[0]
             : (typeof p.img_url === 'string' ? p.img_url : null);
           
-          map[p.id] = img ? (img.startsWith('http') ? img : `http://localhost:8000/images/${img}`) : null;
+          map[p.id] = img ? (img.startsWith('http') ? img : `https://tekweb-uas-production.up.railway.app/images/${img}`) : null;
         }
       });
       setProductImages(map);
@@ -75,7 +75,7 @@ export default function DetailPesanan() {
       if (!token) return router.push("/auth/login");
 
       try {
-        const res = await fetch(`http://localhost:8000/api/orders/${id}`, {
+        const res = await fetch(`https://tekweb-uas-production.up.railway.app/api/orders/${id}`, {
           headers: {
             Authorization: `Bearer ${token}`,
             Accept: "application/json",

@@ -52,7 +52,7 @@ export default function BookingPage() {
     };
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://tekweb-uas-production.up.railway.app/api";
 
       const res = await fetch(`${apiUrl}/bookings`, {
         method: "POST",
@@ -210,7 +210,7 @@ export default function BookingPage() {
                  <Phone size={18} /> Butuh Bantuan Cepat?
                </h4>
                <p className="text-sm text-gray-600 mb-4">Jika Anda mengalami kendala darurat di jalan, hubungi layanan darurat kami.</p>
-               <a href="https://wa.me/628587336765" className="text-[#FF6D1F] font-bold hover:underline italic">
+               <a href="https://wa.me/6285857336765" className="text-[#FF6D1F] font-bold hover:underline italic">
                  Hubungi WhatsApp Center &rarr;
                </a>
             </div>

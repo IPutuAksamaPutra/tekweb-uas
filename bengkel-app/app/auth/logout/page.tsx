@@ -12,7 +12,7 @@ export default function AdminNavbar() {
 
   const API_LOGOUT_URL = process.env.NEXT_PUBLIC_API_URL 
     ? `${process.env.NEXT_PUBLIC_API_URL}/auth/logout` 
-    : "http://localhost:8000/api/auth/logout";
+    : "https://tekweb-uas-production.up.railway.app/api/auth/logout";
 
   useEffect(() => {
     setIsMount(true);

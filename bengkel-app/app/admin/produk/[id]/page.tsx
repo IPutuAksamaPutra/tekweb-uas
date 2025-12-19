@@ -29,7 +29,7 @@ export default function EditProductPage() {
   const [desc, setDesc] = useState("");
   const [image, setImage] = useState("");
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://tekweb-uas-production.up.railway.app/api";
 
   /* =====================
       FETCH PRODUCT
@@ -193,7 +193,7 @@ export default function EditProductPage() {
                 <div className="aspect-square bg-gray-100 rounded-3xl border-2 border-dashed border-gray-200 flex items-center justify-center overflow-hidden">
                   {image ? (
                     <img
-                      src={image.startsWith("http") ? image : `http://localhost:8000/images/${image}`}
+                      src={image.startsWith("http") ? image : `https://tekweb-uas-production.up.railway.app/images/${image}`}
                       alt="Preview"
                       className="w-full h-full object-contain p-4"
                       onError={(e) => {

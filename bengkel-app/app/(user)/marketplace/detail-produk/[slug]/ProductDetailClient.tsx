@@ -15,7 +15,7 @@ import {
 import { alertSuccess, alertError } from "@/components/Alert";
 
 const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+  process.env.NEXT_PUBLIC_API_URL || "https://tekweb-uas-production.up.railway.app/api";
 
 /* ===============================
    TYPES
@@ -83,7 +83,7 @@ const DetailImageCarousel = ({
               src={
                 src.startsWith("http")
                   ? src
-                  : `http://localhost:8000/images/${src}`
+                  : `https://tekweb-uas-production.up.railway.app/images/${src}`
               }
               alt={`${alt} ${i + 1}`}
               className="max-w-full max-h-full object-contain"

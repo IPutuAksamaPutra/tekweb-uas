@@ -32,7 +32,7 @@ interface Booking {
     user_name?: string;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_LARAVEL_API_URL || 'http://localhost:8000/api';
+const API_URL = process.env.NEXT_PUBLIC_LARAVEL_API_URL || 'https://tekweb-uas-production.up.railway.app/api';
 
 /* =======================
     UTILITIES

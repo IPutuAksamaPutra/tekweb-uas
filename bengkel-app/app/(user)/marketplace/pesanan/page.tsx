@@ -46,7 +46,7 @@ export default function PesananPage() {
 
       if (productIds.length === 0) return;
 
-      const res = await fetch("http://localhost:8000/api/products");
+      const res = await fetch("https://tekweb-uas-production.up.railway.app/api/products");
       const data = await res.json();
       const productList = data.products || data.data || [];
 
@@ -56,7 +56,7 @@ export default function PesananPage() {
           ? p.img_urls[0]
           : (p.img_url || null);
         
-        map[p.id] = img ? (img.startsWith('http') ? img : `http://localhost:8000/images/${img}`) : null;
+        map[p.id] = img ? (img.startsWith('http') ? img : `https://tekweb-uas-production.up.railway.app/images/${img}`) : null;
       });
 
       setProductImages(map);
@@ -74,7 +74,7 @@ export default function PesananPage() {
         return;
       }
 
-      const res = await fetch("http://localhost:8000/api/orders", {
+      const res = await fetch("https://tekweb-uas-production.up.railway.app/api/orders", {
         headers: { Authorization: `Bearer ${token}` },
       });
 

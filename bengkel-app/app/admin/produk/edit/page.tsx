@@ -20,7 +20,7 @@ interface Product {
 }
 
 const productTypes = ["Sparepart", "Aksesoris"];
-const BACKEND_BASE = "http://localhost:8000";
+const BACKEND_BASE = "https://tekweb-uas-production.up.railway.app";
 
 function getCookie(name: string): string | null {
   if (typeof document === "undefined") return null;

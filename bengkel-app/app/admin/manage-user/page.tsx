@@ -13,7 +13,7 @@ interface User {
   created_at: string;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://tekweb-uas-production.up.railway.app";
 
 export default function ManageUserPage() {
   const [users, setUsers] = useState<User[]>([]);

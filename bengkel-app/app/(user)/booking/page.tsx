@@ -2,7 +2,7 @@ import { Metadata } from "next";
 import BookingClient from "./BookingClient"; // Import kode booking Anda
 
 export const metadata: Metadata = {
-  title: "Booking Servis Motor Online | Bengkel Pedia",
+  title: "Booking Servis Motor Online | DEXAR",
   description: "Jadwalkan servis motor Matic atau Manual Anda secara online. Layanan ganti oli, tune up, servis berat, dan perbaikan rem dengan teknisi berpengalaman.",
   keywords: ["booking servis bengkel", "servis motor online", "bengkel motor matic", "ganti oli online"],
   openGraph: {

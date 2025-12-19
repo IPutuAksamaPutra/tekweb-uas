@@ -59,7 +59,7 @@ const ImageCarousel = ({ urls, alt }: { urls: string[], alt: string }) => {
                 {images.map((url, i) => (
                     <img 
                         key={i} 
-                        src={url.startsWith('http') ? url : `http://localhost:8000/images/${url}`} 
+                        src={url.startsWith('http') ? url : `https://tekweb-uas-production.up.railway.app/images/${url}`} 
                         alt={`${alt} ${i}`} 
                         className="w-12 h-12 object-cover shrink-0" 
                     />
@@ -98,7 +98,7 @@ export default function AdminProductsPage() {
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedCategory, setSelectedCategory] = useState("Semua");
 
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+    const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://tekweb-uas-production.up.railway.app/api";
 
     const fetchProducts = useCallback(async () => {
         setLoading(true);

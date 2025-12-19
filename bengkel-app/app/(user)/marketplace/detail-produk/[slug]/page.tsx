@@ -1,7 +1,7 @@
 import { Metadata } from 'next';
 import ProductDetailClient from './ProductDetailClient';
 
-const API_URL = "http://localhost:8000/api";
+const API_URL = "https://tekweb-uas-production.up.railway.app/api";
 
 async function getProduct(slug: string) {
   try {

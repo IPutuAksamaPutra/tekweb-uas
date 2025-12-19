@@ -35,7 +35,7 @@ export default function RegisterPage() {
     setErrorMsg(null);
 
     try {
-      const res = await fetch("http://localhost:8000/api/register", {
+      const res = await fetch("https://tekweb-uas-production.up.railway.app/api/register", {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",

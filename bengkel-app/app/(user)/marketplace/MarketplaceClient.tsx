@@ -59,8 +59,8 @@ export default function MarketplacePage() {
   const fetchData = useCallback(async () => {
     try {
       const [prodReq, promoReq] = await Promise.all([
-        fetch("http://localhost:8000/api/products"),
-        fetch("http://localhost:8000/api/promotions")
+        fetch("https://tekweb-uas-production.up.railway.app/api/products"),
+        fetch("https://tekweb-uas-production.up.railway.app/api/promotions")
       ]);
 
       const prodRes = await prodReq.json();
@@ -93,7 +93,7 @@ export default function MarketplacePage() {
     if (!token) return;
 
     try {
-      const req = await fetch("http://localhost:8000/api/cart", {
+      const req = await fetch("https://tekweb-uas-production.up.railway.app/api/cart", {
         headers: { Authorization: `Bearer ${token}` },
       });
       const res = await req.json();
@@ -129,7 +129,7 @@ export default function MarketplacePage() {
     }
 
     try {
-      const res = await fetch("http://localhost:8000/api/cart", {
+      const res = await fetch("https://tekweb-uas-production.up.railway.app/api/cart", {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,

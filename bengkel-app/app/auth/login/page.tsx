@@ -2,7 +2,7 @@ import { Metadata } from "next";
 import LoginPage from "./LoginClient";
 
 export const metadata: Metadata = {
-  title: "Login Akun | Bengkel Pedia",
+  title: "Login Akun | DEXAR",
   description: "Masuk ke sistem Bengkel Pedia untuk mengelola antrean servis, melihat riwayat transaksi, dan mengakses fitur eksklusif lainnya.",
   // 🔥 Mencegah halaman login muncul di hasil pencarian publik demi keamanan
   robots: {

@@ -44,7 +44,7 @@ export default function CartPage() {
     }
 
     try {
-      const res = await fetch("http://localhost:8000/api/cart", {
+      const res = await fetch("https://tekweb-uas-production.up.railway.app/api/cart", {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -95,7 +95,7 @@ export default function CartPage() {
     setCart(cart.map(c => c.id === id ? { ...c, quantity: qty } : c));
 
     try {
-      const res = await fetch(`http://localhost:8000/api/cart/${id}`, {
+      const res = await fetch(`https://tekweb-uas-production.up.railway.app/api/cart/${id}`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -114,7 +114,7 @@ export default function CartPage() {
   const removeItem = async (id: number) => {
     const token = getToken();
     try {
-      const res = await fetch(`http://localhost:8000/api/cart/${id}`, {
+      const res = await fetch(`https://tekweb-uas-production.up.railway.app/api/cart/${id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -187,7 +187,7 @@ export default function CartPage() {
           {cart.map((item) => {
             const isChecked = selected.includes(item.id);
             const imgPath = item.product.img_url[0]
-              ? `http://localhost:8000/images/${item.product.img_url[0]}`
+              ? `https://tekweb-uas-production.up.railway.app/images/${item.product.img_url[0]}`
               : "/no-image.png";
 
             return (

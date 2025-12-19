@@ -17,7 +17,7 @@ export default function VerifyEmailPage() {
 
             try {
                 // Tembak balik ke Laravel (Port 8000)
-                const res = await fetch(`http://localhost:8000/api/verify-email/${id}/${hash}?${query}`, {
+                const res = await fetch(`https://tekweb-uas-production.up.railway.app/api/verify-email/${id}/${hash}?${query}`, {
                     method: 'GET',
                     headers: { 'Accept': 'application/json' }
                 });

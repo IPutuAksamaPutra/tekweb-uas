@@ -34,7 +34,7 @@ export default function AdminBookingPage() {
   const [isMount, setIsMount] = useState(false);
 
   // Pastikan URL API sesuai dengan .env atau fallback ke localhost
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://tekweb-uas-production.up.railway.app/api";
 
   // Helper Ambil Token (Cek Cookie karena login Anda biasanya simpan di cookie)
   const getAuthToken = useCallback(() => {

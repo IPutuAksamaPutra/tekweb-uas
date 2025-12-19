@@ -75,7 +75,7 @@ export default function ProfilePage() {
       }
 
       try {
-        const res = await fetch("http://localhost:8000/api/auth/profile", {
+        const res = await fetch("https://tekweb-uas-production.up.railway.app/api/auth/profile", {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();

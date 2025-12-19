@@ -44,7 +44,7 @@ export default function PromotionDetailPage() {
   const [loading, setLoading] = useState(true);
   const [isMount, setIsMount] = useState(false);
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://tekweb-uas-production.up.railway.app/api";
 
   const getCookie = (name: string): string | null => {
     if (typeof document === "undefined") return null;

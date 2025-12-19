@@ -26,7 +26,7 @@ export default function CreatePromotionPage() {
   const [loading, setLoading] = useState(false);
   const [isMount, setIsMount] = useState(false);
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://tekweb-uas-production.up.railway.app/api";
 
   /* ==================== GET TOKEN (SAFE) ==================== */
   const getCookie = (name: string) => {

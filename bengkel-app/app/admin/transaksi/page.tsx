@@ -9,7 +9,7 @@ import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 
 // URL API Laravel
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api"; 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://tekweb-uas-production.up.railway.app/api"; 
 
 /* ===============================
    INTERFACES

@@ -54,7 +54,7 @@ export default function EditPromotionPage() {
     return match ? decodeURIComponent(match[2]) : null;
   };
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://tekweb-uas-production.up.railway.app/api";
 
   /* ================= FETCH DATA ================= */
   const fetchData = useCallback(async () => {

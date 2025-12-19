@@ -22,7 +22,7 @@ export default function RiwayatBooking() {
   const [loading, setLoading] = useState(true);
   const [isMount, setIsMount] = useState(false); // Untuk cegah Hydration Error
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://tekweb-uas-production.up.railway.app/api";
 
   /* ================= HELPER: TOKEN ================= */
   const getCookie = (name: string) => {

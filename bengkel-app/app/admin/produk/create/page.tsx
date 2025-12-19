@@ -83,7 +83,7 @@ export default function CreateProductPage() {
     imageFiles.forEach(file => payload.append("images[]", file));
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/api/products", {
+      const res = await fetch("https://tekweb-uas-production.up.railway.app/api/products", {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: payload,
