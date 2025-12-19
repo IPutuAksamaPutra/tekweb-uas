@@ -158,7 +158,7 @@ export default function BookingPage() {
                   <span className="absolute left-4 top-3.5 text-gray-400 font-bold">+62</span>
                   <input
                     name="no_wa" type="tel" required
-                    placeholder="812xxxxxxx"
+                    placeholder="85857336765"
                     className="w-full pl-14 pr-4 py-3 border border-gray-300 rounded-lg outline-none focus:border-[#FF6D1F] focus:ring-1 focus:ring-[#FF6D1F] text-gray-800"
                   />
                 </div>
@@ -210,7 +210,7 @@ export default function BookingPage() {
                  <Phone size={18} /> Butuh Bantuan Cepat?
                </h4>
                <p className="text-sm text-gray-600 mb-4">Jika Anda mengalami kendala darurat di jalan, hubungi layanan darurat kami.</p>
-               <a href="https://wa.me/628123456789" className="text-[#FF6D1F] font-bold hover:underline italic">
+               <a href="https://wa.me/628587336765" className="text-[#FF6D1F] font-bold hover:underline italic">
                  Hubungi WhatsApp Center &rarr;
                </a>
             </div>

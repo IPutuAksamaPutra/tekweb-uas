@@ -25,6 +25,8 @@ interface Product {
   img_url: string;
   original_price?: number;
   is_promo?: boolean;
+  rating?: number;
+  total_reviews?: number;
 }
 
 interface Promotion {
@@ -148,7 +150,7 @@ export default function MarketplacePage() {
   if (!isMount) return null;
 
   return (
-    <div className="max-w-6xl mx-auto p-6 bg-gray-50 min-h-screen">
+    <div className="max-w-8xl mx-auto p-6 bg-gray-50 min-h-screen">
       {/* HEADER SECTION */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
         <div>

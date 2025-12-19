@@ -31,7 +31,8 @@ export default function ProductCard({ product, onAdd, onClick }: Props) {
       onClick={onClick}
       className="group bg-white rounded-xl shadow-md border 
                  hover:border-[#FF6D1F] hover:shadow-lg
-                 overflow-hidden cursor-pointer transition"
+                 overflow-hidden cursor-pointer transition
+                 flex flex-col h-[360px]"
     >
       {/* IMAGE */}
       <div className="w-full h-44 bg-gray-100 overflow-hidden">
@@ -44,7 +45,7 @@ export default function ProductCard({ product, onAdd, onClick }: Props) {
       </div>
 
       {/* CONTENT */}
-      <div className="p-4 flex flex-col h-36 justify-between">
+      <div className="p-4 flex flex-col flex-1">
         {/* INFO */}
         <div>
           <h2 className="font-bold text-[15px] text-[#234C6A] line-clamp-2">
@@ -56,7 +57,7 @@ export default function ProductCard({ product, onAdd, onClick }: Props) {
         </div>
 
         {/* PRICE + ACTION */}
-        <div className="flex justify-between items-end mt-2">
+        <div className="flex justify-between items-end mt-auto">
           {/* PRICE */}
           <div>
             {product.is_promo && product.original_price ? (
@@ -91,3 +92,5 @@ export default function ProductCard({ product, onAdd, onClick }: Props) {
     </div>
   );
 }
+
+
