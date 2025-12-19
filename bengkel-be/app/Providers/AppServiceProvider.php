@@ -3,7 +3,6 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
-// Tambahkan dua import di bawah ini
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Notifications\Messages\MailMessage;
 
@@ -26,13 +25,15 @@ class AppServiceProvider extends ServiceProvider
             // Ambil ID dan Hash unik user
             $id = $notifiable->getKey();
             $hash = sha1($notifiable->getEmailForVerification());
-            
+
             // Ambil query string asli (expires & signature)
             $queries = parse_url($url, PHP_URL_QUERY);
-            
-            // Gabungkan semuanya ke URL Next.js
-            // Pastikan path /auth/verify-email sesuai dengan struktur folder di Next.js kamu
-            $frontendUrl = "http://localhost:3000/auth/verify-email/{$id}/{$hash}?" . $queries;
+
+            // Ambil URL frontend dari ENV (AMAN untuk local & production)
+            $frontendBaseUrl = rtrim(config('app.frontend_url'), '/');
+
+            // Gabungkan ke URL Next.js
+            $frontendUrl = "{$frontendBaseUrl}/auth/verify-email/{$id}/{$hash}?{$queries}";
 
             return (new MailMessage)
                 ->subject('Verifikasi Alamat Email - Bengkel Dexar')
