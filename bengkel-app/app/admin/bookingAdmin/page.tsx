@@ -5,7 +5,6 @@ import { alertSuccess, alertError } from "@/components/Alert";
 import { 
   User, 
   Calendar, 
-  Wrench, 
   RotateCw,
   Car,
   Bike,
@@ -33,16 +32,16 @@ export default function AdminBookingPage() {
   const [error, setError] = useState<string | null>(null);
   const [isMount, setIsMount] = useState(false);
 
-  // Pastikan URL API sesuai dengan .env atau fallback ke localhost
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://tekweb-uas-production.up.railway.app/api";
+  // URL API (env / fallback)
+  const apiUrl =
+    process.env.NEXT_PUBLIC_API_URL ||
+    "https://tekweb-uas-production.up.railway.app";
 
-  // Helper Ambil Token (Cek Cookie karena login Anda biasanya simpan di cookie)
+  // Ambil token
   const getAuthToken = useCallback(() => {
     if (typeof document === "undefined") return null;
-    // Coba ambil dari cookie dulu
     const cookieToken = document.cookie.match(/token=([^;]+)/)?.[1];
     if (cookieToken) return cookieToken;
-    // Jika tidak ada di cookie, cek localStorage
     return localStorage.getItem("token");
   }, []);
 
@@ -50,18 +49,18 @@ export default function AdminBookingPage() {
     try {
       setLoading(true);
       setError(null);
-      const token = getAuthToken();
 
+      const token = getAuthToken();
       if (!token) {
         throw new Error("Token tidak ditemukan. Silakan login kembali.");
       }
 
-      // 🔥 FIX DI SINI (ADMIN ROUTE)
-      const res = await fetch(`${apiUrl}/bookings/manage`, {
+      // 🔥 FIX FINAL (PAKSA /api)
+      const res = await fetch(`${apiUrl}/api/bookings/manage`, {
         headers: {
-          "Accept": "application/json",
+          Accept: "application/json",
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
       });
 
@@ -71,7 +70,6 @@ export default function AdminBookingPage() {
       }
 
       const data = await res.json();
-
       console.log("Data Booking diterima:", data);
 
       const finalArray =
@@ -102,17 +100,20 @@ export default function AdminBookingPage() {
       );
 
       const token = getAuthToken();
-      const res = await fetch(`${apiUrl}/bookings/${id}`, {
+
+      // 🔥 FIX FINAL (PAKSA /api)
+      const res = await fetch(`${apiUrl}/api/bookings/${id}`, {
         method: "PUT",
         headers: {
-          "Accept": "application/json",
+          Accept: "application/json",
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ status: newStatus }),
       });
 
       if (!res.ok) throw new Error("Gagal menyimpan perubahan ke server");
+
       alertSuccess(`Status Booking #${id} diperbarui.`);
     } catch (err: any) {
       alertError(err.message || "Gagal update status.");
@@ -136,7 +137,7 @@ export default function AdminBookingPage() {
             Kelola antrean servis bengkel
           </p>
         </div>
-        <button 
+        <button
           onClick={fetchBookings}
           disabled={loading}
           className="flex items-center gap-2 bg-white border px-4 py-2 rounded-xl font-bold hover:bg-slate-50 shadow-sm transition-all disabled:opacity-50"
