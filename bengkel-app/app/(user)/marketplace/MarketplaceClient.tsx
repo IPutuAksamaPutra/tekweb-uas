@@ -12,17 +12,16 @@ import {
 } from "@/components/Alert";
 
 /* ===============================
-    INTERFACE
+    INTERFACE (DIPERBAIKI)
 ================================ */
-interface Product {
+export interface Product {
   id: number;
   slug: string;
   name: string;
   price: number;
   stock: number;
   jenis_barang: string;
-  img_urls: string[];
-  img_url: string;
+  img_urls: string[]; // Gunakan array sesuai response Laravel
   original_price?: number;
   is_promo?: boolean;
   rating?: number;
@@ -50,11 +49,12 @@ export default function MarketplacePage() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
 
+  const BASE_URL = "https://tekweb-uas-production.up.railway.app";
+  const API_URL = `${BASE_URL}/api`;
+
   const getCookie = (name: string) => {
     if (typeof document === "undefined") return null;
-    const match = document.cookie.match(
-      new RegExp("(^| )" + name + "=([^;]+)")
-    );
+    const match = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
     return match ? decodeURIComponent(match[2]) : null;
   };
 
@@ -63,39 +63,29 @@ export default function MarketplacePage() {
     setLoading(true);
     try {
       const [prodReq, promoReq] = await Promise.all([
-        fetch("https://tekweb-uas-production.up.railway.app/api/products"),
-        fetch("https://tekweb-uas-production.up.railway.app/api/promotions"),
+        fetch(`${API_URL}/products`),
+        fetch(`${API_URL}/promotions`),
       ]);
 
       const prodRes = await prodReq.json();
       const promoRes = await promoReq.json();
 
-      // DEBUGGING: Cek struktur di console
-      console.log("Promo Res:", promoRes);
-
-      // ================= NORMALIZE PRODUCTS
+      // NORMALIZE PRODUCTS
       const rawProducts = prodRes.products || prodRes.data || [];
-      const normalizedProds: Product[] = rawProducts.map(
-        (p: any) => ({
-          ...p,
-          img_urls: p.img_urls || [],
-          img_url: p.img_urls?.[0] || "/no-image.png",
-        })
-      );
+      const normalizedProds: Product[] = rawProducts.map((p: any) => ({
+        ...p,
+        img_urls: Array.isArray(p.img_urls) ? p.img_urls : [],
+      }));
 
-      // ================= NORMALIZE PROMOTIONS (FIXED KEY)
-      // Terkadang Laravel mengembalikan promoRes.promotions atau promoRes.data
+      // NORMALIZE PROMOTIONS
       const rawPromos = promoRes.promotions || promoRes.data || [];
-      const normalizedPromos: Promotion[] = rawPromos.map(
-        (promo: any) => ({
-          ...promo,
-          products: (promo.products || []).map((p: any) => ({
-            ...p,
-            img_urls: p.img_urls || [],
-            img_url: p.img_urls?.[0] || "/no-image.png",
-          })),
-        })
-      );
+      const normalizedPromos: Promotion[] = rawPromos.map((promo: any) => ({
+        ...promo,
+        products: (promo.products || []).map((p: any) => ({
+          ...p,
+          img_urls: Array.isArray(p.img_urls) ? p.img_urls : [],
+        })),
+      }));
 
       setProducts(normalizedProds);
       setPromotions(normalizedPromos);
@@ -104,25 +94,22 @@ export default function MarketplacePage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [API_URL]);
 
   const updateCartCount = useCallback(async () => {
     const token = getCookie("token");
     if (!token) return;
 
     try {
-      const req = await fetch(
-        "https://tekweb-uas-production.up.railway.app/api/cart",
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
+      const req = await fetch(`${API_URL}/cart`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       const res = await req.json();
       setCartCount(res.cart_items?.length || 0);
     } catch (error) {
       console.error("Cart count error:", error);
     }
-  }, []);
+  }, [API_URL]);
 
   useEffect(() => {
     setIsMount(true);
@@ -142,7 +129,6 @@ export default function MarketplacePage() {
     setFiltered(result);
   }, [search, category, products]);
 
-  /* ================= ACTIONS ================= */
   const handleAddToCart = async (prod: Product) => {
     const token = getCookie("token");
     if (!token) {
@@ -152,21 +138,18 @@ export default function MarketplacePage() {
     }
 
     try {
-      const res = await fetch(
-        "https://tekweb-uas-production.up.railway.app/api/cart",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            product_id: prod.id,
-            price: prod.price,
-            quantity: 1,
-          }),
-        }
-      );
+      const res = await fetch(`${API_URL}/cart`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          product_id: prod.id,
+          price: prod.price,
+          quantity: 1,
+        }),
+      });
 
       if (res.ok) {
         updateCartCount();
@@ -184,29 +167,17 @@ export default function MarketplacePage() {
       {/* HEADER */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4">
         <div>
-          <h1 className="text-4xl font-black text-[#234C6A] tracking-tight">
-            Marketplace
-          </h1>
-          <p className="text-gray-500 font-medium">
-            Temukan suku cadang & aksesoris terbaik
-          </p>
+          <h1 className="text-4xl font-black text-[#234C6A] tracking-tight uppercase">Marketplace</h1>
+          <p className="text-gray-500 font-medium">Suku cadang & aksesoris Railway Live</p>
         </div>
 
         <div className="flex items-center gap-4 bg-white p-2 rounded-2xl shadow-sm border">
-          <button
-            onClick={() => router.push("/marketplace/pesanan")}
-            className="flex items-center gap-2 px-4 py-2 font-bold text-[#234C6A] hover:bg-gray-50 rounded-xl transition-all"
-          >
+          <button onClick={() => router.push("/marketplace/pesanan")} className="flex items-center gap-2 px-4 py-2 font-bold text-[#234C6A] hover:bg-gray-50 rounded-xl transition-all">
             <ClipboardList size={22} />
             <span className="hidden sm:inline">Pesanan</span>
           </button>
-
           <div className="h-8 w-px bg-gray-200"></div>
-
-          <button
-            onClick={() => router.push("/cart")}
-            className="relative p-2 bg-orange-50 rounded-xl text-[#FF6D1F] hover:bg-orange-100 transition-all"
-          >
+          <button onClick={() => router.push("/cart")} className="relative p-2 bg-orange-50 rounded-xl text-[#FF6D1F] hover:bg-orange-100 transition-all">
             <ShoppingCart size={24} />
             {cartCount > 0 && (
               <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-black rounded-full h-5 w-5 flex items-center justify-center border-2 border-white">
@@ -220,27 +191,20 @@ export default function MarketplacePage() {
       {/* SEARCH & FILTER */}
       <div className="flex gap-4 mb-10 flex-col sm:flex-row">
         <div className="relative flex-1">
-          <Search
-            className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
-            size={20}
-          />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cari sparepart atau aksesoris..."
-            className="w-full pl-12 pr-4 py-4 bg-white border border-gray-200 rounded-2xl outline-none focus:border-[#FF6D1F] focus:ring-1 focus:ring-[#FF6D1F] transition-all shadow-sm"
+            placeholder="Cari produk..."
+            className="w-full pl-12 pr-4 py-4 bg-white border border-gray-200 rounded-2xl outline-none focus:border-[#FF6D1F] shadow-sm"
           />
         </div>
-
         <div className="relative sm:w-64">
-          <Filter
-            className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
-            size={18}
-          />
+          <Filter className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
           <select
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            className="w-full pl-12 pr-4 py-4 bg-white border border-gray-200 rounded-2xl outline-none appearance-none cursor-pointer focus:border-[#FF6D1F] shadow-sm font-medium text-gray-700"
+            className="w-full pl-12 pr-4 py-4 bg-white border border-gray-200 rounded-2xl appearance-none cursor-pointer font-medium text-gray-700"
           >
             <option value="all">Semua Kategori</option>
             <option value="sparepart">⚙️ Sparepart</option>
@@ -250,9 +214,9 @@ export default function MarketplacePage() {
       </div>
 
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-20">
-            <Loader2 className="animate-spin text-[#FF6D1F]" size={40} />
-            <p className="mt-4 text-gray-500 font-bold uppercase tracking-widest text-xs">Menyinkronkan Data...</p>
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+            <Loader2 className="animate-spin text-[#FF6D1F] mb-4" size={40} />
+            <p className="text-gray-400 font-black text-xs uppercase tracking-widest">Sinkronisasi Railway...</p>
         </div>
       ) : (
         <>
@@ -260,36 +224,28 @@ export default function MarketplacePage() {
           {promotions.length > 0 && (
             <div className="mb-12">
               <div className="flex items-center gap-3 mb-6">
-                <span className="bg-red-500 text-white text-[10px] font-black px-3 py-1 rounded-full animate-pulse uppercase tracking-wider">
-                  Hot Deal
-                </span>
-                <h2 className="text-2xl font-black text-[#234C6A] uppercase tracking-tighter">
-                  Penawaran Terbatas
-                </h2>
+                <span className="bg-red-500 text-white text-[10px] font-black px-3 py-1 rounded-full animate-pulse uppercase">Hot Deal</span>
+                <h2 className="text-2xl font-black text-[#234C6A] uppercase tracking-tighter">Penawaran Terbatas</h2>
               </div>
-
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                 {promotions.map((promo) =>
                   promo.products.map((p) => {
-                    const discountedPrice =
-                      promo.discount_type === "percentage"
+                    const discountedPrice = promo.discount_type === "percentage"
                         ? p.price - (p.price * promo.discount_value) / 100
                         : p.price - promo.discount_value;
 
                     return (
                       <ProductCardPromo
                         key={`promo-${promo.id}-${p.id}`}
-                        product={{
-                          ...p,
-                          original_price: p.price,
-                          price: discountedPrice,
-                          is_promo: true,
+                        product={{ 
+                            ...p, 
+                            original_price: p.price, 
+                            price: discountedPrice, 
+                            is_promo: true 
                         }}
                         promo={promo}
                         onAdd={() => handleAddToCart(p)}
-                        onClick={() =>
-                          router.push(`/marketplace/detail-produk/${p.slug}`)
-                        }
+                        onClick={() => router.push(`/marketplace/detail-produk/${p.slug}`)}
                       />
                     );
                   })
@@ -306,18 +262,14 @@ export default function MarketplacePage() {
                 filtered.map((p) => (
                   <ProductCard
                     key={p.id}
-                    product={p}
+                    product={p} // Pastikan ProductCard menggunakan p.img_urls[0] di dalamnya
                     onAdd={() => handleAddToCart(p)}
-                    onClick={() =>
-                      router.push(`/marketplace/detail-produk/${p.slug}`)
-                    }
+                    onClick={() => router.push(`/marketplace/detail-produk/${p.slug}`)}
                   />
                 ))
               ) : (
                 <div className="col-span-full py-20 text-center bg-white rounded-3xl border border-dashed">
-                  <p className="text-gray-400 font-medium">
-                    Produk tidak ditemukan.
-                  </p>
+                  <p className="text-gray-400 font-medium">Produk tidak ditemukan.</p>
                 </div>
               )}
             </div>
