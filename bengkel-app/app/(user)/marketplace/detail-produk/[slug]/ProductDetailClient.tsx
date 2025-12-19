@@ -39,23 +39,28 @@ interface Review {
 
 interface Props {
   initialProduct: Product | null;
+  initialSlug: string; // Ditambahkan agar sinkron dengan page.tsx
 }
 
 const BASE_URL = "https://tekweb-uas-production.up.railway.app";
 const API_URL = `${BASE_URL}/api`;
 
-export default function ProductDetailClient({ initialProduct }: Props) {
+export default function ProductDetailClient({ initialProduct, initialSlug }: Props) {
   const router = useRouter();
+  
+  // State Management
   const [product, setProduct] = useState<Product | null>(initialProduct);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [avgRating, setAvgRating] = useState("0.0");
   const [totalReviews, setTotalReviews] = useState(0);
   const [loadingCart, setLoadingCart] = useState(false);
   const [currentImgIndex, setCurrentImgIndex] = useState(0);
-  const [isMount, setIsMount] = useState(false); // Guard untuk Hydration
+  
+  // PENTING: Untuk menghentikan Loading terus-menerus (Hydration Guard)
+  const [isMount, setIsMount] = useState(false);
 
   /* ================= FUNGSI LOGIKA GAMBAR ================= */
-  const getStorageImageUrl = (p: any, index: number = 0) => {
+  const getStorageImageUrl = useCallback((p: any, index: number = 0) => {
     const urls = p?.image_urls || p?.img_urls || [];
     const targetImg = urls[index];
 
@@ -64,29 +69,25 @@ export default function ProductDetailClient({ initialProduct }: Props) {
     
     const fileName = targetImg.replace("public/products/", "").replace("products/", "");
     return `${BASE_URL}/storage/products/${fileName}`;
-  };
+  }, []);
 
-  /* ================= FETCH DATA REVIEW (FIXED INFINITE LOOP) ================= */
+  /* ================= FETCH DATA (FIXED INFINITE LOOP) ================= */
   useEffect(() => {
-    setIsMount(true); // Menandakan komponen sudah di-mount di browser
+    setIsMount(true); // Komponen sudah siap di browser
 
-    if (!product?.id) return;
-
-    const fetchReviews = async () => {
-        try {
-            const res = await fetch(`${API_URL}/reviews?product_id=${product.id}`);
-            if (!res.ok) return;
-            const data = await res.json();
+    // Jika produk belum ada (misal akses langsung via URL), kita bisa fetch ulang di sini
+    // Tapi karena kita pakai initialProduct, kita fokus ambil Review saja
+    if (product?.id) {
+        fetch(`${API_URL}/reviews?product_id=${product.id}`)
+          .then((res) => res.json())
+          .then((data) => {
             setReviews(data.reviews || []);
             setAvgRating(data.average_rating || "0.0");
             setTotalReviews(data.total_reviews || 0);
-        } catch (err) {
-            console.error("Review fetch error:", err);
-        }
-    };
-
-    fetchReviews();
-  }, [product?.id]); // Hanya berjalan jika ID produk berubah
+          })
+          .catch(err => console.error("Gagal ambil review:", err));
+    }
+  }, [product?.id]); // Dependency hanya ID Produk, BUKAN seluruh objek product
 
   /* ================= ACTIONS ================= */
   const handleAddToCart = async () => {
@@ -134,14 +135,16 @@ export default function ProductDetailClient({ initialProduct }: Props) {
     router.push("/checkout");
   };
 
-  // Guard: Jangan render apapun sampai mount selesai atau jika produk null
+  // Jangan render konten utama sampai browser benar-benar siap
   if (!isMount) return null;
+
   if (!product) {
-      return (
-          <div className="min-h-screen flex items-center justify-center">
-              <p className="font-bold text-gray-500">Produk tidak ditemukan.</p>
-          </div>
-      );
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4">
+        <Loader2 className="animate-spin text-[#FF6D1F]" size={40} />
+        <p className="font-bold text-[#234C6A]">Sedang memuat detail produk...</p>
+      </div>
+    );
   }
 
   const p = parseFloat(product.price || 0);
@@ -184,13 +187,13 @@ export default function ProductDetailClient({ initialProduct }: Props) {
               <>
                 <button
                   onClick={() => setCurrentImgIndex((i) => (i - 1 + product.img_urls.length) % product.img_urls.length)}
-                  className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/80 p-3 rounded-full shadow hover:bg-white z-10"
+                  className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/80 p-3 rounded-full shadow hover:bg-white transition-colors z-10"
                 >
                   <ChevronLeft />
                 </button>
                 <button
                   onClick={() => setCurrentImgIndex((i) => (i + 1) % product.img_urls.length)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/80 p-3 rounded-full shadow hover:bg-white z-10"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/80 p-3 rounded-full shadow hover:bg-white transition-colors z-10"
                 >
                   <ChevronRight />
                 </button>
@@ -224,7 +227,7 @@ export default function ProductDetailClient({ initialProduct }: Props) {
                   <span className="line-through text-gray-400 font-medium">
                     Rp {op.toLocaleString("id-ID")}
                   </span>
-                  <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                  <span className="bg-red-50 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
                     -{discount}%
                   </span>
                 </div>
@@ -249,14 +252,14 @@ export default function ProductDetailClient({ initialProduct }: Props) {
               <button
                 onClick={handleAddToCart}
                 disabled={loadingCart || product.stock === 0}
-                className="bg-[#FF6D1F] text-white py-5 rounded-2xl font-black shadow-lg shadow-orange-200 hover:bg-orange-600 transition-all disabled:bg-gray-300"
+                className="bg-[#FF6D1F] text-white py-5 rounded-2xl font-black shadow-lg hover:bg-orange-600 transition-all disabled:bg-gray-300"
               >
                 {loadingCart ? <Loader2 className="animate-spin mx-auto" /> : (product.stock === 0 ? "Stok Habis" : "Masukkan Keranjang")}
               </button>
               <button
                 onClick={handleBuyNow}
                 disabled={product.stock === 0}
-                className="bg-slate-900 text-white py-5 rounded-2xl font-black shadow-lg shadow-slate-200 hover:bg-slate-800 transition-all disabled:bg-gray-700"
+                className="bg-slate-900 text-white py-5 rounded-2xl font-black shadow-lg hover:bg-slate-800 transition-all disabled:bg-gray-700"
               >
                 Beli Sekarang
               </button>
@@ -264,8 +267,9 @@ export default function ProductDetailClient({ initialProduct }: Props) {
           </div>
         </div>
 
+        {/* DESCRIPTION */}
         <div className="mt-16 bg-white p-8 md:p-10 rounded-3xl border border-slate-200 shadow-sm">
-          <h2 className="text-2xl font-black mb-6 text-slate-900 border-b pb-4 uppercase tracking-tighter">
+          <h2 className="text-2xl font-black mb-6 text-slate-900 border-b pb-4 uppercase">
             Deskripsi Produk
           </h2>
           <div
