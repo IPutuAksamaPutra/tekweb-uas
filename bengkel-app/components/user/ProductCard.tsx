@@ -5,10 +5,10 @@ import { PlusCircle } from "lucide-react";
 interface Product {
   id: number;
   name: string;
-  price: number;             // harga aktif (promo / normal)
-  original_price?: number;   // harga sebelum promo
+  price: number; // harga aktif (promo / normal)
+  original_price?: number; // harga sebelum promo
   stock: number;
-  img_url: string;
+  img_urls: string[];
   jenis_barang: string;
   is_promo?: boolean;
 }
@@ -37,7 +37,7 @@ export default function ProductCard({ product, onAdd, onClick }: Props) {
       {/* IMAGE */}
       <div className="w-full h-44 bg-gray-100 overflow-hidden">
         <img
-          src={product.img_url || "/no-image.png"}
+          src={product.img_urls?.[0] || "/no-image.png"}
           alt={product.name}
           onError={(e) => (e.currentTarget.src = "/no-image.png")}
           className="w-full h-full object-cover group-hover:scale-105 transition"
@@ -51,9 +51,7 @@ export default function ProductCard({ product, onAdd, onClick }: Props) {
           <h2 className="font-bold text-[15px] text-[#234C6A] line-clamp-2">
             {product.name}
           </h2>
-          <p className="text-xs text-gray-500 mt-1">
-            {product.jenis_barang}
-          </p>
+          <p className="text-xs text-gray-500 mt-1">{product.jenis_barang}</p>
         </div>
 
         {/* PRICE + ACTION */}
@@ -92,5 +90,3 @@ export default function ProductCard({ product, onAdd, onClick }: Props) {
     </div>
   );
 }
-
-

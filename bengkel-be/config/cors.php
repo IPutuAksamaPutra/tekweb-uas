@@ -2,7 +2,7 @@
 
 return [
 
-    'paths' => ['api/*', 'sanctum/csrf-cookie'],
+    'paths' => ['*'],
 
     'allowed_methods' => ['*'],
 
@@ -12,7 +12,7 @@ return [
     'http://localhost:3001',
     'http://127.0.0.1:3000',
     'http://127.0.0.1:3001',
-    'https://tekweb-ra1tp4ezw-blangkos-projects.vercel.app/',
+    'https://tekweb-uas.vercel.app',
 ],
 
     'allowed_origins_patterns' => [],

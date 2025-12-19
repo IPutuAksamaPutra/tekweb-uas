@@ -9,8 +9,9 @@ export default function ProductCardPromo({ product, onAdd, onClick }: any) {
       className="group bg-white rounded-xl shadow hover:shadow-xl border border-orange-400 overflow-hidden cursor-pointer transition"
     >
       <img
-        src={product.img_url}
-        className="w-full h-44 object-cover group-hover:scale-105 transition"
+        src={product.img_url || "/no-image.png"}
+        alt={product.name}
+        className="w-full h-full object-cover"
       />
 
       <div className="p-4 flex flex-col justify-between h-36">
