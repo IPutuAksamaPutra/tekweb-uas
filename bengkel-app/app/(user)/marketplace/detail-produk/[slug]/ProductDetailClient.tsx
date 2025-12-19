@@ -17,8 +17,11 @@ import { alertSuccess, alertError } from "@/components/Alert";
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL || "https://tekweb-uas-production.up.railway.app/api";
 
+// URL Dasar untuk file statis (Gambar)
+const BASE_URL = "https://tekweb-uas-production.up.railway.app";
+
 /* ===============================
-   TYPES
+    TYPES
 ================================ */
 interface Product {
   id: number;
@@ -47,7 +50,7 @@ interface Props {
 }
 
 /* ===============================
-   IMAGE CAROUSEL
+    IMAGE CAROUSEL (FIXED)
 ================================ */
 const DetailImageCarousel = ({
   urls,
@@ -57,7 +60,15 @@ const DetailImageCarousel = ({
   alt: string;
 }) => {
   const [index, setIndex] = useState(0);
-  const images = urls?.filter(Boolean) || [];
+  const images = Array.isArray(urls) ? urls.filter(Boolean) : [];
+
+  const getImageUrl = (src: string) => {
+    if (!src) return "https://placehold.co/600x600?text=No+Image";
+    if (src.startsWith("http")) return src;
+    
+    // PERBAIKAN: Mengarah ke folder storage/products sesuai struktur Laravel Railway
+    return `${BASE_URL}/storage/products/${src.replace("public/products/", "")}`;
+  };
 
   if (images.length === 0) {
     return (
@@ -80,13 +91,13 @@ const DetailImageCarousel = ({
             className="w-full h-full shrink-0 flex items-center justify-center p-6"
           >
             <img
-              src={
-                src.startsWith("http")
-                  ? src
-                  : `https://tekweb-uas-production.up.railway.app/images/${src}`
-              }
+              src={getImageUrl(src)}
               alt={`${alt} ${i + 1}`}
               className="max-w-full max-h-full object-contain"
+              onError={(e) => {
+                // Fallback jika path storage gagal
+                (e.target as HTMLImageElement).src = `${BASE_URL}/images/default_product.png`;
+              }}
             />
           </div>
         ))}
@@ -98,7 +109,7 @@ const DetailImageCarousel = ({
             onClick={() =>
               setIndex((i) => (i - 1 + images.length) % images.length)
             }
-            className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/80 p-3 rounded-full shadow"
+            className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/80 p-3 rounded-full shadow hover:bg-white transition-colors z-10"
           >
             <ChevronLeft />
           </button>
@@ -106,7 +117,7 @@ const DetailImageCarousel = ({
             onClick={() =>
               setIndex((i) => (i + 1) % images.length)
             }
-            className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/80 p-3 rounded-full shadow"
+            className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/80 p-3 rounded-full shadow hover:bg-white transition-colors z-10"
           >
             <ChevronRight />
           </button>
@@ -117,7 +128,7 @@ const DetailImageCarousel = ({
 };
 
 /* ===============================
-   MAIN COMPONENT
+    MAIN COMPONENT
 ================================ */
 export default function ProductDetailClient({
   initialProduct,
@@ -145,7 +156,7 @@ export default function ProductDetailClient({
       .catch(console.error);
   }, [product?.id]);
 
-  /* ADD TO CART (TETAP ADA) */
+  /* ADD TO CART */
   const handleAddToCart = async () => {
     if (!product) return;
 
@@ -179,10 +190,7 @@ export default function ProductDetailClient({
     }
   };
 
-  /* ===============================
-     BUY NOW (INISIASI KE CHECKOUT)
-     TANPA CART
-  ================================ */
+  /* BUY NOW */
   const handleBuyNow = () => {
     if (!product) return;
 
@@ -219,46 +227,52 @@ export default function ProductDetailClient({
       <div className="max-w-6xl mx-auto px-4 py-8">
         <button
           onClick={() => router.back()}
-          className="flex items-center gap-2 mb-8 font-bold text-[#234C6A]"
+          className="flex items-center gap-2 mb-8 font-bold text-[#234C6A] hover:underline"
         >
           <ArrowLeft size={20} /> Kembali ke Marketplace
         </button>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-          <div className="lg:sticky lg:top-24 h-[550px]">
+          {/* IMAGE SECTION */}
+          <div className="lg:sticky lg:top-24 h-[400px] md:h-[550px]">
             <DetailImageCarousel
               urls={product.img_urls}
               alt={product.name}
             />
           </div>
 
+          {/* INFO SECTION */}
           <div className="flex flex-col gap-8">
-            <span className="bg-blue-100 text-[#234C6A] px-4 py-1.5 rounded-full text-xs font-black uppercase">
-              {product.jenis_barang}
-            </span>
-
-            <h1 className="text-4xl font-black text-slate-900">
-              {product.name}
-            </h1>
+            <div>
+              <span className="inline-block bg-blue-100 text-[#234C6A] px-4 py-1.5 rounded-full text-xs font-black uppercase mb-4">
+                {product.jenis_barang}
+              </span>
+              <h1 className="text-4xl font-black text-slate-900 leading-tight">
+                {product.name}
+              </h1>
+            </div>
 
             <div className="flex items-center gap-4">
-              <Star className="fill-yellow-500 text-yellow-500" />
-              <span className="font-bold text-slate-900">
-                {avgRating}
-              </span>
-              <span className="text-slate-900">
-                ({totalReviews} ulasan)
+              <div className="flex items-center gap-1">
+                <Star className="fill-yellow-500 text-yellow-500" size={20} />
+                <span className="font-bold text-slate-900 text-lg">
+                  {avgRating}
+                </span>
+              </div>
+              <div className="w-1 h-1 bg-gray-300 rounded-full"></div>
+              <span className="text-slate-600 font-medium">
+                {totalReviews} ulasan
               </span>
             </div>
 
             {/* PRICE */}
-            <div className="bg-white p-6 rounded-3xl border">
+            <div className="bg-white p-6 rounded-3xl border shadow-sm">
               {hasPromo && (
-                <div className="flex gap-3">
-                  <span className="line-through text-gray-300">
+                <div className="flex items-center gap-3 mb-1">
+                  <span className="line-through text-gray-400 font-medium">
                     Rp {op.toLocaleString("id-ID")}
                   </span>
-                  <span className="bg-red-500 text-white text-xs px-2 rounded">
+                  <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
                     -{discount}%
                   </span>
                 </div>
@@ -268,56 +282,56 @@ export default function ProductDetailClient({
               </p>
             </div>
 
-            {/* STOK & KATEGORI */}
+            {/* STOCK & CATEGORY */}
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-white p-4 rounded-2xl border">
-                <p className="text-xs text-slate-900">
+                <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-1">
                   Stok Produk
                 </p>
-                <p className="font-bold text-slate-900">
+                <p className="font-black text-slate-900 text-lg">
                   {product.stock} Unit
                 </p>
               </div>
               <div className="bg-white p-4 rounded-2xl border">
-                <p className="text-xs text-slate-900">
+                <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-1">
                   Kategori
                 </p>
-                <p className="font-bold text-slate-900">
+                <p className="font-black text-slate-900 text-lg">
                   {product.jenis_barang}
                 </p>
               </div>
             </div>
 
             {/* ACTION BUTTON */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4 pt-4">
               <button
                 onClick={handleAddToCart}
                 disabled={loadingCart || product.stock === 0}
-                className="bg-[#FF6D1F] text-white py-5 rounded-2xl font-black"
+                className="bg-[#FF6D1F] text-white py-5 rounded-2xl font-black shadow-lg shadow-orange-200 hover:bg-orange-600 transition-all disabled:bg-gray-300 disabled:shadow-none"
               >
                 {product.stock === 0
                   ? "Stok Habis"
                   : "Masukkan Keranjang"}
               </button>
 
-              {/* ⬇️ SEKARANG BUY NOW TANPA CART */}
               <button
                 onClick={handleBuyNow}
-                className="bg-slate-900 text-white py-5 rounded-2xl font-black"
+                disabled={product.stock === 0}
+                className="bg-slate-900 text-white py-5 rounded-2xl font-black shadow-lg shadow-slate-200 hover:bg-slate-800 transition-all disabled:bg-gray-700"
               >
-                Checkout
+                Beli Sekarang
               </button>
             </div>
           </div>
         </div>
 
-        {/* DESKRIPSI */}
-        <div className="mt-16 bg-white p-10 rounded-3xl border-2 border-dashed border-slate-200">
-          <h2 className="text-2xl font-black mb-4 text-slate-900">
+        {/* DESCRIPTION */}
+        <div className="mt-16 bg-white p-8 md:p-10 rounded-3xl border border-slate-200 shadow-sm">
+          <h2 className="text-2xl font-black mb-6 text-slate-900 border-b pb-4">
             Deskripsi Produk
           </h2>
           <div
-            className="text-slate-900 leading-relaxed"
+            className="text-slate-700 leading-loose text-lg"
             dangerouslySetInnerHTML={{
               __html: product.description.replace(
                 /\n/g,
@@ -327,51 +341,61 @@ export default function ProductDetailClient({
           />
         </div>
 
-        {/* REVIEW */}
+        {/* REVIEW SECTION */}
         <div className="mt-20">
-          <h2 className="text-2xl font-black mb-8 text-[#234C6A]">
-            Ulasan Pembeli
-          </h2>
+          <div className="flex items-center gap-3 mb-8">
+            <h2 className="text-2xl font-black text-[#234C6A]">
+              Ulasan Pembeli
+            </h2>
+            <span className="bg-gray-200 text-gray-700 px-3 py-1 rounded-full text-sm font-bold">
+              {totalReviews}
+            </span>
+          </div>
 
           {reviews.length === 0 ? (
-            <div className="bg-white p-8 rounded-xl border text-slate-900">
+            <div className="bg-white p-12 rounded-3xl border border-dashed border-gray-300 text-center text-gray-500 font-medium">
               Belum ada ulasan untuk produk ini
             </div>
           ) : (
-            <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {reviews.map((r) => (
                 <div
                   key={r.id}
-                  className="bg-white p-6 rounded-xl border-2 border-slate-200"
+                  className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm"
                 >
-                  <div className="flex justify-between mb-2">
-                    <p className="font-bold text-slate-900">
-                      {r.user.name}
-                    </p>
-                    <span className="text-xs text-slate-900">
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <p className="font-black text-slate-900 text-lg">
+                        {r.user.name}
+                      </p>
+                      <div className="flex gap-0.5 mt-1">
+                        {[...Array(5)].map((_, i) => (
+                          <Star
+                            key={i}
+                            size={14}
+                            className={
+                              i < r.rating
+                                ? "fill-yellow-500 text-yellow-500"
+                                : "text-gray-200"
+                            }
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    <span className="text-xs font-bold text-gray-400">
                       {new Date(
                         r.created_at
-                      ).toLocaleDateString("id-ID")}
+                      ).toLocaleDateString("id-ID", {
+                        day: 'numeric',
+                        month: 'long',
+                        year: 'numeric'
+                      })}
                     </span>
                   </div>
 
-                  <div className="flex gap-1 mb-2">
-                    {[...Array(5)].map((_, i) => (
-                      <Star
-                        key={i}
-                        size={16}
-                        className={
-                          i < r.rating
-                            ? "fill-yellow-500 text-yellow-500"
-                            : "text-gray-300"
-                        }
-                      />
-                    ))}
-                  </div>
-
                   {r.comment && (
-                    <p className="text-slate-900">
-                      {r.comment}
+                    <p className="text-slate-700 italic border-l-4 border-gray-100 pl-4">
+                      "{r.comment}"
                     </p>
                   )}
                 </div>
