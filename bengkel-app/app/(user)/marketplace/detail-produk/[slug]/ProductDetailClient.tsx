@@ -52,34 +52,41 @@ export default function ProductDetailClient({ initialProduct }: Props) {
   const [totalReviews, setTotalReviews] = useState(0);
   const [loadingCart, setLoadingCart] = useState(false);
   const [currentImgIndex, setCurrentImgIndex] = useState(0);
+  const [isMount, setIsMount] = useState(false); // Guard untuk Hydration
 
-  /* ================= FUNGSI LOGIKA GAMBAR (CONTOH MARKETPLACE) ================= */
+  /* ================= FUNGSI LOGIKA GAMBAR ================= */
   const getStorageImageUrl = (p: any, index: number = 0) => {
-    // Mencoba mengambil dari image_urls (Accessor) atau img_urls (API)
-    const urls = p.image_urls || p.img_urls || [];
+    const urls = p?.image_urls || p?.img_urls || [];
     const targetImg = urls[index];
 
     if (!targetImg) return `${BASE_URL}/storage/products/default.png`;
     if (targetImg.startsWith("http")) return targetImg;
     
-    // Membersihkan prefix folder lama jika ada dan mengarahkan ke storage Railway
     const fileName = targetImg.replace("public/products/", "").replace("products/", "");
     return `${BASE_URL}/storage/products/${fileName}`;
   };
 
-  /* ================= FETCH DATA REVIEW ================= */
+  /* ================= FETCH DATA REVIEW (FIXED INFINITE LOOP) ================= */
   useEffect(() => {
+    setIsMount(true); // Menandakan komponen sudah di-mount di browser
+
     if (!product?.id) return;
 
-    fetch(`${API_URL}/reviews?product_id=${product.id}`)
-      .then((res) => res.json())
-      .then((data) => {
-        setReviews(data.reviews || []);
-        setAvgRating(data.average_rating || "0.0");
-        setTotalReviews(data.total_reviews || 0);
-      })
-      .catch(console.error);
-  }, [product?.id]);
+    const fetchReviews = async () => {
+        try {
+            const res = await fetch(`${API_URL}/reviews?product_id=${product.id}`);
+            if (!res.ok) return;
+            const data = await res.json();
+            setReviews(data.reviews || []);
+            setAvgRating(data.average_rating || "0.0");
+            setTotalReviews(data.total_reviews || 0);
+        } catch (err) {
+            console.error("Review fetch error:", err);
+        }
+    };
+
+    fetchReviews();
+  }, [product?.id]); // Hanya berjalan jika ID produk berubah
 
   /* ================= ACTIONS ================= */
   const handleAddToCart = async () => {
@@ -121,15 +128,23 @@ export default function ProductDetailClient({ initialProduct }: Props) {
       price: product.price,
       quantity: 1,
       stock: product.stock,
-      img: getStorageImageUrl(product, 0), // Menggunakan logika gambar yang sama
+      img: getStorageImageUrl(product, 0),
     };
     localStorage.setItem("buy_now_product", JSON.stringify(buyNowPayload));
     router.push("/checkout");
   };
 
-  if (!product) return null;
+  // Guard: Jangan render apapun sampai mount selesai atau jika produk null
+  if (!isMount) return null;
+  if (!product) {
+      return (
+          <div className="min-h-screen flex items-center justify-center">
+              <p className="font-bold text-gray-500">Produk tidak ditemukan.</p>
+          </div>
+      );
+  }
 
-  const p = parseFloat(product.price);
+  const p = parseFloat(product.price || 0);
   const op = product.original_price ? parseFloat(product.original_price) : 0;
   const hasPromo = product.is_promo && op > p;
   const discount = hasPromo ? Math.round(((op - p) / op) * 100) : 0;
@@ -145,13 +160,13 @@ export default function ProductDetailClient({ initialProduct }: Props) {
         </button>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-          {/* IMAGE SECTION (CAROUSEL DENGAN LOGIKA STORAGE) */}
+          {/* IMAGE SECTION */}
           <div className="lg:sticky lg:top-24 h-[400px] md:h-[550px] relative group overflow-hidden rounded-2xl bg-white border border-gray-200 shadow-inner">
             <div 
               className="flex h-full transition-transform duration-500" 
               style={{ transform: `translateX(-${currentImgIndex * 100}%)` }}
             >
-              {(product.img_urls.length > 0 ? product.img_urls : [null]).map((_, i) => (
+              {(product.img_urls && product.img_urls.length > 0 ? product.img_urls : [null]).map((_, i) => (
                 <div key={i} className="w-full h-full shrink-0 flex items-center justify-center p-6">
                   <img
                     src={getStorageImageUrl(product, i)}
@@ -165,17 +180,17 @@ export default function ProductDetailClient({ initialProduct }: Props) {
               ))}
             </div>
 
-            {product.img_urls.length > 1 && (
+            {product.img_urls && product.img_urls.length > 1 && (
               <>
                 <button
                   onClick={() => setCurrentImgIndex((i) => (i - 1 + product.img_urls.length) % product.img_urls.length)}
-                  className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/80 p-3 rounded-full shadow hover:bg-white transition-colors z-10"
+                  className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/80 p-3 rounded-full shadow hover:bg-white z-10"
                 >
                   <ChevronLeft />
                 </button>
                 <button
                   onClick={() => setCurrentImgIndex((i) => (i + 1) % product.img_urls.length)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/80 p-3 rounded-full shadow hover:bg-white transition-colors z-10"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/80 p-3 rounded-full shadow hover:bg-white z-10"
                 >
                   <ChevronRight />
                 </button>
@@ -203,7 +218,6 @@ export default function ProductDetailClient({ initialProduct }: Props) {
               <span className="text-slate-600 font-medium">{totalReviews} ulasan</span>
             </div>
 
-            {/* PRICE AREA */}
             <div className="bg-white p-6 rounded-3xl border border-gray-200 shadow-sm">
               {hasPromo && (
                 <div className="flex items-center gap-3 mb-1">
@@ -250,7 +264,6 @@ export default function ProductDetailClient({ initialProduct }: Props) {
           </div>
         </div>
 
-        {/* DESCRIPTION SECTION */}
         <div className="mt-16 bg-white p-8 md:p-10 rounded-3xl border border-slate-200 shadow-sm">
           <h2 className="text-2xl font-black mb-6 text-slate-900 border-b pb-4 uppercase tracking-tighter">
             Deskripsi Produk
