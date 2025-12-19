@@ -12,13 +12,9 @@ import {
 } from "lucide-react";
 import { alertSuccess, alertError } from "@/components/Alert";
 
-// Pastikan prefix /api ada di URL
 const BASE_URL = "https://tekweb-uas-production.up.railway.app";
 const API_URL = `${BASE_URL}/api`;
 
-/* ===============================
-    TYPES
-================================ */
 interface Product {
   id: number;
   name: string;
@@ -46,7 +42,7 @@ interface Props {
 }
 
 /* ===============================
-    IMAGE CAROUSEL
+    IMAGE CAROUSEL (ULTRA FALLBACK)
 ================================ */
 const DetailImageCarousel = ({ urls, alt }: { urls: string[]; alt: string }) => {
   const [index, setIndex] = useState(0);
@@ -55,8 +51,13 @@ const DetailImageCarousel = ({ urls, alt }: { urls: string[]; alt: string }) => 
   const getImageUrl = (src: string) => {
     if (!src) return "https://placehold.co/600x600?text=No+Image";
     if (src.startsWith("http")) return src;
-    const fileName = src.replace("public/products/", "").replace("products/", "");
-    return `${BASE_URL}/storage/products/${fileName}`;
+    
+    // Kita hapus semua prefix folder, ambil nama file-nya saja
+    const fileName = src.split('/').pop();
+    
+    // Kita arahkan langsung ke /storage/ tanpa subfolder 'products' 
+    // karena banyak kasus upload Railway langsung ke root storage
+    return `${BASE_URL}/storage/${fileName}`;
   };
 
   if (images.length === 0) {
@@ -81,12 +82,21 @@ const DetailImageCarousel = ({ urls, alt }: { urls: string[]; alt: string }) => 
               alt={`${alt} ${i + 1}`}
               className="max-w-full max-h-full object-contain"
               onError={(e) => {
-                (e.currentTarget as HTMLImageElement).src = `${BASE_URL}/images/default_product.png`;
+                const target = e.currentTarget as HTMLImageElement;
+                // Jika gagal di /storage/ , coba ke /storage/products/
+                if (!target.src.includes('/products/')) {
+                    const fileName = src.split('/').pop();
+                    target.src = `${BASE_URL}/storage/products/${fileName}`;
+                } else {
+                    // Jika semua gagal, kasih placeholder
+                    target.src = `${BASE_URL}/images/default_product.png`;
+                }
               }}
             />
           </div>
         ))}
       </div>
+
       {images.length > 1 && (
         <>
           <button onClick={() => setIndex((i) => (i - 1 + images.length) % images.length)} className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/80 p-3 rounded-full shadow hover:bg-white z-10">
@@ -101,9 +111,6 @@ const DetailImageCarousel = ({ urls, alt }: { urls: string[]; alt: string }) => 
   );
 };
 
-/* ===============================
-    MAIN COMPONENT
-================================ */
 export default function ProductDetailClient({ initialProduct }: Props) {
   const router = useRouter();
   const [product, setProduct] = useState<Product | null>(initialProduct);
@@ -112,25 +119,20 @@ export default function ProductDetailClient({ initialProduct }: Props) {
   const [totalReviews, setTotalReviews] = useState(0);
   const [loadingCart, setLoadingCart] = useState(false);
 
-  /* FETCH REVIEW */
   useEffect(() => {
     if (!product?.id) return;
-
-    // Perbaikan: Tambahkan prefix /api jika sebelumnya lupa
     fetch(`${API_URL}/reviews?product_id=${product.id}`)
-      .then((res) => {
-        if (!res.ok) throw new Error("Review not found");
-        return res.json();
-      })
+      .then((res) => res.ok ? res.json() : null)
       .then((data) => {
-        setReviews(data.reviews || []);
-        setAvgRating(data.average_rating || "0.0");
-        setTotalReviews(data.total_reviews || 0);
+        if (data) {
+            setReviews(data.reviews || []);
+            setAvgRating(data.average_rating || "0.0");
+            setTotalReviews(data.total_reviews || 0);
+        }
       })
-      .catch((err) => console.warn("Review API Error:", err.message));
+      .catch(() => {});
   }, [product?.id]);
 
-  /* ADD TO CART */
   const handleAddToCart = async () => {
     if (!product) return;
     const token = document.cookie.match(/token=([^;]+)/)?.[1];
@@ -145,8 +147,8 @@ export default function ProductDetailClient({ initialProduct }: Props) {
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: JSON.stringify({ product_id: product.id, quantity: 1, price: product.price }),
       });
-      if (!res.ok) throw new Error();
-      alertSuccess("Berhasil masuk keranjang");
+      if (res.ok) alertSuccess("Produk berhasil masuk keranjang");
+      else throw new Error();
     } catch {
       alertError("Gagal menambahkan ke keranjang");
     } finally {
@@ -161,13 +163,7 @@ export default function ProductDetailClient({ initialProduct }: Props) {
     router.push("/checkout");
   };
 
-  if (!product) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-500 font-bold">Produk tidak ditemukan atau gagal dimuat.</p>
-      </div>
-    );
-  }
+  if (!product) return <div className="min-h-screen flex items-center justify-center font-bold">Produk tidak ditemukan</div>;
 
   const p = parseFloat(product.price || 0);
   const op = parseFloat(product.original_price || 0);
@@ -177,8 +173,8 @@ export default function ProductDetailClient({ initialProduct }: Props) {
   return (
     <div className="bg-gray-50 min-h-screen pb-20">
       <div className="max-w-6xl mx-auto px-4 py-8">
-        <button onClick={() => router.back()} className="flex items-center gap-2 mb-8 font-bold text-[#234C6A] hover:underline">
-          <ArrowLeft size={20} /> Kembali ke Marketplace
+        <button onClick={() => router.back()} className="flex items-center gap-2 mb-8 font-bold text-[#234C6A] hover:underline uppercase text-sm">
+          <ArrowLeft size={20} /> Kembali
         </button>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
@@ -191,7 +187,7 @@ export default function ProductDetailClient({ initialProduct }: Props) {
               <span className="inline-block bg-blue-100 text-[#234C6A] px-4 py-1.5 rounded-full text-xs font-black uppercase mb-4">
                 {product.jenis_barang}
               </span>
-              <h1 className="text-4xl font-black text-slate-900 leading-tight">{product.name}</h1>
+              <h1 className="text-4xl font-black text-slate-900">{product.name}</h1>
             </div>
 
             <div className="flex items-center gap-4">
@@ -215,11 +211,11 @@ export default function ProductDetailClient({ initialProduct }: Props) {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-white p-4 rounded-2xl border">
-                <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-1">Stok Produk</p>
+                <p className="text-xs text-slate-500 font-bold uppercase mb-1">Stok Produk</p>
                 <p className="font-black text-slate-900 text-lg">{product.stock} Unit</p>
               </div>
               <div className="bg-white p-4 rounded-2xl border">
-                <p className="text-xs text-slate-500 font-bold uppercase tracking-wider mb-1">Kategori</p>
+                <p className="text-xs text-slate-500 font-bold uppercase mb-1">Kategori</p>
                 <p className="font-black text-slate-900 text-lg">{product.jenis_barang}</p>
               </div>
             </div>
@@ -236,39 +232,8 @@ export default function ProductDetailClient({ initialProduct }: Props) {
         </div>
 
         <div className="mt-16 bg-white p-8 md:p-10 rounded-3xl border border-slate-200 shadow-sm">
-          <h2 className="text-2xl font-black mb-6 text-slate-900 border-b pb-4">Deskripsi Produk</h2>
+          <h2 className="text-2xl font-black mb-6 text-slate-900 border-b pb-4 uppercase">Deskripsi Produk</h2>
           <div className="text-slate-700 leading-loose text-lg" dangerouslySetInnerHTML={{ __html: product.description ? product.description.replace(/\n/g, "<br/>") : "Tidak ada deskripsi" }} />
-        </div>
-
-        <div className="mt-20">
-          <div className="flex items-center gap-3 mb-8">
-            <h2 className="text-2xl font-black text-[#234C6A]">Ulasan Pembeli</h2>
-            <span className="bg-gray-200 text-gray-700 px-3 py-1 rounded-full text-sm font-bold">{totalReviews}</span>
-          </div>
-          {reviews.length === 0 ? (
-            <div className="bg-white p-12 rounded-3xl border border-dashed border-gray-300 text-center text-gray-500 font-medium">
-              Belum ada ulasan untuk produk ini
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {reviews.map((r) => (
-                <div key={r.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                  <div className="flex justify-between items-start mb-4">
-                    <div>
-                      <p className="font-black text-slate-900 text-lg">{r.user.name}</p>
-                      <div className="flex gap-0.5 mt-1">
-                        {[...Array(5)].map((_, i) => (
-                          <Star key={i} size={14} className={i < r.rating ? "fill-yellow-500 text-yellow-500" : "text-gray-200"} />
-                        ))}
-                      </div>
-                    </div>
-                    <span className="text-xs font-bold text-gray-400">{new Date(r.created_at).toLocaleDateString("id-ID")}</span>
-                  </div>
-                  {r.comment && <p className="text-slate-700 italic border-l-4 border-gray-100 pl-4">"{r.comment}"</p>}
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       </div>
     </div>
