@@ -2,14 +2,14 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { alertSuccess, alertError } from "@/components/Alert";
-import { 
-  User, 
-  Calendar, 
+import {
+  User,
+  Calendar,
   RotateCw,
   Car,
   Bike,
   ClipboardList,
-  SearchX
+  SearchX,
 } from "lucide-react";
 
 interface Booking {
@@ -32,22 +32,30 @@ export default function AdminBookingPage() {
   const [error, setError] = useState<string | null>(null);
   const [isMount, setIsMount] = useState(false);
 
-  // URL API
   const apiUrl =
     process.env.NEXT_PUBLIC_API_URL ||
     "https://tekweb-uas-production.up.railway.app";
 
+  // ================= TOKEN HELPER =================
+  const getTokenFromCookie = () => {
+    if (typeof document === "undefined") return null;
+    const match = document.cookie.match(/token=([^;]+)/);
+    return match ? match[1] : null;
+  };
+
+  // ================= FETCH BOOKINGS =================
   const fetchBookings = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // 🔥 AUTH VIA COOKIE (credentials include)
+      const token = getTokenFromCookie();
+      if (!token) throw new Error("Token admin tidak ditemukan");
+
       const res = await fetch(`${apiUrl}/api/bookings/manage`, {
-        credentials: "include",
         headers: {
           Accept: "application/json",
-          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
       });
 
@@ -57,14 +65,12 @@ export default function AdminBookingPage() {
       }
 
       const data = await res.json();
-      console.log("Data Booking diterima:", data);
 
       const finalArray =
         data.bookings || data.data || (Array.isArray(data) ? data : []);
 
       setBookings([...finalArray].reverse());
     } catch (err: any) {
-      console.error("Fetch Error:", err);
       setError(err.message);
       alertError(err.message);
     } finally {
@@ -77,6 +83,7 @@ export default function AdminBookingPage() {
     fetchBookings();
   }, [fetchBookings]);
 
+  // ================= UPDATE STATUS =================
   async function updateStatus(id: number, newStatus: string) {
     const previous = [...bookings];
     try {
@@ -86,13 +93,15 @@ export default function AdminBookingPage() {
         )
       );
 
-      // 🔥 AUTH VIA COOKIE (credentials include)
+      const token = getTokenFromCookie();
+      if (!token) throw new Error("Token admin tidak ditemukan");
+
       const res = await fetch(`${apiUrl}/api/bookings/${id}`, {
         method: "PUT",
-        credentials: "include",
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ status: newStatus }),
       });
@@ -108,6 +117,7 @@ export default function AdminBookingPage() {
 
   if (!isMount) return null;
 
+  // ================= UI (TIDAK DIUBAH) =================
   return (
     <div className="min-h-screen bg-slate-50 p-6 lg:p-10 text-slate-800">
       <header className="max-w-7xl mx-auto mb-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -175,9 +185,7 @@ export default function AdminBookingPage() {
                 <div className="p-6">
                   <div className="flex justify-between items-start mb-4">
                     <div className="p-2 bg-slate-50 rounded-xl">
-                      {b.jenis_kendaraan
-                        .toLowerCase()
-                        .includes("mobil") ? (
+                      {b.jenis_kendaraan.toLowerCase().includes("mobil") ? (
                         <Car size={20} className="text-blue-500" />
                       ) : (
                         <Bike size={20} className="text-orange-500" />
