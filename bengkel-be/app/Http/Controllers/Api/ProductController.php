@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Product;
 use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Storage; // Gunakan Storage bukan File
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 
 class ProductController extends Controller
@@ -32,11 +32,48 @@ class ProductController extends Controller
     }
 
     // ================================================================
+    // SEARCH UNTUK KASIR (Sesuai Route: products/search/cashier)
+    // ================================================================
+    public function searchForCashier(Request $request)
+    {
+        $query = $request->input('query'); 
+        $category = $request->input('category');
+
+        $products = Product::query()
+            ->when($query, function ($q) use ($query) {
+                return $q->where('name', 'LIKE', "%{$query}%")
+                         ->orWhere('slug', 'LIKE', "%{$query}%");
+            })
+            ->when($category && $category !== 'Semua', function ($q) use ($category) {
+                return $q->where('jenis_barang', $category);
+            })
+            // Kasir hanya melihat barang yang ada stoknya
+            ->where('stock', '>', 0) 
+            ->latest()
+            ->limit(15) 
+            ->get()
+            ->map(function ($p) {
+                return [
+                    'id' => $p->id,
+                    'name' => $p->name,
+                    'price' => $p->price,
+                    'stock' => $p->stock,
+                    'jenis_barang' => $p->jenis_barang,
+                    'img_urls' => $p->image_urls,
+                ];
+            });
+
+        return response()->json([
+            'success' => true,
+            'products' => $products
+        ], 200);
+    }
+
+    // ================================================================
     // GET ALL PRODUCTS
     // ================================================================
     public function index()
     {
-        // Menggunakan properti image_urls dari Accessor di Model
         $products = Product::latest()->get()->map(function ($p) {
             return [
                 'id' => $p->id,
@@ -46,7 +83,7 @@ class ProductController extends Controller
                 'price' => $p->price,
                 'stock' => $p->stock,
                 'jenis_barang' => $p->jenis_barang,
-                'img_urls' => $p->image_urls, // Pastikan nama key sinkron dengan Next.js
+                'img_urls' => $p->image_urls,
             ];
         });
 
@@ -54,7 +91,7 @@ class ProductController extends Controller
     }
 
     // ================================================================
-    // STORE PRODUCT (DIARAHKAN KE STORAGE)
+    // STORE PRODUCT
     // ================================================================
     public function store(Request $request)
     {
@@ -69,12 +106,9 @@ class ProductController extends Controller
         ]);
 
         $imageNames = [];
-
         if ($request->hasFile('images')) {
             foreach ($request->file('images') as $img) {
-                // Simpan ke storage/app/public/products
                 $path = $img->store('products', 'public');
-                // Ambil hanya nama filenya saja (misal: products/abc.jpg -> abc.jpg)
                 $imageNames[] = basename($path);
             }
         }
@@ -96,7 +130,22 @@ class ProductController extends Controller
     }
 
     // ================================================================
-    // UPDATE PRODUCT (DENGAN PEMBERSIHAN STORAGE)
+    // SHOW SINGLE PRODUCT
+    // ================================================================
+    public function show($id)
+    {
+        $product = Product::findOrFail($id);
+        return response()->json(['product' => $product], 200);
+    }
+
+    public function showBySlug($slug)
+    {
+        $product = Product::where('slug', $slug)->firstOrFail();
+        return response()->json(['product' => $product], 200);
+    }
+
+    // ================================================================
+    // UPDATE PRODUCT
     // ================================================================
     public function update(Request $request, $id)
     {
@@ -112,17 +161,15 @@ class ProductController extends Controller
             'images.*' => 'image|mimes:jpg,jpeg,png,webp|max:2048',
         ]);
 
-        $imageNames = $product->img_url; // Default gunakan yang lama
+        $imageNames = $product->img_url; 
 
         if ($request->hasFile('images')) {
-            // Hapus gambar lama dari storage
             if (is_array($product->img_url)) {
                 foreach ($product->img_url as $oldImg) {
                     Storage::disk('public')->delete('products/' . $oldImg);
                 }
             }
 
-            // Upload gambar baru
             $imageNames = [];
             foreach ($request->file('images') as $img) {
                 $path = $img->store('products', 'public');
@@ -144,7 +191,7 @@ class ProductController extends Controller
     }
 
     // ================================================================
-    // DELETE PRODUCT (DENGAN PEMBERSIHAN STORAGE)
+    // DELETE PRODUCT
     // ================================================================
     public function destroy($id)
     {
@@ -153,10 +200,8 @@ class ProductController extends Controller
             $product = Product::findOrFail($id);
             $images = $product->img_url;
 
-            // Hapus dari DB dulu
             $product->delete();
 
-            // Hapus file fisik dari storage
             if (is_array($images)) {
                 foreach ($images as $img) {
                     Storage::disk('public')->delete('products/' . $img);
@@ -165,22 +210,9 @@ class ProductController extends Controller
 
             DB::commit();
             return response()->json(['message' => 'Produk berhasil dihapus'], 200);
-
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json(['message' => 'Gagal menghapus produk'], 500);
         }
-    }
-
-    public function show($id)
-    {
-        $product = Product::findOrFail($id);
-        return response()->json(['product' => $product], 200);
-    }
-
-    public function showBySlug($slug)
-    {
-        $product = Product::where('slug', $slug)->firstOrFail();
-        return response()->json(['product' => $product], 200);
     }
 }
