@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller; // Gunakan base controller Laravel
+use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Order;
 use App\Models\Cart;
@@ -19,13 +19,11 @@ class OrderController extends Controller
     }
 
     // ====================================================
-    // LIST PESANAN USER
+    // 1. LIST PESANAN USER (Halaman History Pelanggan)
     // ====================================================
     public function index(Request $request)
     {
-        // 🔥 Tambahkan with('user') agar nama pembeli muncul
-        $orders = Order::with('user:id,name')
-            ->where('user_id', $request->user()->id)
+        $orders = Order::where('user_id', $request->user()->id)
             ->orderByDesc('created_at')
             ->get();
 
@@ -36,12 +34,11 @@ class OrderController extends Controller
     }
 
     // ====================================================
-    // DETAIL PESANAN
+    // 2. DETAIL PESANAN
     // ====================================================
     public function show(Request $request, $id)
     {
-        $order = Order::with('user:id,name')
-            ->where('user_id', $request->user()->id)
+        $order = Order::where('user_id', $request->user()->id)
             ->where('id', $id)
             ->firstOrFail();
 
@@ -52,7 +49,7 @@ class OrderController extends Controller
     }
 
     // ====================================================
-    // CHECKOUT (DITAMBAHKAN PENGURANGAN STOK)
+    // 3. CHECKOUT / STORE (Simpan Pesanan Baru)
     // ====================================================
     public function store(Request $request)
     {
@@ -74,23 +71,18 @@ class OrderController extends Controller
         }
 
         try {
-            $order = DB::transaction(function () use ($request) {
-
-                // 1. CEK & KUNCI STOK PRODUK
+            $orderResult = DB::transaction(function () use ($request) {
+                // A. Cek Stok Produk
                 foreach ($request->items as $item) {
                     $product = Product::lockForUpdate()->find($item['product_id']);
-
-                    if (!$product) {
-                        throw new \Exception('Produk tidak ditemukan');
-                    }
-
+                    if (!$product) throw new \Exception('Produk tidak ditemukan');
                     if ($product->stock < $item['quantity']) {
                         throw new \Exception('Stok produk "'.$product->name.'" tidak cukup');
                     }
                 }
 
-                // 2. SIMPAN ORDER
-                $newOrder = Order::create([
+                // B. Simpan Order
+                $order = Order::create([
                     'user_id' => $request->user()->id,
                     'items'   => $request->items,
                     'name'    => $request->name,
@@ -102,24 +94,20 @@ class OrderController extends Controller
                     'status'  => 'pending'
                 ]);
 
-                // 3. KURANGI STOK PRODUK
+                // C. Kurangi Stok
                 foreach ($request->items as $item) {
-                    Product::where('id', $item['product_id'])
-                        ->decrement('stock', $item['quantity']);
+                    Product::where('id', $item['product_id'])->decrement('stock', $item['quantity']);
                 }
 
-                // 4. KOSONGKAN CART
+                // D. Kosongkan Cart
                 Cart::where('user_id', $request->user()->id)->delete();
 
-                return $newOrder;
+                return $order;
             });
-
-            // 🔥 Load relasi user sebelum dikirim balik ke frontend
-            $order->load('user:id,name');
 
             return response()->json([
                 'message' => 'Pesanan berhasil dibuat',
-                'order'   => $order
+                'order'   => $orderResult
             ], 201);
 
         } catch (\Exception $e) {
@@ -129,20 +117,21 @@ class OrderController extends Controller
     }
 
     // ====================================================
-    // KHUSUS ADMIN (DIPANGGIL NEXT.JS ADMIN PAGE)
+    // 4. KHUSUS ADMIN (Dipanggil Next.js AdminOrdersPage)
     // ====================================================
     public function adminIndex()
     {
+        // Ambil semua pesanan beserta data User yang memesan
         $orders = Order::with('user:id,name')->latest()->get();
 
-        // Map setiap order untuk mengisi nama produk secara manual
+        // Transform data untuk menyuntikkan 'product_name' ke dalam JSON items
         $orders->transform(function ($order) {
-            $items = is_string($order.items) ? json_decode($order.items, true) : $order.items;
+            $items = is_string($order->items) ? json_decode($order->items, true) : $order->items;
             
             if (is_array($items)) {
                 foreach ($items as &$item) {
-                    // Cari nama produk berdasarkan product_id
-                    $product = \App\Models\Product::find($item['product_id']);
+                    // Cari nama asli barang berdasarkan product_id
+                    $product = Product::find($item['product_id']);
                     $item['product_name'] = $product ? $product->name : 'Produk Tidak Ditemukan';
                 }
             }
@@ -154,6 +143,28 @@ class OrderController extends Controller
         return response()->json([
             'status' => 'success',
             'orders' => $orders
+        ]);
+    }
+
+    // ====================================================
+    // 5. UPDATE STATUS (Dipanggil Admin untuk ubah status)
+    // ====================================================
+    public function updateStatus(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'status' => 'required|in:pending,processing,shipped,completed'
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        $order = Order::findOrFail($id);
+        $order->update(['status' => $request->status]);
+
+        return response()->json([
+            'message' => 'Status pesanan berhasil diperbarui',
+            'order'   => $order
         ]);
     }
 }
