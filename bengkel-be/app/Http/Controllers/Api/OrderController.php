@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
-use Illuminate\Routing\Controller;
+use App\Http\Controllers\Controller; // Gunakan base controller Laravel
 use Illuminate\Http\Request;
 use App\Models\Order;
 use App\Models\Cart;
@@ -19,11 +19,13 @@ class OrderController extends Controller
     }
 
     // ====================================================
-    // LIST PESANAN USER (TIDAK DIUBAH)
+    // LIST PESANAN USER
     // ====================================================
     public function index(Request $request)
     {
-        $orders = Order::where('user_id', $request->user()->id)
+        // 🔥 Tambahkan with('user') agar nama pembeli muncul
+        $orders = Order::with('user:id,name')
+            ->where('user_id', $request->user()->id)
             ->orderByDesc('created_at')
             ->get();
 
@@ -34,11 +36,12 @@ class OrderController extends Controller
     }
 
     // ====================================================
-    // DETAIL PESANAN (TIDAK DIUBAH)
+    // DETAIL PESANAN
     // ====================================================
     public function show(Request $request, $id)
     {
-        $order = Order::where('user_id', $request->user()->id)
+        $order = Order::with('user:id,name')
+            ->where('user_id', $request->user()->id)
             ->where('id', $id)
             ->firstOrFail();
 
@@ -58,7 +61,6 @@ class OrderController extends Controller
             'items.*.product_id' => 'required|exists:products,id',
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.subtotal' => 'required|numeric|min:0',
-
             'name' => 'required|string|max:255',
             'no_tlp' => 'required|string|max:20',
             'address' => 'required|string',
@@ -68,33 +70,27 @@ class OrderController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'errors' => $validator->errors()
-            ], 422);
+            return response()->json(['errors' => $validator->errors()], 422);
         }
 
         try {
-            DB::transaction(function () use ($request, &$order) {
+            $order = DB::transaction(function () use ($request) {
 
-                // ==========================================
                 // 1. CEK & KUNCI STOK PRODUK
-                // ==========================================
                 foreach ($request->items as $item) {
                     $product = Product::lockForUpdate()->find($item['product_id']);
 
                     if (!$product) {
-                        abort(404, 'Produk tidak ditemukan');
+                        throw new \Exception('Produk tidak ditemukan');
                     }
 
                     if ($product->stock < $item['quantity']) {
-                        abort(400, 'Stok produk "'.$product->name.'" tidak cukup');
+                        throw new \Exception('Stok produk "'.$product->name.'" tidak cukup');
                     }
                 }
 
-                // ==========================================
-                // 2. SIMPAN ORDER (FLOW LAMA TETAP)
-                // ==========================================
-                $order = Order::create([
+                // 2. SIMPAN ORDER
+                $newOrder = Order::create([
                     'user_id' => $request->user()->id,
                     'items'   => $request->items,
                     'name'    => $request->name,
@@ -106,19 +102,20 @@ class OrderController extends Controller
                     'status'  => 'pending'
                 ]);
 
-                // ==========================================
                 // 3. KURANGI STOK PRODUK
-                // ==========================================
                 foreach ($request->items as $item) {
                     Product::where('id', $item['product_id'])
                         ->decrement('stock', $item['quantity']);
                 }
 
-                // ==========================================
-                // 4. KOSONGKAN CART (FLOW LAMA)
-                // ==========================================
+                // 4. KOSONGKAN CART
                 Cart::where('user_id', $request->user()->id)->delete();
+
+                return $newOrder;
             });
+
+            // 🔥 Load relasi user sebelum dikirim balik ke frontend
+            $order->load('user:id,name');
 
             return response()->json([
                 'message' => 'Pesanan berhasil dibuat',
@@ -127,10 +124,22 @@ class OrderController extends Controller
 
         } catch (\Exception $e) {
             Log::error('ORDER ERROR: '.$e->getMessage());
-
-            return response()->json([
-                'message' => $e->getMessage()
-            ], 500);
+            return response()->json(['message' => $e->getMessage()], 400);
         }
+    }
+
+    // ====================================================
+    // KHUSUS ADMIN (DIPANGGIL NEXT.JS ADMIN PAGE)
+    // ====================================================
+    public function adminIndex()
+    {
+        // 🔥 Admin butuh melihat SIAPA yang beli (user) 
+        // dan APA yang dibeli (item)
+        $orders = Order::with('user:id,name')->latest()->get();
+
+        return response()->json([
+            'status' => 'success',
+            'orders' => $orders
+        ]);
     }
 }
