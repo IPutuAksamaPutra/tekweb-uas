@@ -57,7 +57,8 @@ export default function RiwayatBooking() {
       }
 
       try {
-        const res = await fetch(`${BASE_URL}/api/bookings`, {
+        // ✅ SATU-SATUNYA PERUBAHAN ADA DI SINI
+        const res = await fetch(`${BASE_URL}/api/my-bookings`, {
           headers: {
             Accept: "application/json",
             Authorization: `Bearer ${token}`,

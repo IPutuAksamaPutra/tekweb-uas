@@ -92,7 +92,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('reviews', [ReviewController::class, 'store']);
     Route::put('reviews/{review}', [ReviewController::class, 'update']);
 
-    // ⚠️ INI HARUS PALING BAWAH
+    // ✅ TAMBAHAN: KHUSUS CUSTOMER (AMAN)
+    Route::middleware('role:customer')->get(
+        'my-bookings',
+        [BookingController::class, 'myBookings']
+    );
+
+    // ⚠️ BOOKING UMUM (TETAP ADA, TIDAK DIHAPUS)
     Route::apiResource('bookings', BookingController::class)
         ->only(['store','update','destroy','index','show']);
 });
