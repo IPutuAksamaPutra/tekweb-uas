@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // 🔥 INI KUNCI HILANGKAN "LOOP PALSU" DI DEV
+  // 🔥 Mencegah useEffect jalan 2x di mode dev (menghindari loop fetch)
   reactStrictMode: false,
 
   images: {
@@ -21,6 +21,18 @@ const nextConfig = {
         pathname: "/storage/**",
       },
     ],
+  },
+
+  // 🔥 TAMBAHKAN INI UNTUK FIX CORS
+  async rewrites() {
+    return [
+      {
+        // Setiap kali kamu panggil /api/railway/ di frontend, 
+        // Next.js akan mengambilkan datanya dari link asli di bawah
+        source: '/api/railway/:path*',
+        destination: 'https://tekweb-uas-production.up.railway.app/api/:path*',
+      },
+    ];
   },
 };
 
