@@ -1,20 +1,20 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { 
-  Search, 
-  ShoppingCart, 
-  ChevronRight, 
-  Star, 
-  Package, 
+import { useEffect, useState, useCallback, useMemo } from "react";
+import {
+  Search,
+  ShoppingCart,
   Loader2,
-  RefreshCw,
-  AlertCircle 
+  Tag,
+  Flame,
+  X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { alertError } from "@/components/Alert";
+import ProductCard from "@/components/user/ProductCard";
+import ProductCardPromo from "@/components/user/ProductCardPromo";
+import { alertSuccess, alertError } from "@/components/Alert";
 
-/* ======================= TYPES ======================= */
+/* ================= TYPE ================= */
 interface Product {
   id: number;
   name: string;
@@ -22,165 +22,293 @@ interface Product {
   price: string;
   stock: number;
   jenis_barang: string;
-  img_url: string[]; 
+  img_urls: string[];
 }
 
-// 🔥 Tembak langsung ke URL asli sesuai maumu
+/* ================= CONFIG ================= */
 const BASE_URL = "https://tekweb-uas-production.up.railway.app";
 const API_URL = `${BASE_URL}/api`;
 
-export default function MarketplacePage() {
+export default function MarketplaceClient() {
   const router = useRouter();
+
   const [products, setProducts] = useState<Product[]>([]);
   const [cartCount, setCartCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("Semua");
-  const [isMount, setIsMount] = useState(false);
-  const [errorStatus, setErrorStatus] = useState<string | null>(null);
 
-  const getToken = useCallback(() => {
-    if (typeof document === "undefined") return null;
-    return document.cookie.match(/token=([^;]+)/)?.[1] || null;
-  }, []);
+  /* ================= IMAGE HELPER (FIX IMAGE NOT SHOW) ================= */
+  const getImageUrl = (imgData?: string[] | string) => {
+    const img = Array.isArray(imgData) ? imgData[0] : imgData;
+    if (!img) return "/no-image.png";
+    if (img.startsWith("http")) return img;
 
-  /* ======================= FETCH PRODUCTS ======================= */
+    const clean = img
+      .replace("public/products/", "")
+      .replace("products/", "");
+
+    return `${BASE_URL}/storage/products/${clean}`;
+  };
+
+  /* ================= FETCH PRODUCTS ================= */
   const fetchProducts = useCallback(async () => {
     setLoading(true);
-    setErrorStatus(null);
     try {
-      // Tembak langsung ke Railway (Bisa gagal jika CORS di Laravel belum diatur '*')
       const res = await fetch(`${API_URL}/products`, {
-        method: "GET",
-        headers: { 
-          "Accept": "application/json",
-          "Content-Type": "application/json"
-        },
-        mode: "cors" 
+        headers: { Accept: "application/json" },
+        cache: "no-store",
       });
-      
-      if (!res.ok) {
-        if (res.status === 502) throw new Error("Server Railway (502) sedang Offline/Crashed.");
-        throw new Error(`HTTP Error: ${res.status}`);
-      }
-      
-      const data = await res.json();
-      const list = data.products || data.data || data || [];
+
+      const json = await res.json();
+      const list = json.products || json.data || json || [];
       setProducts(Array.isArray(list) ? list : []);
-    } catch (err: any) {
-      console.error("DEBUG FETCH ERROR:", err.message);
-      setErrorStatus(err.message);
+    } catch (err) {
+      console.error("FETCH PRODUCTS ERROR:", err);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  /* ======================= FETCH CART COUNT ======================= */
-  const updateCartCount = useCallback(async () => {
-    const token = getToken();
+  /* ================= FETCH CART COUNT ================= */
+  const fetchCartCount = useCallback(async () => {
+    const token = document.cookie.match(/token=([^;]+)/)?.[1];
     if (!token) return;
+
     try {
-      const req = await fetch(`${API_URL}/cart`, {
-        headers: { 
-          Authorization: `Bearer ${token}`, 
-          "Accept": "application/json" 
-        }
+      const res = await fetch(`${API_URL}/cart`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
       });
-      if (req.ok) {
-        const res = await req.json();
-        setCartCount((res.cart_items || res.data || []).length);
+
+      if (res.ok) {
+        const json = await res.json();
+        const items = json.cart || json.data || json || [];
+        setCartCount(Array.isArray(items) ? items.length : 0);
       }
     } catch (err) {
-      console.warn("Update keranjang gagal.");
+      console.error("FETCH CART COUNT ERROR:", err);
     }
-  }, [getToken]);
+  }, []);
 
   useEffect(() => {
-    setIsMount(true);
     fetchProducts();
-    updateCartCount();
-  }, [fetchProducts, updateCartCount]);
+    fetchCartCount();
+  }, [fetchProducts, fetchCartCount]);
 
-  /* ======================= HELPERS ======================= */
-  const getProductImage = (p: Product) => {
-    const rawImg = p.img_url?.[0]; 
-    if (!rawImg) return "https://placehold.co/400x400?text=No+Image";
-    if (rawImg.startsWith("http")) return rawImg;
-    
-    // Perbaikan path agar sinkron dengan storage:link Railway
-    const cleanImg = rawImg.replace("public/products/", "").replace("products/", "");
-    return `${BASE_URL}/storage/products/${cleanImg}`;
+  /* ================= ADD TO CART ================= */
+  const handleAddToCart = async (productId: number) => {
+    const token = document.cookie.match(/token=([^;]+)/)?.[1];
+    if (!token) {
+      alertError("Silakan login dulu");
+      router.push("/auth/login");
+      return;
+    }
+
+    const p = products.find((x) => x.id === productId);
+    if (!p) return;
+
+    try {
+      const res = await fetch(`${API_URL}/cart`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          product_id: productId,
+          quantity: 1,
+          price: Number(p.price),
+        }),
+      });
+
+      if (res.ok) {
+        alertSuccess(`${p.name} masuk keranjang`);
+        fetchCartCount();
+      } else {
+        alertError("Gagal menambahkan ke keranjang");
+      }
+    } catch {
+      alertError("Server bermasalah");
+    }
   };
 
-  const filteredProducts = products.filter((p) => {
-    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = selectedCategory === "Semua" || p.jenis_barang === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
+  /* ================= FILTER ================= */
+  const filteredProducts = useMemo(() => {
+    return products.filter((p) => {
+      const matchSearch = p.name
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase());
 
-  if (!isMount) return null;
+      const matchCategory =
+        selectedCategory === "Semua" ||
+        p.jenis_barang === selectedCategory;
 
+      return matchSearch && matchCategory;
+    });
+  }, [products, searchQuery, selectedCategory]);
+
+  /* ================= PROMO PRODUCTS ================= */
+  const promoProducts = useMemo(() => {
+    return products.filter(
+      (p) => p.jenis_barang?.toLowerCase() === "promo"
+    );
+  }, [products]);
+
+  /* ================= LOADING ================= */
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-900">
+        <Loader2 className="animate-spin text-orange-400" size={48} />
+      </div>
+    );
+  }
+
+  /* ================= RENDER ================= */
   return (
-    <div className="min-h-screen bg-gray-50 pb-20 font-sans text-slate-900">
-      <div className="bg-[#234C6A] text-white p-10 rounded-b-[3.5rem] shadow-2xl">
-        <div className="max-w-6xl mx-auto flex justify-between items-center">
-          <h1 className="text-4xl font-black tracking-tighter uppercase">Marketplace</h1>
-          <button onClick={() => router.push("/cart")} className="relative p-4 bg-white/10 rounded-2xl hover:bg-[#FF6D1F]">
-            <ShoppingCart size={24} />
+    <div className="min-h-screen bg-slate-50 pb-24">
+      {/* ================= HEADER ================= */}
+      <div className="bg-slate-900 text-white p-10 pb-24 relative">
+        <div className="max-w-7xl mx-auto flex justify-between items-center">
+          <div>
+            <h1 className="text-5xl font-black italic">
+              Bengkel<span className="text-orange-400">Market</span>
+            </h1>
+            <p className="text-xs uppercase tracking-widest text-slate-400 mt-2">
+              Sparepart Motor Terlengkap
+            </p>
+          </div>
+
+          {/* CART */}
+          <button
+            onClick={() => router.push("/cart")}
+            className="relative bg-white/10 p-4 rounded-2xl hover:bg-orange-500 transition"
+          >
+            <ShoppingCart size={26} />
             {cartCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-[#FF6D1F] text-white text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center border-2 border-[#234C6A]">
+              <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs font-black w-6 h-6 flex items-center justify-center rounded-full">
                 {cartCount}
               </span>
             )}
           </button>
         </div>
+
+        {/* SEARCH */}
+        <div className="max-w-3xl mx-auto mt-12 relative">
+          <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            className="w-full p-6 pl-14 rounded-2xl font-bold"
+            placeholder="Cari sparepart motor..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-6 top-1/2 -translate-y-1/2"
+            >
+              <X />
+            </button>
+          )}
+        </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 mt-12">
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-32">
-            <Loader2 className="animate-spin text-[#FF6D1F] mb-4" size={48} />
-            <p className="font-black text-[#234C6A] uppercase text-[10px] tracking-widest">Memuat Produk...</p>
-          </div>
-        ) : errorStatus ? (
-          <div className="text-center py-32 bg-white rounded-[3rem] border-2 border-red-50 shadow-xl mx-auto max-w-2xl px-6">
-            <AlertCircle className="mx-auto text-red-500 mb-4" size={64} />
-            <h3 className="text-xl font-black text-red-600 uppercase">Koneksi Gagal</h3>
-            <p className="text-gray-400 font-bold text-xs mt-2 uppercase tracking-widest leading-relaxed">
-              {errorStatus} <br/> 
-              <span className="text-red-400 italic font-medium lowercase">
-                (Biasanya karena CORS. Pastikan Laravel config/cors.php sudah diatur '*')
-              </span>
-            </p>
-            <button 
-              onClick={fetchProducts} 
-              className="mt-8 px-8 py-4 bg-[#234C6A] text-white rounded-2xl font-black uppercase text-xs tracking-widest flex items-center gap-2 mx-auto hover:bg-[#FF6D1F]"
+      {/* ================= CONTENT ================= */}
+      <div className="max-w-7xl mx-auto px-6 -mt-12">
+        {/* CATEGORY */}
+        <div className="flex gap-4 mb-12 overflow-x-auto">
+          {["Semua", "Sparepart", "Aksesoris", "Oli", "Promo"].map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setSelectedCategory(cat)}
+              className={`px-8 py-4 rounded-xl font-black text-xs uppercase tracking-widest
+                ${
+                  selectedCategory === cat
+                    ? "bg-orange-500 text-white"
+                    : "bg-white text-gray-400"
+                }`}
             >
-              <RefreshCw size={18} /> Coba Lagi
+              {cat}
             </button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
-            {filteredProducts.map((product) => (
-              <div 
-                key={product.id}
-                onClick={() => router.push(`/marketplace/detail-produk/${product.slug}`)}
-                className="bg-white rounded-[2.5rem] p-5 shadow-sm hover:shadow-2xl transition-all cursor-pointer group border border-transparent hover:border-gray-50"
-              >
-                <div className="aspect-square bg-gray-50 rounded-4xl overflow-hidden mb-4 p-4">
-                  <img 
-                    src={getProductImage(product)} 
-                    alt={product.name} 
-                    className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-500" 
-                    onError={(e) => { (e.currentTarget as HTMLImageElement).src = "https://placehold.co/400x400?text=Error+Image"; }}
-                  />
-                </div>
-                <h2 className="font-black text-[#234C6A] text-lg uppercase truncate tracking-tight">{product.name}</h2>
-                <p className="text-[#FF6D1F] font-black text-2xl tracking-tighter">Rp {Number(product.price).toLocaleString("id-ID")}</p>
+          ))}
+        </div>
+
+        {/* PROMO */}
+        {promoProducts.length > 0 &&
+          selectedCategory === "Semua" &&
+          !searchQuery && (
+            <section className="mb-20">
+              <h2 className="text-4xl font-black mb-8 flex items-center gap-3">
+                <Flame className="text-orange-500" /> Promo Spesial
+              </h2>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+                {promoProducts.map((p) => {
+                  const price = Number(p.price);
+                  const originalPrice = price + 30000;
+                  const discountPercent = Math.round(
+                    ((originalPrice - price) / originalPrice) * 100
+                  );
+
+                  return (
+                    <ProductCardPromo
+                      key={p.id}
+                      product={{
+                        id: p.id,
+                        name: p.name,
+                        price,
+                        original_price: originalPrice,
+                        discountPercent,
+                        jenis_barang: p.jenis_barang,
+                        img_url: getImageUrl(p.img_urls),
+                      }}
+                      onClick={() =>
+                        router.push(
+                          `/marketplace/detail-produk/${p.slug}`
+                        )
+                      }
+                      onAdd={() => handleAddToCart(p.id)}
+                    />
+                  );
+                })}
               </div>
+            </section>
+          )}
+
+        {/* KATALOG */}
+        <section>
+          <div className="flex items-center gap-4 mb-10">
+            <Tag className="text-orange-500" size={40} />
+            <h2 className="text-5xl font-black text-slate-900">
+              KATALOG <span className="text-orange-500">PRODUK</span>
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
+            {filteredProducts.map((p) => (
+              <ProductCard
+                key={p.id}
+                product={{
+                  id: p.id,
+                  name: p.name,
+                  stock: p.stock,
+                  jenis_barang: p.jenis_barang,
+                  price: Number(p.price),
+                  img_urls: [getImageUrl(p.img_urls)],
+                }}
+                onClick={() =>
+                  router.push(
+                    `/marketplace/detail-produk/${p.slug}`
+                  )
+                }
+                onAdd={(id) => handleAddToCart(id)}
+              />
             ))}
           </div>
-        )}
+        </section>
       </div>
     </div>
   );
