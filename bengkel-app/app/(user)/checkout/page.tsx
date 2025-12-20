@@ -32,15 +32,6 @@ export default function CheckoutPage() {
   const [address, setAddress] = useState("");
   const [isMount, setIsMount] = useState(false);
 
-  /* ======================= TOKEN ======================= */
-  const getCookie = (name: string) => {
-    if (typeof document === "undefined") return null;
-    const match = document.cookie.match(
-      new RegExp("(^| )" + name + "=([^;]+)")
-    );
-    return match ? decodeURIComponent(match[2]) : null;
-  };
-
   /* ======================= GENERATE VA (UI ONLY) ======================= */
   const generateVA = (bankName: string) => {
     const prefix: Record<string, string> = {
@@ -49,7 +40,6 @@ export default function CheckoutPage() {
       BNI: "009",
       Mandiri: "008",
     };
-
     const random = Math.floor(100000000 + Math.random() * 900000000);
     return `${prefix[bankName]}${random}`;
   };
@@ -76,10 +66,10 @@ export default function CheckoutPage() {
           {
             id: Date.now(),
             product_id: Number(parsed.product_id),
-            quantity: parsed.quantity,
+            quantity: Number(parsed.quantity),
             product: {
               name: parsed.name,
-              price: parsed.price,
+              price: Number(parsed.price),
             },
           },
         ]);
@@ -117,14 +107,14 @@ export default function CheckoutPage() {
     if (!recipientName || !phone || !address)
       return alertError("Lengkapi data penerima.");
 
-    const token = getCookie("token");
+    // 🔥 AMBIL TOKEN DARI LOCALSTORAGE
+    const token = localStorage.getItem("token");
     if (!token) return alertError("Silakan login terlebih dahulu.");
 
-    // ❗ VA TIDAK DIKIRIM
     const payload = {
       items: cart.map((item) => ({
         product_id: Number(item.product_id),
-        quantity: item.quantity,
+        quantity: Number(item.quantity),
       })),
       name: recipientName,
       no_tlp: phone,
@@ -140,8 +130,9 @@ export default function CheckoutPage() {
         {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
+            "Accept": "application/json",
+            Authorization: `Bearer ${token}`, // 🔥 KUNCI UTAMA
           },
           body: JSON.stringify(payload),
         }
@@ -158,7 +149,8 @@ export default function CheckoutPage() {
 
       alertSuccess("Pesanan berhasil dibuat!");
       router.push("/marketplace/pesanan");
-    } catch {
+    } catch (err) {
+      console.error(err);
       alertError("Terjadi kesalahan koneksi.");
     }
   };
@@ -218,7 +210,6 @@ export default function CheckoutPage() {
               <option value="tunai">COD</option>
             </select>
 
-            {/* VA DISPLAY ONLY */}
             {paymentMethod === "transfer" && (
               <>
                 <select

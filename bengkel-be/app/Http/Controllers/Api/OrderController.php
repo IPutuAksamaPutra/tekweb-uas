@@ -22,7 +22,17 @@ class OrderController extends Controller
     // List order milik user
     public function index(Request $request)
     {
-        $orders = Order::where('user_id', $request->user()->id)
+        $user = $request->user();
+
+        // ⛔ WAJIB: cegah 500
+        if (!$user) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Unauthenticated'
+            ], 401);
+        }
+
+        $orders = Order::where('user_id', $user->id)
             ->latest()
             ->get();
 
@@ -35,7 +45,16 @@ class OrderController extends Controller
     // Detail order
     public function show(Request $request, $id)
     {
-        $order = Order::where('user_id', $request->user()->id)
+        $user = $request->user();
+
+        if (!$user) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Unauthenticated'
+            ], 401);
+        }
+
+        $order = Order::where('user_id', $user->id)
             ->where('id', $id)
             ->firstOrFail();
 
@@ -48,6 +67,15 @@ class OrderController extends Controller
     // Buat order (CHECKOUT)
     public function store(Request $request)
     {
+        $user = $request->user();
+
+        if (!$user) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Unauthenticated'
+            ], 401);
+        }
+
         $validator = Validator::make($request->all(), [
             'items'   => 'required|array|min:1',
             'name'    => 'required|string',
@@ -64,11 +92,10 @@ class OrderController extends Controller
         }
 
         try {
-            $order = DB::transaction(function () use ($request) {
+            $order = DB::transaction(function () use ($request, $user) {
 
-                /* ===== VALIDASI ITEM & STOK (FIX 500) ===== */
+                // Validasi item & stok
                 foreach ($request->items as $item) {
-
                     if (!isset($item['product_id'], $item['quantity'])) {
                         throw new \Exception("Data item tidak valid");
                     }
@@ -84,9 +111,9 @@ class OrderController extends Controller
                     }
                 }
 
-                /* ===== SIMPAN ORDER ===== */
+                // Simpan order
                 $order = Order::create([
-                    'user_id'  => $request->user()->id,
+                    'user_id'  => $user->id,
                     'items'    => $request->items,
                     'name'     => $request->name,
                     'no_tlp'   => $request->no_tlp,
@@ -97,14 +124,14 @@ class OrderController extends Controller
                     'status'   => 'pending',
                 ]);
 
-                /* ===== KURANGI STOK ===== */
+                // Kurangi stok
                 foreach ($request->items as $item) {
                     Product::where('id', $item['product_id'])
                         ->decrement('stock', $item['quantity']);
                 }
 
-                /* ===== KOSONGKAN CART ===== */
-                Cart::where('user_id', $request->user()->id)->delete();
+                // Kosongkan cart
+                Cart::where('user_id', $user->id)->delete();
 
                 return $order;
             });
@@ -135,10 +162,6 @@ class OrderController extends Controller
             $orders->transform(function ($order) {
                 $items = $order->items;
 
-                if (is_string($items)) {
-                    $items = json_decode($items, true);
-                }
-
                 if (is_array($items)) {
                     foreach ($items as &$item) {
                         $product = Product::find($item['product_id'] ?? 0);
@@ -146,11 +169,9 @@ class OrderController extends Controller
                             ? $product->name
                             : 'Produk Tidak Terdaftar';
                     }
-                } else {
-                    $items = [];
                 }
 
-                $order->items = $items;
+                $order->items = $items ?? [];
                 return $order;
             });
 
@@ -162,9 +183,8 @@ class OrderController extends Controller
         } catch (\Throwable $e) {
             return response()->json([
                 'status'  => 'error',
-                'message' => $e->getMessage(),
-                'line'    => $e->getLine()
-            ], 200);
+                'message' => $e->getMessage()
+            ], 500);
         }
     }
 
