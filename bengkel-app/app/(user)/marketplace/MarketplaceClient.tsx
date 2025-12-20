@@ -17,10 +17,10 @@ interface Product {
   id: number;
   name: string;
   slug: string;
-  price: string; 
+  price: string;
   stock: number;
   jenis_barang: string;
-  img_urls: string[];
+  img_urls?: string[]; // 🔥 optional biar aman
 }
 
 interface PromoData {
@@ -45,46 +45,17 @@ export default function MarketplaceClient() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("Semua");
 
-  // ================= IMAGE HANDLER (FIX PATH) =================
-  const getImageUrl = (imgData?: any): string => {
-    let img = "";
-
-    if (Array.isArray(imgData) && imgData.length > 0) {
-      img = imgData[0];
-    } else if (typeof imgData === "string") {
-      if (imgData.startsWith("[") && imgData.endsWith("]")) {
-        try {
-          const parsed = JSON.parse(imgData);
-          img = Array.isArray(parsed) ? parsed[0] : parsed;
-        } catch {
-          img = imgData;
-        }
-      } else {
-        img = imgData;
-      }
-    }
-
-    if (!img || typeof img !== "string") return "/no-image.png";
-    if (img.startsWith("http")) return img;
-
-    const clean = img
-      .replace("public/images/", "")
-      .replace("images/", "")
-      .replace("public/", "");
-
-    // 🔥 FIX UTAMA (sesuai lokasi file public/images)
-    return `${BASE_URL}/images/${clean}`;
-  };
-
-  // ================= FETCH DATA =================
+  /* ================= FETCH DATA ================= */
   const initMarketplace = useCallback(async () => {
     setLoading(true);
     const headers = { Accept: "application/json" };
+
     try {
       const [prodRes, promoRes] = await Promise.all([
         fetch(`${API_URL}/products`, { headers, cache: "no-store" }),
-        fetch(`${API_URL}/promotions`, { headers, cache: "no-store" })
+        fetch(`${API_URL}/promotions`, { headers, cache: "no-store" }),
       ]);
+
       const prodJson = await prodRes.json();
       const promoJson = await promoRes.json();
 
@@ -98,14 +69,19 @@ export default function MarketplaceClient() {
     }
   }, []);
 
-  // ================= CART COUNT =================
+  /* ================= CART COUNT ================= */
   const fetchCartCount = useCallback(async () => {
     const token = document.cookie.match(/token=([^;]+)/)?.[1];
     if (!token) return;
+
     try {
       const res = await fetch(`${API_URL}/cart`, {
-        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json",
+        },
       });
+
       if (res.ok) {
         const json = await res.json();
         const items = json.cart || json.data || [];
@@ -121,7 +97,7 @@ export default function MarketplaceClient() {
     fetchCartCount();
   }, [initMarketplace, fetchCartCount]);
 
-  // ================= ADD TO CART =================
+  /* ================= ADD TO CART ================= */
   const handleAddToCart = async (productId: number, finalPrice: number) => {
     const token = document.cookie.match(/token=([^;]+)/)?.[1];
     if (!token) {
@@ -157,17 +133,20 @@ export default function MarketplaceClient() {
     }
   };
 
-  // ================= FILTER =================
+  /* ================= FILTER ================= */
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
-      const matchSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchSearch = p.name
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase());
       const matchCategory =
-        selectedCategory === "Semua" || p.jenis_barang === selectedCategory;
+        selectedCategory === "Semua" ||
+        p.jenis_barang === selectedCategory;
       return matchSearch && matchCategory;
     });
   }, [products, searchQuery, selectedCategory]);
 
-  // ================= LOADING =================
+  /* ================= LOADING ================= */
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#0f172a]">
@@ -179,18 +158,19 @@ export default function MarketplaceClient() {
   return (
     <div className="min-h-screen bg-slate-50 pb-24 font-sans">
       {/* HEADER */}
-      <div className="bg-[#0f172a] text-white p-10 pb-24 relative overflow-hidden">
-        <div className="max-w-7xl mx-auto flex justify-between items-center relative z-10">
-          <h1 className="text-5xl font-black italic tracking-tighter uppercase">
+      <div className="bg-[#0f172a] text-white p-10 pb-24">
+        <div className="max-w-7xl mx-auto flex justify-between items-center">
+          <h1 className="text-5xl font-black italic uppercase">
             Bengkel<span className="text-orange-400">Market</span>
           </h1>
+
           <button
             onClick={() => router.push("/cart")}
-            className="group relative bg-white/5 border border-white/10 p-5 rounded-4xl hover:bg-orange-500 transition-all shadow-2xl active:scale-90"
+            className="relative bg-white/5 p-5 rounded-4xl"
           >
             <ShoppingCart size={28} />
             {cartCount > 0 && (
-              <span className="absolute -top-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-red-600 text-[11px] font-black text-white ring-4 ring-[#0f172a] shadow-lg animate-bounce">
+              <span className="absolute -top-1 -right-1 h-7 w-7 flex items-center justify-center rounded-full bg-red-600 text-[11px] font-black text-white">
                 {cartCount}
               </span>
             )}
@@ -198,64 +178,65 @@ export default function MarketplaceClient() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-6 -mt-12 relative z-20">
+      <div className="max-w-7xl mx-auto px-6 -mt-12">
         {/* HOT PROMO */}
-        {promotions.length > 0 && selectedCategory === "Semua" && !searchQuery && (
-          <section className="mb-24">
-            <h2 className="text-4xl font-black mb-10 flex items-center gap-4 italic uppercase text-slate-900 tracking-tighter">
-              <Flame className="text-orange-500 animate-pulse" size={40} fill="currentColor" /> Hot Deals
-            </h2>
+        {promotions.length > 0 &&
+          selectedCategory === "Semua" &&
+          !searchQuery && (
+            <section className="mb-24">
+              <h2 className="text-4xl font-black mb-10 flex items-center gap-4 italic uppercase">
+                <Flame className="text-orange-500" size={40} /> Hot Deals
+              </h2>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
-              {promotions.map((promo) =>
-                promo.products.map((p) => {
-                  const originalPrice = Number(p.price);
-                  let promoPrice = originalPrice;
-                  let discountLabel = 0;
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
+                {promotions.map((promo) =>
+                  promo.products.map((p) => {
+                    const originalPrice = Number(p.price);
+                    let promoPrice = originalPrice;
+                    let discountLabel = 0;
 
-                  if (promo.discount_type === "percentage") {
-                    discountLabel = promo.discount_value;
-                    promoPrice = originalPrice - (originalPrice * (discountLabel / 100));
-                  } else {
-                    promoPrice = originalPrice - promo.discount_value;
-                    discountLabel = Math.round((promo.discount_value / originalPrice) * 100);
-                  }
+                    if (promo.discount_type === "percentage") {
+                      discountLabel = promo.discount_value;
+                      promoPrice =
+                        originalPrice -
+                        originalPrice * (discountLabel / 100);
+                    } else {
+                      promoPrice = originalPrice - promo.discount_value;
+                      discountLabel = Math.round(
+                        (promo.discount_value / originalPrice) * 100
+                      );
+                    }
 
-                  return (
-                    <ProductCardPromo
-                      key={`${promo.id}-${p.id}`}
-                      product={{
-                        id: p.id,
-                        name: p.name,
-                        price: Math.round(promoPrice),
-                        original_price: originalPrice,
-                        discountPercent: discountLabel,
-                        jenis_barang: p.jenis_barang,
-                        img_urls: getImageUrl(p.img_urls),
-                      }}
-                      onClick={() =>
-                        router.push(`/marketplace/detail-produk-promo/${p.slug}`)
-                      }
-                      onAdd={() =>
-                        handleAddToCart(p.id, Math.round(promoPrice))
-                      }
-                    />
-                  );
-                })
-              )}
-            </div>
-          </section>
-        )}
+                    return (
+                      <ProductCardPromo
+                        key={`${promo.id}-${p.id}`}
+                        product={{
+                          id: p.id,
+                          name: p.name,
+                          price: Math.round(promoPrice),
+                          original_price: originalPrice,
+                          discountPercent: discountLabel,
+                          jenis_barang: p.jenis_barang,
+                          img_urls: p.img_urls?.[0] || "/no-image.png",
+                        }}
+                        onClick={() =>
+                          router.push(
+                            `/marketplace/detail-produk-promo/${p.slug}`
+                          )
+                        }
+                        onAdd={() =>
+                          handleAddToCart(p.id, Math.round(promoPrice))
+                        }
+                      />
+                    );
+                  })
+                )}
+              </div>
+            </section>
+          )}
 
         {/* KATALOG */}
         <section>
-          <div className="inline-flex items-center gap-4 mb-12 border-b-8 border-[#0f172a] pb-4 text-[#0f172a]">
-            <Tag size={40} className="text-orange-500" />
-            <h2 className="text-6xl font-black uppercase tracking-tighter">
-              Katalog <span className="text-orange-500">Produk</span>
-            </h2>
-          </div>
-
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
             {filteredProducts.map((p) => (
               <ProductCard
@@ -263,7 +244,7 @@ export default function MarketplaceClient() {
                 product={{
                   ...p,
                   price: Number(p.price),
-                  img_urls: [getImageUrl(p.img_urls)],
+                  img_urls: p.img_urls || ["/no-image.png"],
                 }}
                 onClick={() =>
                   router.push(`/marketplace/detail-produk/${p.slug}`)
@@ -274,12 +255,6 @@ export default function MarketplaceClient() {
               />
             ))}
           </div>
-
-          {filteredProducts.length === 0 && (
-            <div className="text-center py-20 text-slate-300 font-black italic text-2xl uppercase">
-              Produk Tidak Ditemukan...
-            </div>
-          )}
         </section>
       </div>
     </div>

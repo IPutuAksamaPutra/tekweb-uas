@@ -38,7 +38,7 @@ class Product extends Model
                 if (is_array($value)) {
                     // Bersihkan path jika ada tulisan 'public/' agar hanya nama file yang dikirim
                     return array_map(function($item) {
-                        return str_replace('public/products/', '', $item);
+                        return asset('storage/products/' . $item);
                     }, array_filter($value));
                 }
 

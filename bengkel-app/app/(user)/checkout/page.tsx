@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { MapPin, Phone, User, Send, ShoppingBag, CreditCard } from "lucide-react";
+import { ShoppingBag, Send, CreditCard } from "lucide-react";
 import { alertSuccess, alertError } from "@/components/Alert";
 
 /* ======================= TYPE ======================= */
@@ -13,25 +13,26 @@ interface CartItem {
   product: {
     name: string;
     price: number;
-    original_price?: number;
-    img_url?: string;
   };
 }
 
 export default function CheckoutPage() {
   const router = useRouter();
+
   const [cart, setCart] = useState<CartItem[]>([]);
   const [shipping, setShipping] = useState("reguler");
   const [paymentMethod, setPaymentMethod] = useState("transfer");
 
+  // VA (DISPLAY ONLY)
   const [bank, setBank] = useState("");
   const [virtualAccount, setVirtualAccount] = useState("");
+
   const [recipientName, setRecipientName] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
   const [isMount, setIsMount] = useState(false);
 
-  /* ======================= HELPER: TOKEN ======================= */
+  /* ======================= TOKEN ======================= */
   const getCookie = (name: string) => {
     if (typeof document === "undefined") return null;
     const match = document.cookie.match(
@@ -40,7 +41,7 @@ export default function CheckoutPage() {
     return match ? decodeURIComponent(match[2]) : null;
   };
 
-  /* ======================= GENERATE VA ======================= */
+  /* ======================= GENERATE VA (UI ONLY) ======================= */
   const generateVA = (bankName: string) => {
     const prefix: Record<string, string> = {
       BCA: "014",
@@ -53,6 +54,14 @@ export default function CheckoutPage() {
     return `${prefix[bankName]}${random}`;
   };
 
+  useEffect(() => {
+    if (paymentMethod === "transfer" && bank) {
+      setVirtualAccount(generateVA(bank));
+    } else {
+      setVirtualAccount("");
+    }
+  }, [bank, paymentMethod]);
+
   /* ================= FETCH CHECKOUT ITEMS ================= */
   useEffect(() => {
     setIsMount(true);
@@ -60,30 +69,26 @@ export default function CheckoutPage() {
     const buyNow = localStorage.getItem("buy_now_product");
     const selected = localStorage.getItem("checkout_items");
 
-    /* PRIORITAS: BUY NOW */
     if (buyNow) {
       try {
         const parsed = JSON.parse(buyNow);
-        const converted: CartItem[] = [
+        setCart([
           {
             id: Date.now(),
-            product_id: parsed.product_id,
+            product_id: Number(parsed.product_id),
             quantity: parsed.quantity,
             product: {
               name: parsed.name,
               price: parsed.price,
-              img_url: parsed.img,
             },
           },
-        ];
-        setCart(converted);
+        ]);
         return;
       } catch {
         alertError("Data Buy Now rusak.");
       }
     }
 
-    /* FALLBACK: CART */
     if (selected) {
       try {
         const parsed = JSON.parse(selected);
@@ -94,7 +99,7 @@ export default function CheckoutPage() {
       }
     }
 
-    alertError("Tidak ada produk yang dipilih untuk checkout.");
+    alertError("Tidak ada produk untuk checkout.");
   }, []);
 
   /* ================= PERHITUNGAN ================= */
@@ -106,56 +111,45 @@ export default function CheckoutPage() {
   const shippingCost = shipping === "express" ? 25000 : 10000;
   const total = subtotal + shippingCost;
 
-  /* ================= BANK CHANGE ================= */
-  useEffect(() => {
-    if (paymentMethod === "transfer" && bank) {
-      setVirtualAccount(generateVA(bank));
-    } else {
-      setVirtualAccount("");
-    }
-  }, [bank, paymentMethod]);
-
-  /* ================= CHECKOUT ACTION ================= */
+  /* ================= CHECKOUT ================= */
   const handleCheckout = async () => {
-    if (cart.length === 0) return alertError("Tidak ada produk untuk checkout.");
+    if (cart.length === 0) return alertError("Keranjang kosong.");
     if (!recipientName || !phone || !address)
       return alertError("Lengkapi data penerima.");
-    if (paymentMethod === "transfer" && !bank)
-      return alertError("Pilih bank terlebih dahulu.");
 
     const token = getCookie("token");
     if (!token) return alertError("Silakan login terlebih dahulu.");
 
+    // ❗ VA TIDAK DIKIRIM
     const payload = {
       items: cart.map((item) => ({
-        product_id: item.product_id,
+        product_id: Number(item.product_id),
         quantity: item.quantity,
-        subtotal: item.product.price * item.quantity,
       })),
       name: recipientName,
       no_tlp: phone,
       address,
       delivery: "kurir",
       payment: paymentMethod,
-      bank: paymentMethod === "transfer" ? bank : null,
-      virtual_account: paymentMethod === "transfer" ? virtualAccount : null,
       total,
     };
 
     try {
-      const res = await fetch("https://tekweb-uas-production.up.railway.app/api/orders", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
+      const res = await fetch(
+        "https://tekweb-uas-production.up.railway.app/api/orders",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        }
+      );
 
       const data = await res.json();
 
       if (!res.ok) {
-        console.error(data);
         return alertError(data.message || "Checkout gagal.");
       }
 
@@ -172,30 +166,33 @@ export default function CheckoutPage() {
   if (!isMount) return null;
 
   const inputStyle =
-    "w-full border-2 rounded-xl p-3 focus:border-[#FF6D1F] outline-none transition-all";
+    "w-full border-2 rounded-xl p-3 focus:border-orange-500 outline-none";
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 ">
+    <div className="min-h-screen bg-gray-50 py-12 px-4">
       <div className="max-w-6xl mx-auto flex flex-col md:flex-row gap-10">
+
         {/* FORM */}
-        <div className="flex-1 bg-white p-8 rounded-2xl shadow-sm border-t-8 border-[#234C6A]">
-          <h1 className="text-3xl font-bold text-[#234C6A] flex items-center gap-3 mb-8">
-            <ShoppingBag className="text-[#FF6D1F]" /> Checkout
+        <div className="flex-1 bg-white p-8 rounded-2xl shadow-sm">
+          <h1 className="text-3xl font-bold flex items-center gap-3 mb-8">
+            <ShoppingBag /> Checkout
           </h1>
 
-          <div className="space-y-5 text-[#04080b]">
+          <div className="space-y-5">
             <input
               className={inputStyle}
               placeholder="Nama Penerima"
               value={recipientName}
               onChange={(e) => setRecipientName(e.target.value)}
             />
+
             <input
               className={inputStyle}
               placeholder="No. Telepon"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
             />
+
             <textarea
               className={`${inputStyle} h-24`}
               placeholder="Alamat Lengkap"
@@ -221,6 +218,7 @@ export default function CheckoutPage() {
               <option value="tunai">COD</option>
             </select>
 
+            {/* VA DISPLAY ONLY */}
             {paymentMethod === "transfer" && (
               <>
                 <select
@@ -236,7 +234,7 @@ export default function CheckoutPage() {
                 </select>
 
                 {virtualAccount && (
-                  <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl flex items-center gap-3">
+                  <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl flex gap-3">
                     <CreditCard className="text-blue-600" />
                     <div>
                       <p className="text-sm font-semibold text-blue-700">
@@ -244,6 +242,9 @@ export default function CheckoutPage() {
                       </p>
                       <p className="text-lg font-bold tracking-widest text-blue-900">
                         {virtualAccount}
+                      </p>
+                      <p className="text-xs text-blue-600">
+                        *Simulasi pembayaran
                       </p>
                     </div>
                   </div>
@@ -254,7 +255,7 @@ export default function CheckoutPage() {
         </div>
 
         {/* SUMMARY */}
-        <div className=" w-full md:w-96 bg-white p-6 rounded-2xl shadow-sm border-t-8 border-[#FF6D1F] h-fit text-slate-900  ">
+        <div className="w-full md:w-96 bg-white p-6 rounded-2xl shadow-sm h-fit">
           <h2 className="text-xl font-bold mb-4">Ringkasan Pesanan</h2>
 
           {cart.map((item) => (
@@ -269,17 +270,17 @@ export default function CheckoutPage() {
           ))}
 
           <div className="border-t pt-4 mt-4">
-            <div className="flex justify-between text-slate-900">
+            <div className="flex justify-between">
               <span>Subtotal</span>
               <span>Rp {subtotal.toLocaleString("id-ID")}</span>
             </div>
-            <div className="flex justify-between text-slate-900">
+            <div className="flex justify-between">
               <span>Ongkir</span>
               <span>Rp {shippingCost.toLocaleString("id-ID")}</span>
             </div>
-            <div className="flex justify-between font-bold text-xl mt-3 text-slate-900 ">
+            <div className="flex justify-between font-bold text-xl mt-3">
               <span>Total</span>
-              <span className="text-[#FF6D1F]">
+              <span className="text-orange-500">
                 Rp {total.toLocaleString("id-ID")}
               </span>
             </div>
@@ -287,7 +288,7 @@ export default function CheckoutPage() {
 
           <button
             onClick={handleCheckout}
-            className="mt-6 w-full bg-[#FF6D1F] text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2"
+            className="mt-6 w-full bg-orange-500 text-white py-4 rounded-xl font-bold flex items-center justify-center gap-2"
           >
             <Send size={18} /> Buat Pesanan
           </button>
