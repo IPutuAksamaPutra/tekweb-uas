@@ -10,7 +10,7 @@ interface PromoProduct {
   original_price: number;
   discountPercent: number;
   jenis_barang: string;
-  img_url: string;
+  img_urls: string; // DISAMAKAN DENGAN DATABASE
 }
 
 interface Props {
@@ -19,11 +19,9 @@ interface Props {
   onClick: () => void;
 }
 
-/* ================= FORMAT RUPIAH ================= */
 const formatRupiah = (v: number) =>
   Math.round(v).toLocaleString("id-ID");
 
-/* ================= COMPONENT ================= */
 export default function ProductCardPromo({
   product,
   onAdd,
@@ -32,58 +30,45 @@ export default function ProductCardPromo({
   return (
     <div
       onClick={onClick}
-      className="group bg-white rounded-xl shadow-md 
-                 hover:shadow-xl border-2 border-orange-400
-                 overflow-hidden cursor-pointer transition"
+      className="group bg-white rounded-4xl shadow-md hover:shadow-2xl border-2 border-orange-400 overflow-hidden cursor-pointer transition-all duration-300"
     >
-      {/* ================= IMAGE (FIXED HEIGHT) ================= */}
-      <div className="relative h-48 w-full bg-gray-100 overflow-hidden">
+      <div className="relative h-48 w-full bg-slate-100 overflow-hidden">
         <img
-          src={product.img_url || "/no-image.png"}
+          src={product.img_urls || "/no-image.png"} // MENGGUNAKAN img_urls
           alt={product.name}
           onError={(e) => (e.currentTarget.src = "/no-image.png")}
-          className="w-full h-full object-cover 
-                     group-hover:scale-105 transition-transform"
+          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
         />
 
-        {/* BADGE DISKON */}
-        <span className="absolute top-3 left-3 
-                         bg-red-600 text-white 
-                         text-xs font-black px-3 py-1 
-                         rounded-full shadow">
+        <div className="absolute top-4 left-4 bg-red-600 text-white text-[10px] font-black px-3 py-1.5 rounded-xl shadow-lg">
           {product.discountPercent}% OFF
-        </span>
+        </div>
       </div>
 
-      {/* ================= CONTENT ================= */}
-      <div className="p-4 flex flex-col justify-between h-40">
+      <div className="p-5 flex flex-col justify-between h-44">
         <div>
-          <h2 className="font-bold text-[15px] text-[#234C6A] line-clamp-2">
+          <h2 className="font-black text-sm text-[#0f172a] line-clamp-2 uppercase italic">
             {product.name}
           </h2>
-
-          <p className="text-xs text-gray-500 mt-1">
+          <p className="text-[9px] font-bold text-slate-400 mt-2 uppercase tracking-widest bg-slate-50 inline-block px-2 py-1 rounded-md">
             {product.jenis_barang}
           </p>
-
-          {/* PRICE */}
-          <p className="text-xs text-gray-400 line-through mt-1">
-            Rp {formatRupiah(product.original_price)}
-          </p>
-          <p className="text-lg font-bold text-[#FF6D1F]">
-            Rp {formatRupiah(product.price)}
-          </p>
+          <div className="mt-3">
+            <p className="text-[10px] text-slate-400 line-through font-bold">
+              Rp {formatRupiah(product.original_price)}
+            </p>
+            <p className="text-xl font-black text-[#FF6D1F]">
+              Rp {formatRupiah(product.price)}
+            </p>
+          </div>
         </div>
 
-        {/* ================= ADD BUTTON ================= */}
         <button
           onClick={(e) => {
             e.stopPropagation();
             onAdd(product.id);
           }}
-          className="self-end bg-[#234C6A] text-white 
-                     p-2 rounded-full shadow
-                     hover:bg-[#1e3d50] transition"
+          className="self-end bg-[#0f172a] text-white p-3 rounded-2xl hover:bg-orange-500 transition-all shadow-xl"
         >
           <PlusCircle size={22} />
         </button>

@@ -10,20 +10,19 @@ import {
   ArrowLeft, 
   Save, 
   Tag, 
-  Calendar, 
-  CheckCircle2, 
   Loader2, 
   Package,
-  AlertCircle
+  CheckCircle2,
+  AlertTriangle
 } from "lucide-react";
 
 /* ===============================
-   INTERFACES
+    INTERFACES
 ================================ */
 interface Product {
   id: number;
   name: string;
-  price: number;
+  price: string | number;
 }
 
 interface Promotion {
@@ -47,53 +46,67 @@ export default function EditPromotionPage() {
   const [saving, setSaving] = useState(false);
   const [isMount, setIsMount] = useState(false);
 
-  /* ================= HELPERS ================= */
-  const getCookie = (name: string): string | null => {
-    if (typeof document === "undefined") return null;
-    const match = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
-    return match ? decodeURIComponent(match[2]) : null;
-  };
+  const BASE_URL = "https://tekweb-uas-production.up.railway.app";
+  const API_URL = `${BASE_URL}/api`;
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://tekweb-uas-production.up.railway.app/api";
-
-  /* ================= FETCH DATA ================= */
+  /* ================= FETCH DATA (FIXED TOKEN READ) ================= */
   const fetchData = useCallback(async () => {
-    const token = getCookie("token");
+    // 1. Ambil token dengan log yang lebih jelas untuk debug
+    const token = document.cookie.split('; ').find(row => row.startsWith('token='))?.split('=')[1];
+    
     if (!token) {
-      alertError("Sesi berakhir, silakan login ulang.");
+      console.warn("DEBUG: Token benar-benar hilang dari cookie!");
+      alertError("Sesi login hilang. Kamu harus login ulang.");
       router.push("/auth/login");
       return;
     }
 
     try {
-      const headers = { Authorization: `Bearer ${token}`, Accept: "application/json" };
+      const headers = { 
+        "Authorization": `Bearer ${token}`, 
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+      };
       
       const [promoRes, productsRes] = await Promise.all([
         fetch(`${API_URL}/promotions/${promoId}`, { headers }),
         fetch(`${API_URL}/products`, { headers })
       ]);
 
+      // 2. Jika Server bilang 401, berarti token di browser ada tapi di database sudah hangus
+      if (promoRes.status === 401) {
+        alertError("Sesi kadaluarsa di server. Login ulang ya!");
+        router.push("/auth/login");
+        return;
+      }
+
       if (!promoRes.ok) throw new Error("Gagal memuat data promosi");
       
       const promoJson = await promoRes.json();
       const prodJson = await productsRes.json();
 
-      const promoData = promoJson.promotion ?? promoJson.data ?? promoJson;
-      const productList = prodJson.products ?? prodJson.data ?? [];
+      const rawPromo = promoJson.data || promoJson.promotion || promoJson;
+      const productList = prodJson.data || prodJson.products || [];
+
+      // HELPER: Format tanggal (Auto-fill data lama)
+      const formatDT = (dateStr: string) => {
+        if (!dateStr) return "";
+        return dateStr.replace(" ", "T").substring(0, 16);
+      };
 
       setPromo({
-        name: promoData.name ?? "",
-        discount_type: promoData.discount_type ?? "percentage",
-        discount_value: Number(promoData.discount_value ?? 0),
-        start_date: promoData.start_date ?? "",
-        end_date: promoData.end_date ?? "",
-        is_active: Boolean(promoData.is_active),
-        product_ids: promoData.products?.map((p: any) => p.id) ?? [],
+        name: rawPromo.name ?? "",
+        discount_type: rawPromo.discount_type ?? "percentage",
+        discount_value: Number(rawPromo.discount_value ?? 0),
+        start_date: formatDT(rawPromo.start_date),
+        end_date: formatDT(rawPromo.end_date),
+        is_active: rawPromo.is_active === 1 || rawPromo.is_active === true,
+        product_ids: rawPromo.products ? rawPromo.products.map((p: any) => p.id) : [],
       });
 
       setProducts(productList);
     } catch (err: any) {
-      alertError(err.message);
+      alertError(err.message || "Gagal sinkronisasi data");
       router.push("/admin/promotion");
     } finally {
       setLoading(false);
@@ -105,10 +118,10 @@ export default function EditPromotionPage() {
     fetchData();
   }, [fetchData]);
 
-  /* ================= HANDLERS ================= */
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     if (!promo) return;
-    setPromo({ ...promo, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setPromo({ ...promo, [name]: value });
   };
 
   const toggleProduct = (id: number) => {
@@ -123,16 +136,18 @@ export default function EditPromotionPage() {
   const updatePromo = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!promo) return;
-
     setSaving(true);
-    const token = getCookie("token");
+    
+    const token = document.cookie.split('; ').find(row => row.startsWith('token='))?.split('=')[1];
 
     const payload = {
-      ...promo,
+      name: promo.name,
+      discount_type: promo.discount_type,
       discount_value: Number(promo.discount_value),
       start_date: promo.start_date.replace("T", " "),
       end_date: promo.end_date.replace("T", " "),
       is_active: promo.is_active ? 1 : 0,
+      product_ids: promo.product_ids,
     };
 
     try {
@@ -140,18 +155,18 @@ export default function EditPromotionPage() {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Accept: "application/json",
-          Authorization: `Bearer ${token}`,
+          "Accept": "application/json",
+          "Authorization": `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
       });
 
-      if (!res.ok) throw new Error();
+      if (!res.ok) throw new Error("Gagal update data");
 
       alertSuccess("Promosi berhasil diperbarui! ✨");
       router.push("/admin/promotion");
-    } catch (err) {
-      alertError("Gagal memperbarui promosi.");
+    } catch (err: any) {
+      alertError(err.message);
     } finally {
       setSaving(false);
     }
@@ -162,142 +177,82 @@ export default function EditPromotionPage() {
   if (loading || !promo) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
-        <Loader2 className="animate-spin text-[#FF6D1F] mb-4" size={40} />
-        <p className="text-[#234C6A] font-bold">Sinkronisasi Data Promo...</p>
+        <Loader2 className="animate-spin text-[#FF6D1F] mb-4" size={48} />
+        <p className="text-[#234C6A] font-black uppercase text-xs tracking-widest animate-pulse">Syncing Database...</p>
       </div>
     );
   }
 
-  const inputStyle = "w-full bg-gray-50 border-none p-4 rounded-2xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-[#FF6D1F] transition-all";
-
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4">
+    <div className="min-h-screen bg-gray-50 py-12 px-4 font-sans text-slate-900">
       <div className="max-w-4xl mx-auto">
-        
-        <button
-          onClick={() => router.back()}
-          className="flex items-center gap-2 mb-8 font-bold text-[#234C6A] hover:text-[#FF6D1F] transition-colors"
-        >
-          <ArrowLeft size={20} /> Kembali ke Daftar
+        <button onClick={() => router.back()} className="flex items-center gap-2 mb-8 font-black text-[#234C6A] hover:text-[#FF6D1F] transition-all uppercase text-[10px] tracking-widest group">
+          <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" /> Kembali
         </button>
 
-        <div className="bg-white rounded-[2.5rem] shadow-xl overflow-hidden border border-gray-100">
-          <div className="bg-[#234C6A] p-8 text-white flex justify-between items-center">
-            <div>
-              <h1 className="text-3xl font-black uppercase tracking-tighter flex items-center gap-3">
-                <Tag className="text-[#FF6D1F]" size={32} /> 
-                Edit Promosi
+        <div className="bg-white rounded-[3rem] shadow-2xl overflow-hidden border border-gray-100">
+          <div className="bg-[#234C6A] p-10 text-white flex justify-between items-center relative">
+            <div className="relative z-10">
+              <h1 className="text-3xl font-black uppercase tracking-tighter italic flex items-center gap-3">
+                <Tag className="text-[#FF6D1F]" size={36} /> Edit Data Promo
               </h1>
-              <p className="text-blue-100 text-sm mt-1">Kelola diskon dan partisipasi produk</p>
-            </div>
-            <div className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest border-2 ${promo.is_active ? 'bg-green-500/10 border-green-500 text-green-400' : 'bg-red-500/10 border-red-500 text-red-400'}`}>
-              {promo.is_active ? 'Aktif' : 'Nonaktif'}
+              <p className="text-blue-200 text-[10px] font-black uppercase tracking-[0.3em] mt-3 opacity-60">ID Promo: #{promoId}</p>
             </div>
           </div>
 
-          <form onSubmit={updatePromo} className="p-8 space-y-8">
-            <div className="grid md:grid-cols-2 gap-8">
-              {/* Kolom Kiri: Informasi Utama */}
-              <div className="space-y-5">
+          <form onSubmit={updatePromo} className="p-10 space-y-10">
+            <div className="grid md:grid-cols-2 gap-10">
+              <div className="space-y-6">
                 <div>
-                  <label className="text-[10px] font-black text-gray-400 uppercase ml-1 tracking-widest">Nama Kampanye</label>
-                  <input name="name" value={promo.name} onChange={handleChange} className={inputStyle} placeholder="Contoh: Promo Akhir Tahun" required />
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Nama Promo</label>
+                  <input name="name" value={promo.name} onChange={handleChange} className="w-full bg-gray-50 p-4 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-[#FF6D1F]" required />
                 </div>
-
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-[10px] font-black text-gray-400 uppercase ml-1 tracking-widest">Tipe Diskon</label>
-                    <select name="discount_type" value={promo.discount_type} onChange={handleChange} className={inputStyle}>
-                      <option value="percentage">Persentase (%)</option>
-                      <option value="fixed">Nominal (Rp)</option>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Tipe</label>
+                    <select name="discount_type" value={promo.discount_type} onChange={handleChange} className="w-full bg-gray-50 p-4 rounded-2xl font-bold outline-none">
+                      <option value="percentage">%</option>
+                      <option value="fixed">Rp</option>
                     </select>
                   </div>
                   <div>
-                    <label className="text-[10px] font-black text-gray-400 uppercase ml-1 tracking-widest">Nilai Diskon</label>
-                    <input type="number" name="discount_value" value={promo.discount_value} onChange={handleChange} className={inputStyle} required />
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Nilai</label>
+                    <input type="number" name="discount_value" value={promo.discount_value} onChange={handleChange} className="w-full bg-gray-50 p-4 rounded-2xl font-bold outline-none" required />
                   </div>
                 </div>
-
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-[10px] font-black text-gray-400 uppercase ml-1 tracking-widest">Mulai</label>
-                    <input type="datetime-local" name="start_date" value={promo.start_date.replace(" ", "T")} onChange={handleChange} className={inputStyle} />
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Mulai</label>
+                    <input type="datetime-local" name="start_date" value={promo.start_date} onChange={handleChange} className="w-full bg-gray-50 p-4 rounded-2xl font-bold outline-none" />
                   </div>
                   <div>
-                    <label className="text-[10px] font-black text-gray-400 uppercase ml-1 tracking-widest">Berakhir</label>
-                    <input type="datetime-local" name="end_date" value={promo.end_date.replace(" ", "T")} onChange={handleChange} className={inputStyle} />
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Selesai</label>
+                    <input type="datetime-local" name="end_date" value={promo.end_date} onChange={handleChange} className="w-full bg-gray-50 p-4 rounded-2xl font-bold outline-none" />
                   </div>
-                </div>
-                
-                <div>
-                  <label className="text-[10px] font-black text-gray-400 uppercase ml-1 tracking-widest">Status Promo</label>
-                  <select 
-                    value={promo.is_active ? "1" : "0"} 
-                    onChange={(e) => setPromo({...promo, is_active: e.target.value === "1"})} 
-                    className={inputStyle}
-                  >
-                    <option value="1">Aktifkan Sekarang</option>
-                    <option value="0">Nonaktifkan</option>
-                  </select>
                 </div>
               </div>
 
-              {/* Kolom Kanan: Daftar Produk */}
               <div className="space-y-4">
-                <div className="flex justify-between items-center ml-1">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Pilih Produk Partisipan</label>
-                  <span className="text-[10px] font-black text-[#FF6D1F] bg-orange-50 px-2 py-1 rounded-md">
-                    {promo.product_ids.length} Terpilih
-                  </span>
-                </div>
-                
-                <div className="border-2 border-gray-100 rounded-4xl bg-gray-50/50 p-4 max-h-[380px] overflow-y-auto custom-scrollbar">
-                  {products.length === 0 ? (
-                    <div className="text-center py-10">
-                      <Package size={32} className="mx-auto text-gray-300 mb-2" />
-                      <p className="text-xs font-bold text-gray-400 uppercase">Tidak ada produk tersedia</p>
-                    </div>
-                  ) : (
-                    <div className="grid gap-2">
-                      {products.map((p) => {
-                        const isSelected = promo.product_ids.includes(p.id);
-                        return (
-                          <label 
-                            key={p.id} 
-                            className={`flex items-center justify-between p-4 rounded-2xl cursor-pointer transition-all border-2
-                              ${isSelected ? 'bg-white border-[#FF6D1F] shadow-sm' : 'bg-transparent border-transparent hover:bg-white/50'}
-                            `}
-                          >
-                            <div className="flex items-center gap-3">
-                              <input
-                                type="checkbox"
-                                className="hidden"
-                                checked={isSelected}
-                                onChange={() => toggleProduct(p.id)}
-                              />
-                              <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors ${isSelected ? 'bg-[#FF6D1F] border-[#FF6D1F]' : 'border-gray-300'}`}>
-                                {isSelected && <CheckCircle2 size={14} className="text-white" />}
-                              </div>
-                              <div>
-                                <p className={`text-sm font-black ${isSelected ? 'text-[#234C6A]' : 'text-gray-600'}`}>{p.name}</p>
-                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">Rp {p.price.toLocaleString()}</p>
-                              </div>
-                            </div>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  )}
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Daftar Produk ({promo.product_ids.length})</label>
+                <div className="border-2 border-gray-100 rounded-[2.5rem] bg-gray-50/30 p-4 max-h-[350px] overflow-y-auto shadow-inner">
+                  {products.map((p) => {
+                    const isSelected = promo.product_ids.includes(p.id);
+                    return (
+                      <div key={p.id} onClick={() => toggleProduct(p.id)} className={`flex items-center gap-4 p-4 mb-2 rounded-3xl cursor-pointer transition-all ${isSelected ? 'bg-white border-2 border-[#FF6D1F] shadow-md' : 'bg-transparent'}`}>
+                        <div className={`w-5 h-5 rounded-md border-2 ${isSelected ? 'bg-[#FF6D1F] border-[#FF6D1F]' : 'border-gray-200'}`} />
+                        <div>
+                          <p className="text-sm font-black uppercase text-[#234C6A]">{p.name}</p>
+                          <p className="text-[10px] font-bold text-gray-400 tracking-widest">ID: {p.id}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
 
-            <button
-              type="submit"
-              disabled={saving}
-              className="w-full bg-[#FF6D1F] hover:bg-orange-600 text-white py-5 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-orange-200 transition-all flex items-center justify-center gap-3 active:scale-95 disabled:bg-gray-300"
-            >
-              {saving ? <Loader2 className="animate-spin" size={24} /> : <><Save size={24} /> Simpan Perubahan Promo</>}
+            <button type="submit" disabled={saving} className="w-full bg-[#FF6D1F] hover:bg-orange-600 text-white py-6 rounded-4xl font-black uppercase tracking-widest shadow-xl active:scale-95 disabled:bg-gray-300">
+              {saving ? <Loader2 className="animate-spin" size={24} /> : "Update Data Promosi"}
             </button>
           </form>
         </div>

@@ -19,10 +19,19 @@ interface Product {
   id: number;
   name: string;
   slug: string;
-  price: string;
+  price: string; // Harga asli dari database
   stock: number;
   jenis_barang: string;
   img_urls: string[];
+}
+
+interface PromoData {
+  id: number;
+  name: string;
+  discount_type: "percentage" | "fixed";
+  discount_value: number;
+  is_active: boolean;
+  products: Product[];
 }
 
 /* ================= CONFIG ================= */
@@ -33,82 +42,67 @@ export default function MarketplaceClient() {
   const router = useRouter();
 
   const [products, setProducts] = useState<Product[]>([]);
+  const [promotions, setPromotions] = useState<PromoData[]>([]);
   const [cartCount, setCartCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("Semua");
 
-  /* ================= IMAGE HELPER (FIX IMAGE NOT SHOW) ================= */
   const getImageUrl = (imgData?: string[] | string) => {
     const img = Array.isArray(imgData) ? imgData[0] : imgData;
     if (!img) return "/no-image.png";
     if (img.startsWith("http")) return img;
-
-    const clean = img
-      .replace("public/products/", "")
-      .replace("products/", "");
-
+    const clean = img.replace("public/products/", "").replace("products/", "");
     return `${BASE_URL}/storage/products/${clean}`;
   };
 
-  /* ================= FETCH PRODUCTS ================= */
-  const fetchProducts = useCallback(async () => {
+  const initMarketplace = useCallback(async () => {
     setLoading(true);
+    const headers = { Accept: "application/json" };
     try {
-      const res = await fetch(`${API_URL}/products`, {
-        headers: { Accept: "application/json" },
-        cache: "no-store",
-      });
+      const [prodRes, promoRes] = await Promise.all([
+        fetch(`${API_URL}/products`, { headers, cache: "no-store" }),
+        fetch(`${API_URL}/promotions`, { headers, cache: "no-store" })
+      ]);
+      const prodJson = await prodRes.json();
+      const promoJson = await promoRes.json();
 
-      const json = await res.json();
-      const list = json.products || json.data || json || [];
-      setProducts(Array.isArray(list) ? list : []);
+      setProducts(prodJson.products || prodJson.data || []);
+      const rawPromos = promoJson.promotions || promoJson.data || [];
+      setPromotions(rawPromos.filter((p: PromoData) => p.is_active));
     } catch (err) {
-      console.error("FETCH PRODUCTS ERROR:", err);
+      console.error(err);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  /* ================= FETCH CART COUNT ================= */
   const fetchCartCount = useCallback(async () => {
     const token = document.cookie.match(/token=([^;]+)/)?.[1];
     if (!token) return;
-
     try {
       const res = await fetch(`${API_URL}/cart`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/json",
-        },
+        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
       });
-
       if (res.ok) {
         const json = await res.json();
-        const items = json.cart || json.data || json || [];
-        setCartCount(Array.isArray(items) ? items.length : 0);
+        setCartCount((json.cart || json.data || []).length);
       }
-    } catch (err) {
-      console.error("FETCH CART COUNT ERROR:", err);
-    }
+    } catch (err) { console.error(err); }
   }, []);
 
   useEffect(() => {
-    fetchProducts();
+    initMarketplace();
     fetchCartCount();
-  }, [fetchProducts, fetchCartCount]);
+  }, [initMarketplace, fetchCartCount]);
 
-  /* ================= ADD TO CART ================= */
-  const handleAddToCart = async (productId: number) => {
+  const handleAddToCart = async (productId: number, finalPrice: number) => {
     const token = document.cookie.match(/token=([^;]+)/)?.[1];
     if (!token) {
       alertError("Silakan login dulu");
       router.push("/auth/login");
       return;
     }
-
-    const p = products.find((x) => x.id === productId);
-    if (!p) return;
 
     try {
       const res = await fetch(`${API_URL}/cart`, {
@@ -121,190 +115,98 @@ export default function MarketplaceClient() {
         body: JSON.stringify({
           product_id: productId,
           quantity: 1,
-          price: Number(p.price),
+          price: finalPrice, // Mengirim harga setelah diskon ke keranjang
         }),
       });
 
       if (res.ok) {
-        alertSuccess(`${p.name} masuk keranjang`);
+        alertSuccess("Masuk keranjang!");
         fetchCartCount();
-      } else {
-        alertError("Gagal menambahkan ke keranjang");
       }
-    } catch {
-      alertError("Server bermasalah");
-    }
+    } catch { alertError("Gagal"); }
   };
 
-  /* ================= FILTER ================= */
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
-      const matchSearch = p.name
-        .toLowerCase()
-        .includes(searchQuery.toLowerCase());
-
-      const matchCategory =
-        selectedCategory === "Semua" ||
-        p.jenis_barang === selectedCategory;
-
+      const matchSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchCategory = selectedCategory === "Semua" || p.jenis_barang === selectedCategory;
       return matchSearch && matchCategory;
     });
   }, [products, searchQuery, selectedCategory]);
 
-  /* ================= PROMO PRODUCTS ================= */
-  const promoProducts = useMemo(() => {
-    return products.filter(
-      (p) => p.jenis_barang?.toLowerCase() === "promo"
-    );
-  }, [products]);
+  if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-900"><Loader2 className="animate-spin text-orange-400" size={50} /></div>;
 
-  /* ================= LOADING ================= */
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-900">
-        <Loader2 className="animate-spin text-orange-400" size={48} />
-      </div>
-    );
-  }
-
-  /* ================= RENDER ================= */
   return (
-    <div className="min-h-screen bg-slate-50 pb-24">
-      {/* ================= HEADER ================= */}
-      <div className="bg-slate-900 text-white p-10 pb-24 relative">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <div>
-            <h1 className="text-5xl font-black italic">
-              Bengkel<span className="text-orange-400">Market</span>
-            </h1>
-            <p className="text-xs uppercase tracking-widest text-slate-400 mt-2">
-              Sparepart Motor Terlengkap
-            </p>
-          </div>
-
-          {/* CART */}
-          <button
-            onClick={() => router.push("/cart")}
-            className="relative bg-white/10 p-4 rounded-2xl hover:bg-orange-500 transition"
-          >
-            <ShoppingCart size={26} />
-            {cartCount > 0 && (
-              <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs font-black w-6 h-6 flex items-center justify-center rounded-full">
-                {cartCount}
-              </span>
-            )}
+    <div className="min-h-screen bg-slate-50 pb-24 font-sans">
+      <div className="bg-[#0f172a] text-white p-10 pb-24 relative overflow-hidden">
+        <div className="max-w-7xl mx-auto flex justify-between items-center relative z-10">
+          <h1 className="text-5xl font-black italic tracking-tighter uppercase">Bengkel<span className="text-orange-400">Market</span></h1>
+          <button onClick={() => router.push("/cart")} className="group relative bg-white/5 border border-white/10 p-5 rounded-4xl hover:bg-orange-500 transition-all shadow-2xl">
+            <ShoppingCart size={28} />
+            {cartCount > 0 && <span className="absolute -top-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-red-600 text-[11px] font-black text-white ring-4 ring-[#0f172a] shadow-lg">{cartCount}</span>}
           </button>
         </div>
-
-        {/* SEARCH */}
-        <div className="max-w-3xl mx-auto mt-12 relative">
-          <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            className="w-full p-6 pl-14 rounded-2xl font-bold"
-            placeholder="Cari sparepart motor..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery("")}
-              className="absolute right-6 top-1/2 -translate-y-1/2"
-            >
-              <X />
-            </button>
-          )}
-        </div>
       </div>
 
-      {/* ================= CONTENT ================= */}
-      <div className="max-w-7xl mx-auto px-6 -mt-12">
-        {/* CATEGORY */}
-        <div className="flex gap-4 mb-12 overflow-x-auto">
-          {["Semua", "Sparepart", "Aksesoris", "Oli", "Promo"].map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setSelectedCategory(cat)}
-              className={`px-8 py-4 rounded-xl font-black text-xs uppercase tracking-widest
-                ${
-                  selectedCategory === cat
-                    ? "bg-orange-500 text-white"
-                    : "bg-white text-gray-400"
-                }`}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
+      <div className="max-w-7xl mx-auto px-6 -mt-12 relative z-20">
+        {/* 🔥 HOT PROMO - LOGIKA PERHITUNGAN BENAR */}
+        {promotions.length > 0 && selectedCategory === "Semua" && !searchQuery && (
+          <section className="mb-24">
+            <h2 className="text-4xl font-black mb-10 flex items-center gap-4 italic uppercase text-slate-900 tracking-tighter">
+              <Flame className="text-orange-500 animate-pulse" size={40} fill="currentColor" /> Hot Deals
+            </h2>
 
-        {/* PROMO */}
-        {promoProducts.length > 0 &&
-          selectedCategory === "Semua" &&
-          !searchQuery && (
-            <section className="mb-20">
-              <h2 className="text-4xl font-black mb-8 flex items-center gap-3">
-                <Flame className="text-orange-500" /> Promo Spesial
-              </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
+              {promotions.map((promo) => 
+                promo.products.map((p) => {
+                  const originalPrice = Number(p.price); // Harga asli dari DB
+                  let promoPrice = originalPrice;
+                  let discountLabel = 0;
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-                {promoProducts.map((p) => {
-                  const price = Number(p.price);
-                  const originalPrice = price + 30000;
-                  const discountPercent = Math.round(
-                    ((originalPrice - price) / originalPrice) * 100
-                  );
+                  // LOGIKA: Harga Promo = Harga Asli - Diskon
+                  if (promo.discount_type === "percentage") {
+                    discountLabel = promo.discount_value;
+                    promoPrice = originalPrice - (originalPrice * (discountLabel / 100));
+                  } else {
+                    promoPrice = originalPrice - promo.discount_value;
+                    discountLabel = Math.round((promo.discount_value / originalPrice) * 100);
+                  }
 
                   return (
                     <ProductCardPromo
-                      key={p.id}
+                      key={`${promo.id}-${p.id}`}
                       product={{
                         id: p.id,
                         name: p.name,
-                        price,
-                        original_price: originalPrice,
-                        discountPercent,
+                        price: Math.round(promoPrice), // Harga setelah diskon (Tampil Besar)
+                        original_price: originalPrice, // Harga sebelum diskon (Dicoret)
+                        discountPercent: discountLabel,
                         jenis_barang: p.jenis_barang,
-                        img_url: getImageUrl(p.img_urls),
+                        img_urls: getImageUrl(p.img_urls),
                       }}
-                      onClick={() =>
-                        router.push(
-                          `/marketplace/detail-produk/${p.slug}`
-                        )
-                      }
-                      onAdd={() => handleAddToCart(p.id)}
+                      onClick={() => router.push(`/marketplace/detail-produk/${p.slug || p.id}`)}
+                      onAdd={() => handleAddToCart(p.id, Math.round(promoPrice))}
                     />
                   );
-                })}
-              </div>
-            </section>
-          )}
+                })
+              )}
+            </div>
+          </section>
+        )}
 
         {/* KATALOG */}
         <section>
-          <div className="flex items-center gap-4 mb-10">
-            <Tag className="text-orange-500" size={40} />
-            <h2 className="text-5xl font-black text-slate-900">
-              KATALOG <span className="text-orange-500">PRODUK</span>
-            </h2>
+          <div className="inline-flex items-center gap-4 mb-12 border-b-8 border-[#0f172a] pb-4 text-[#0f172a]">
+            <Tag size={40} className="text-orange-500" />
+            <h2 className="text-6xl font-black uppercase tracking-tighter">Katalog <span className="text-orange-500">Produk</span></h2>
           </div>
-
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
             {filteredProducts.map((p) => (
               <ProductCard
                 key={p.id}
-                product={{
-                  id: p.id,
-                  name: p.name,
-                  stock: p.stock,
-                  jenis_barang: p.jenis_barang,
-                  price: Number(p.price),
-                  img_urls: [getImageUrl(p.img_urls)],
-                }}
-                onClick={() =>
-                  router.push(
-                    `/marketplace/detail-produk/${p.slug}`
-                  )
-                }
-                onAdd={(id) => handleAddToCart(id)}
+                product={{ ...p, price: Number(p.price), img_urls: [getImageUrl(p.img_urls)] }}
+                onClick={() => router.push(`/marketplace/detail-produk/${p.slug || p.id}`)}
+                onAdd={(id) => handleAddToCart(id, Number(p.price))}
               />
             ))}
           </div>

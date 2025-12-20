@@ -13,7 +13,7 @@ class PromotionController extends Controller
     private $allowedRoles = ['admin','super_admin'];
 
     // Daftar kolom produk yang dibutuhkan frontend
-    private $productColumns = 'id,name,price,stock,jenis_barang,img_url'; 
+    private $productColumns = 'id,name,price,stock,jenis_barang,img_urls'; 
     // ^^^^^^^^^^^^^^^^^^^^^^^^^^ INI PERBAIKAN UTAMA ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     // ==============================

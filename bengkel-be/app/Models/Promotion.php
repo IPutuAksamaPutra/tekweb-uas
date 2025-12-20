@@ -18,9 +18,23 @@ class Promotion extends Model
         'is_active',
     ];
 
-    // Relasi pivot ke produk
+    /**
+     * Casting tipe data agar konsisten saat dikirim ke Frontend (Next.js)
+     */
+    protected $casts = [
+        'is_active' => 'boolean',
+        'discount_value' => 'float',
+        'start_date' => 'datetime',
+        'end_date' => 'datetime',
+    ];
+
+    /**
+     * Relasi ke produk (Pastikan nama tabel pivot benar)
+     */
     public function products()
     {
-        return $this->belongsToMany(Product::class, 'product_promotion', 'promotion_id', 'product_id');
+        // Gunakan withTimestamps jika tabel pivot memiliki kolom created_at/updated_at
+        return $this->belongsToMany(Product::class, 'product_promotion', 'promotion_id', 'product_id')
+                    ->withTimestamps(); 
     }
 }
