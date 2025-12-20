@@ -6,10 +6,9 @@ import {
     FileText, Printer, ChevronLeft, ChevronRight, Filter, ReceiptText 
 } from 'lucide-react'; 
 import * as XLSX from 'xlsx';
-import { saveAs } from 'file-saver';
 
-// URL API Laravel
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://tekweb-uas-production.up.railway.app/api"; 
+const BASE_URL = "https://tekweb-uas-production.up.railway.app";
+const API_URL = `${BASE_URL}/api`; 
 
 /* ===============================
    INTERFACES
@@ -34,9 +33,6 @@ interface Transaksi {
 
 type FilterType = 'Semua' | 'Produk' | 'Booking' | 'Jasa Manual' | 'Campuran' | 'Pelunasan Order';
 
-/* ===============================
-   MAIN COMPONENT
-================================ */
 export default function TransaksiPage() {
     const [search, setSearch] = useState("");
     const [filterJenis, setFilterJenis] = useState<FilterType>('Semua');
@@ -44,53 +40,60 @@ export default function TransaksiPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [isExportDropdownOpen, setIsExportDropdownOpen] = useState(false);
-    const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
     const [isMount, setIsMount] = useState(false);
     
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(10); 
 
-    // Helper: Token Cookie
-    const getCookie = useCallback((name: string) => {
+    const getAuthToken = useCallback(() => {
         if (typeof document === "undefined") return null;
-        const value = `; ${document.cookie}`;
-        const parts = value.split(`; ${name}=`);
-        if (parts.length === 2) return parts.pop()?.split(";").shift() || null;
-        return null;
+        return document.cookie.match(/token=([^;]+)/)?.[1] || null;
     }, []);
 
-    // ==================== LOGIKA NORMALISASI ====================
+    // ==================== LOGIKA NORMALISASI (FIXED TYPE UNKNOWN) ====================
     const normalizeData = useCallback((rawData: any[]): Transaksi[] => {
         return rawData.map((t: any) => {
             let jenis: Transaksi['jenis'] = 'Campuran';
-            let namaUtama = `Transaksi #${t.id}`;
-            const total = Number(t.total_amount || t.total || 0); 
-            const status = (t.status === 'Lunas' || total > 0 || t.status === 'completed') ? "Lunas" : "Pending"; 
+            let namaUtama = "";
             
-            const items: TransactionItem[] = Array.isArray(t.items) ? t.items : [];
+            const total = Number(t.total_amount || t.total || t.total_price || 0); 
+            const statusRaw = t.status?.toLowerCase();
+            const status = (statusRaw === 'lunas' || statusRaw === 'completed' || statusRaw === 'success') ? "Lunas" : "Pending";
+            
+            const items = Array.isArray(t.items) ? t.items : 
+                          (Array.isArray(t.order_items) ? t.order_items : []);
 
             if (t.is_order) { 
                 jenis = 'Pelunasan Order'; 
-                const customerName = t.name || t.customer_name || t.user?.name || 'Pelanggan';
-                namaUtama = `Order #${t.id} - ${customerName}`;
+                const customerName = t.user?.name || t.customer_name || 'Pelanggan Marketplace';
+                namaUtama = `Pesanan Marketplace - ${customerName}`;
             } else if (items.length > 0) {
-                const types = items.map(item => item.item_type);
+                // 🔥 PERBAIKAN: Menambahkan tipe 'any' pada 'item' di dalam map
+                const types = items.map((item: any) => item.item_type || item.type || '');
                 const uniqueTypes = Array.from(new Set(types));
 
                 if (uniqueTypes.length === 1) {
-                    if (uniqueTypes[0] === 'product') jenis = 'Produk';
-                    else if (uniqueTypes[0] === 'booking_pelunasan') jenis = 'Booking';
-                    else if (uniqueTypes[0] === 'service_manual') jenis = 'Jasa Manual';
+                    const type = String(uniqueTypes[0]).toLowerCase();
+                    if (type.includes('product')) jenis = 'Produk';
+                    else if (type.includes('booking')) jenis = 'Booking';
+                    else if (type.includes('manual') || type.includes('service')) jenis = 'Jasa Manual';
+                } else {
+                    jenis = 'Campuran';
                 }
-                namaUtama = items[0].item_name;
-                if (items.length > 1) namaUtama += ` (+${items.length - 1} item)`;
+
+                const firstItem = items[0];
+                const firstItemName = firstItem.item_name || firstItem.name || "Item Tanpa Nama";
+                namaUtama = firstItemName;
+                if (items.length > 1) namaUtama += ` (+${items.length - 1} item lainnya)`;
+            } else {
+                namaUtama = `Transaksi Tanpa Detail #${t.id}`;
             }
 
             return {
                 id: t.id,
-                payment_method: t.payment_method || t.payment || 'N/A',
+                payment_method: t.payment_method || t.payment || 'Tunai',
                 total_amount: total,
-                transaction_date: t.transaction_date || t.created_at,
+                transaction_date: t.transaction_date || t.created_at || new Date().toISOString(),
                 jenis,
                 nama_item_utama: namaUtama,
                 status,
@@ -99,87 +102,63 @@ export default function TransaksiPage() {
         });
     }, []);
 
-    // ==================== FETCH DATA ====================
     const fetchData = useCallback(async () => {
         setIsLoading(true);
         setError(null);
-        const token = getCookie("token");
+        const token = getAuthToken();
 
         if (!token) {
-            setError("Sesi berakhir. Silakan login ulang.");
+            setError("Sesi login tidak ditemukan. Silakan login kembali.");
             setIsLoading(false);
             return;
         }
 
         try {
-            const headers = { Accept: "application/json", Authorization: `Bearer ${token}` };
+            const headers = { "Accept": "application/json", "Authorization": `Bearer ${token}` };
 
-            // Fetch POS dan Orders secara paralel
             const [posRes, ordersRes] = await Promise.all([
-                fetch(`${API_URL}/transactions`, { headers }),
-                fetch(`${API_URL}/admin/orders`, { headers })
+                fetch(`${API_URL}/transactions`, { headers, cache: 'no-store' }),
+                fetch(`${API_URL}/admin/orders`, { headers, cache: 'no-store' })
             ]);
 
-            if (!posRes.ok || !ordersRes.ok) throw new Error("Gagal menyinkronkan data dari server.");
+            let combinedRawData: any[] = [];
 
-            const posData = await posRes.json();
-            const ordersData = await ordersRes.json();
+            if (posRes.ok) {
+                const posJson = await posRes.json();
+                const posArray = posJson.transactions || posJson.data || [];
+                combinedRawData = [...combinedRawData, ...posArray.map((item: any) => ({ ...item, is_order: false }))];
+            }
 
-            const rawPOS = posData.data || posData.transactions || [];
-            const rawOrders = ordersData.data || ordersData.orders || [];
+            if (ordersRes.ok) {
+                const orderJson = await ordersRes.json();
+                const orderArray = orderJson.orders || orderJson.data || [];
+                combinedRawData = [...combinedRawData, ...orderArray.map((item: any) => ({ ...item, is_order: true }))];
+            }
 
-            const combinedRawData = [
-                ...rawPOS.map((t: any) => ({ ...t, is_order: false })),
-                ...rawOrders.map((o: any) => ({
-                    ...o,
-                    total_amount: o.total || o.total_price || 0,
-                    transaction_date: o.created_at,
-                    is_order: true
-                }))
-            ];
-
-            // Sort data terbaru di atas
-            combinedRawData.sort((a, b) => new Date(b.transaction_date).getTime() - new Date(a.transaction_date).getTime());
+            combinedRawData.sort((a, b) => {
+                const dateA = new Date(a.transaction_date || a.created_at).getTime();
+                const dateB = new Date(b.transaction_date || b.created_at).getTime();
+                return dateB - dateA;
+            });
 
             setTransaksiList(normalizeData(combinedRawData));
         } catch (err: any) {
-            setError(err.message);
+            setError(err.message || "Terjadi kesalahan saat memuat data.");
         } finally {
             setIsLoading(false);
         }
-    }, [getCookie, normalizeData]);
+    }, [getAuthToken, normalizeData]);
 
     useEffect(() => {
         setIsMount(true);
         fetchData();
     }, [fetchData]);
 
-    // Inject Print Styles
-    useEffect(() => {
-        if (typeof document === 'undefined') return;
-        const styleId = 'transaction-print-styles';
-        let styleTag = document.getElementById(styleId) as HTMLStyleElement | null;
-        const printStyles = `
-            @media print {
-                .print-hidden { display: none !important; }
-                body { background: white; }
-                .print-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-                .print-table th, .print-table td { border: 1px solid #000; padding: 8px; font-size: 10pt; color: black; }
-                .print-title { display: block !important; text-align: center; font-size: 18pt; font-weight: bold; margin-bottom: 10px; }
-            }
-        `;
-        if (!styleTag) {
-            styleTag = document.createElement('style');
-            styleTag.id = styleId;
-            document.head.appendChild(styleTag);
-        }
-        styleTag.innerHTML = printStyles;
-    }, []);
-
-    // ==================== FILTER & PAGINATION ====================
     const filteredData = useMemo(() => {
         return transaksiList.filter(t => {
-            const matchesSearch = t.nama_item_utama.toLowerCase().includes(search.toLowerCase()) || t.id.toString().includes(search);
+            const searchLower = search.toLowerCase();
+            const matchesSearch = t.nama_item_utama.toLowerCase().includes(searchLower) || 
+                                 t.id.toString().includes(searchLower);
             const matchesJenis = filterJenis === 'Semua' || t.jenis === filterJenis;
             return matchesSearch && matchesJenis;
         });
@@ -190,48 +169,48 @@ export default function TransaksiPage() {
 
     const exportToExcel = () => {
         const worksheet = XLSX.utils.json_to_sheet(filteredData.map(t => ({
-            ID: t.id,
-            Sumber: t.is_order ? "Marketplace" : "POS Kasir",
-            Tanggal: new Date(t.transaction_date).toLocaleDateString("id-ID"),
-            Deskripsi: t.nama_item_utama,
-            Jenis: t.jenis,
-            Metode: t.payment_method,
-            Total: t.total_amount,
+            ID_Transaksi: t.id,
+            Sumber: t.is_order ? "Marketplace" : "Kasir POS",
+            Tanggal: new Date(t.transaction_date).toLocaleString("id-ID"),
+            Item_Utama: t.nama_item_utama,
+            Kategori: t.jenis,
+            Metode_Bayar: t.payment_method,
+            Total_Rp: t.total_amount,
             Status: t.status
         })));
         const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, "Riwayat Transaksi");
-        XLSX.writeFile(workbook, `Laporan_Transaksi_${new Date().getTime()}.xlsx`);
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Laporan");
+        XLSX.writeFile(workbook, `Laporan_Bengkel_${new Date().toISOString().split('T')[0]}.xlsx`);
     };
 
     if (!isMount) return null;
 
     return (
-        <div className="p-4 lg:p-8 space-y-8 bg-gray-50 min-h-screen">
+        <div className="p-4 lg:p-8 space-y-8 bg-gray-50 min-h-screen font-sans">
+            {/* HEADER */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
-                    <h1 className="text-3xl font-black text-[#234C6A] tracking-tighter uppercase flex items-center gap-3">
-                        <ReceiptText size={32} className="text-[#FF6D1F]" />
-                        Riwayat Transaksi
+                    <h1 className="text-4xl font-black text-[#234C6A] tracking-tighter uppercase flex items-center gap-3 italic">
+                        <ReceiptText size={38} className="text-[#FF6D1F]" />
+                        Finance <span className="text-orange-500">History</span>
                     </h1>
-                    <p className="text-gray-500 font-medium">Monitoring pendapatan kasir dan marketplace secara real-time.</p>
                 </div>
                 
                 <div className="flex gap-3 w-full md:w-auto print-hidden">
-                    <div className="relative flex-1 md:flex-none">
+                    <div className="relative">
                         <button 
                             onClick={() => setIsExportDropdownOpen(!isExportDropdownOpen)}
-                            className="w-full bg-[#234C6A] text-white px-6 py-3 rounded-2xl font-black uppercase text-xs tracking-widest flex items-center justify-center gap-2 hover:bg-[#1a3a52] transition-all shadow-lg shadow-blue-900/20"
+                            className="bg-[#234C6A] text-white px-6 py-3 rounded-2xl font-black uppercase text-xs tracking-widest flex items-center gap-2 hover:bg-orange-500 transition-all shadow-lg active:scale-95"
                         >
-                            <FileText size={18} /> Ekspor <ChevronDown size={14} />
+                            <FileText size={18} /> Ekspor Data <ChevronDown size={14} />
                         </button>
                         {isExportDropdownOpen && (
-                            <div className="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2">
-                                <button onClick={exportToExcel} className="flex items-center gap-3 w-full px-5 py-4 text-xs font-bold text-gray-600 hover:bg-gray-50 border-b transition-colors">
+                            <div className="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-50 animate-in fade-in">
+                                <button onClick={exportToExcel} className="flex items-center gap-3 w-full px-5 py-4 text-xs font-bold text-gray-600 hover:bg-orange-50 border-b transition-colors">
                                     <FileText className="text-green-600" size={16} /> Excel (.xlsx)
                                 </button>
-                                <button onClick={() => window.print()} className="flex items-center gap-3 w-full px-5 py-4 text-xs font-bold text-gray-600 hover:bg-gray-50 transition-colors">
-                                    <Printer className="text-blue-600" size={16} /> Cetak PDF
+                                <button onClick={() => window.print()} className="flex items-center gap-3 w-full px-5 py-4 text-xs font-bold text-gray-600 hover:bg-orange-50 transition-colors">
+                                    <Printer className="text-blue-600" size={16} /> Cetak Laporan
                                 </button>
                             </div>
                         )}
@@ -239,22 +218,22 @@ export default function TransaksiPage() {
                 </div>
             </div>
 
-            {/* FILTER BAR */}
+            {/* SEARCH & FILTER */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 print-hidden">
-                <div className="md:col-span-2 relative group">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#FF6D1F] transition-colors" size={20} />
+                <div className="md:col-span-2 relative">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
                     <input 
                         type="text"
-                        placeholder="Cari ID transaksi atau nama item..."
-                        className="w-full pl-12 pr-4 py-4 bg-white rounded-2xl border-2 border-transparent shadow-sm focus:border-[#FF6D1F] focus:outline-none font-bold text-slate-700 transition-all"
+                        placeholder="Cari ID atau nama barang..."
+                        className="w-full pl-12 pr-4 py-4 bg-white rounded-2xl border-none shadow-sm focus:ring-2 focus:ring-orange-500 font-bold text-slate-700"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                     />
                 </div>
-                <div className="relative group">
-                    <Filter className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#FF6D1F]" size={18} />
+                <div className="relative">
+                    <Filter className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                     <select 
-                        className="w-full pl-12 pr-4 py-4 bg-white rounded-2xl border-2 border-transparent shadow-sm focus:border-[#FF6D1F] focus:outline-none appearance-none font-bold text-slate-700 cursor-pointer transition-all"
+                        className="w-full pl-12 pr-4 py-4 bg-white rounded-2xl border-none shadow-sm focus:ring-2 focus:ring-orange-500 appearance-none font-bold text-slate-700 cursor-pointer"
                         value={filterJenis}
                         onChange={(e) => setFilterJenis(e.target.value as FilterType)}
                     >
@@ -264,66 +243,60 @@ export default function TransaksiPage() {
             </div>
 
             {error && (
-                <div className="p-4 bg-red-50 border-l-8 border-red-500 text-red-700 rounded-xl flex items-center gap-3 animate-in shake duration-500">
-                    <AlertTriangle size={24} />
-                    <span className="font-bold">{error}</span>
+                <div className="p-4 bg-red-100 border-l-4 border-red-500 text-red-700 font-bold rounded-xl flex items-center gap-3">
+                    <AlertTriangle size={20} /> {error}
                 </div>
             )}
 
-            {/* TABLE AREA */}
-            <div className="bg-white rounded-[2.5rem] shadow-xl shadow-blue-900/5 border border-gray-100 overflow-hidden">
+            {/* TABLE */}
+            <div className="bg-white rounded-[2.5rem] shadow-xl border border-gray-100 overflow-hidden">
                 <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse print-table">
-                        <thead className="bg-gray-50/50 border-b">
-                            <tr>
-                                <th className="p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">No</th>
-                                <th className="p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Item / Deskripsi</th>
-                                <th className="p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Kategori</th>
-                                <th className="p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Metode</th>
-                                <th className="p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Total Bayar</th>
-                                <th className="p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Tanggal</th>
-                                <th className="p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center print-hidden">Status</th>
-                                <th className="p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center print-hidden">Aksi</th>
+                    <table className="w-full text-left">
+                        <thead className="bg-slate-900 text-white">
+                            <tr className="italic">
+                                <th className="p-6 text-[10px] font-black uppercase tracking-widest">ID</th>
+                                <th className="p-6 text-[10px] font-black uppercase tracking-widest">Deskripsi</th>
+                                <th className="p-6 text-[10px] font-black uppercase tracking-widest text-center">Tipe</th>
+                                <th className="p-6 text-[10px] font-black uppercase tracking-widest text-center">Nominal</th>
+                                <th className="p-6 text-[10px] font-black uppercase tracking-widest text-center">Tanggal</th>
+                                <th className="p-6 text-[10px] font-black uppercase tracking-widest text-center">Status</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {isLoading ? (
                                 <tr>
-                                    <td colSpan={8} className="py-20 text-center">
-                                        <Loader2 className="animate-spin mx-auto text-[#FF6D1F]" size={40} />
-                                        <p className="mt-4 text-gray-400 font-bold uppercase text-[10px] tracking-widest">Menyelaraskan Data...</p>
+                                    <td colSpan={6} className="py-20 text-center">
+                                        <Loader2 className="animate-spin mx-auto text-orange-500" size={40} />
                                     </td>
                                 </tr>
-                            ) : currentItems.map((t, index) => (
-                                <tr key={`${t.is_order ? 'ord' : 'pos'}-${t.id}`} className="hover:bg-gray-50 transition-colors group">
-                                    <td className="p-6 text-gray-300 font-black text-xs">{(currentPage - 1) * itemsPerPage + index + 1}</td>
+                            ) : currentItems.map((t) => (
+                                <tr key={`${t.is_order ? 'ord' : 'pos'}-${t.id}`} className="hover:bg-orange-50 transition-colors">
                                     <td className="p-6">
-                                        <p className="font-black text-[#234C6A] text-sm group-hover:text-[#FF6D1F] transition-colors">{t.nama_item_utama}</p>
-                                        <span className="text-[10px] text-gray-400 font-bold uppercase">ID: {t.is_order ? 'ORD' : 'POS'}-{t.id}</span>
+                                        <span className="bg-slate-100 px-3 py-1 rounded-lg font-black text-[10px] text-slate-500">
+                                            {t.is_order ? 'MARKET' : 'POS'}-{t.id}
+                                        </span>
                                     </td>
                                     <td className="p-6">
-                                        <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[9px] font-black uppercase border border-blue-100">
+                                        <p className="font-black text-[#234C6A] text-sm uppercase italic leading-tight">{t.nama_item_utama}</p>
+                                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">Via {t.payment_method}</p>
+                                    </td>
+                                    <td className="p-6 text-center">
+                                        <span className="px-3 py-1 bg-blue-100 text-blue-600 rounded-lg text-[9px] font-black uppercase italic">
                                             {t.jenis}
                                         </span>
                                     </td>
-                                    <td className="p-6 text-xs font-bold text-gray-500 uppercase">{t.payment_method}</td>
-                                    <td className="p-6 font-black text-[#FF6D1F]">
+                                    <td className="p-6 text-center font-black text-orange-600 text-lg">
                                         Rp {t.total_amount.toLocaleString("id-ID")}
                                     </td>
-                                    <td className="p-6 text-xs font-bold text-gray-400">
-                                        {new Date(t.transaction_date).toLocaleDateString("id-ID", { day: 'numeric', month: 'short', year: 'numeric' })}
+                                    <td className="p-6 text-center text-xs font-bold text-gray-400 uppercase italic">
+                                        {new Date(t.transaction_date).toLocaleDateString("id-ID", { day: '2-digit', month: 'short', year: 'numeric' })}
                                     </td>
-                                    <td className="p-6 text-center print-hidden">
-                                        <span className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-tighter shadow-sm
-                                            ${t.status === "Lunas" ? "bg-green-50 text-green-600 border border-green-100" : "bg-amber-50 text-amber-600 border border-amber-100"}
+                                    <td className="p-6 text-center">
+                                        <span className={`px-4 py-1 rounded-full text-[9px] font-black uppercase italic shadow-sm
+                                            ${t.status === "Lunas" ? "bg-green-500 text-white" : "bg-amber-400 text-white"}
                                         `}>
                                             {t.status}
                                         </span>
-                                    </td>
-                                    <td className="p-6 text-center print-hidden">
-                                        <button className="p-3 bg-gray-50 text-[#234C6A] rounded-2xl hover:bg-[#FF6D1F] hover:text-white transition-all shadow-sm">
-                                            <Eye size={18} />
-                                        </button>
                                     </td>
                                 </tr>
                             ))}
@@ -334,35 +307,14 @@ export default function TransaksiPage() {
 
             {/* PAGINATION */}
             {!isLoading && filteredData.length > 0 && (
-                <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white p-6 rounded-3xl shadow-sm border border-gray-100 print-hidden">
-                    <div className="flex items-center gap-4">
-                        <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">
-                            Tampil {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredData.length)} dari {filteredData.length}
-                        </p>
-                        <select 
-                            value={itemsPerPage} 
-                            onChange={(e) => {setItemsPerPage(Number(e.target.value)); setCurrentPage(1);}}
-                            className="bg-gray-50 border-none px-3 py-1 rounded-lg text-xs font-bold text-gray-500 outline-none"
-                        >
-                            {[5, 10, 20, 50].map(v => <option key={v} value={v}>{v} / Halaman</option>)}
-                        </select>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <button 
-                            disabled={currentPage === 1}
-                            onClick={() => setCurrentPage(prev => prev - 1)}
-                            className="p-3 rounded-2xl border-2 border-gray-50 text-gray-400 hover:bg-gray-50 disabled:opacity-30 transition-all"
-                        >
+                <div className="flex justify-between items-center bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
+                    <p className="text-[10px] font-black text-gray-400 uppercase italic">Total {filteredData.length} Records</p>
+                    <div className="flex gap-2">
+                        <button disabled={currentPage === 1} onClick={() => setCurrentPage(prev => prev - 1)} className="p-3 bg-gray-100 rounded-xl disabled:opacity-30">
                             <ChevronLeft size={20} />
                         </button>
-                        <span className="px-6 py-2 bg-[#234C6A] text-white rounded-xl text-xs font-black">
-                            {currentPage} / {totalPages}
-                        </span>
-                        <button 
-                            disabled={currentPage === totalPages}
-                            onClick={() => setCurrentPage(prev => prev + 1)}
-                            className="p-3 rounded-2xl border-2 border-gray-50 text-gray-400 hover:bg-gray-50 disabled:opacity-30 transition-all"
-                        >
+                        <span className="px-6 py-3 bg-[#234C6A] text-white rounded-xl text-xs font-black">{currentPage} / {totalPages}</span>
+                        <button disabled={currentPage === totalPages} onClick={() => setCurrentPage(prev => prev + 1)} className="p-3 bg-gray-100 rounded-xl disabled:opacity-30">
                             <ChevronRight size={20} />
                         </button>
                     </div>
