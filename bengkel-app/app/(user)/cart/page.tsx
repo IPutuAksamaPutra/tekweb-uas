@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Trash2, Plus, Minus, ShoppingCart, Check, ArrowRight } from "lucide-react";
+import { Trash2, Plus, Minus, ShoppingCart, Check, ArrowRight, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { alertLoginRequired, alertSuccess, alertError } from "@/components/Alert";
 
@@ -12,6 +12,7 @@ interface CartItem {
   product: {
     id: number;
     name: string;
+    slug: string;
     price: number;
     original_price?: number;
     img_url: string[];
@@ -21,6 +22,8 @@ interface CartItem {
 /* ======================= HELPER ======================= */
 const formatRupiah = (value: number) =>
   "Rp " + value.toLocaleString("id-ID");
+
+const BASE_URL = "https://tekweb-uas-production.up.railway.app";
 
 export default function CartPage() {
   const router = useRouter();
@@ -44,8 +47,11 @@ export default function CartPage() {
     }
 
     try {
-      const res = await fetch("https://tekweb-uas-production.up.railway.app/api/cart", {
-        headers: { Authorization: `Bearer ${token}` },
+      const res = await fetch(`${BASE_URL}/api/cart`, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          "Accept": "application/json"
+        },
       });
 
       const data = await res.json();
@@ -56,6 +62,7 @@ export default function CartPage() {
           product: {
             ...item.product,
             price: Number(item.product.price),
+            // Memastikan img_url selalu berupa array
             img_url: Array.isArray(item.product.img_url)
               ? item.product.img_url
               : item.product.img_url ? [item.product.img_url] : [],
@@ -83,6 +90,17 @@ export default function CartPage() {
     }
   }, [fetchCart, getToken, router]);
 
+  /* ======================= LOGIKA GAMBAR RAILWAY ======================= */
+  const getCartImageUrl = (imgArray: string[]) => {
+    const targetImg = imgArray[0];
+    if (!targetImg) return "https://placehold.co/200x200?text=No+Image";
+    if (targetImg.startsWith("http")) return targetImg;
+    
+    // Membersihkan path agar sesuai dengan symbolic link Railway /storage/products/
+    const fileName = targetImg.replace("public/products/", "").replace("products/", "");
+    return `${BASE_URL}/storage/products/${fileName}`;
+  };
+
   /* ======================= QTY UPDATE ======================= */
   const updateQty = async (id: number, qty: number) => {
     if (qty < 1) return;
@@ -90,22 +108,22 @@ export default function CartPage() {
     const item = cart.find((c) => c.id === id);
     if (!item) return;
 
-    // Optimistic Update (Update UI dulu biar kerasa cepet)
     const oldCart = [...cart];
     setCart(cart.map(c => c.id === id ? { ...c, quantity: qty } : c));
 
     try {
-      const res = await fetch(`https://tekweb-uas-production.up.railway.app/api/cart/${id}`, {
+      const res = await fetch(`${BASE_URL}/api/cart/${id}`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
+          "Accept": "application/json"
         },
         body: JSON.stringify({ product_id: item.product.id, quantity: qty }),
       });
       if (!res.ok) throw new Error();
     } catch (err) {
-      setCart(oldCart); // Balikin kalo gagal
+      setCart(oldCart); 
       alertError("Gagal memperbarui jumlah.");
     }
   };
@@ -114,9 +132,12 @@ export default function CartPage() {
   const removeItem = async (id: number) => {
     const token = getToken();
     try {
-      const res = await fetch(`https://tekweb-uas-production.up.railway.app/api/cart/${id}`, {
+      const res = await fetch(`${BASE_URL}/api/cart/${id}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          "Accept": "application/json"
+        },
       });
       if (res.ok) {
         setCart(cart.filter(item => item.id !== id));
@@ -143,8 +164,8 @@ export default function CartPage() {
   if (loading)
     return (
       <div className="min-h-screen flex flex-col justify-center items-center gap-4 bg-gray-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-4 border-orange-500 border-t-transparent"></div>
-        <p className="text-gray-500 font-medium">Sinkronisasi Keranjang...</p>
+        <Loader2 className="animate-spin text-orange-500" size={48} />
+        <p className="text-gray-500 font-black uppercase text-xs tracking-widest">Sinkronisasi Keranjang...</p>
       </div>
     );
 
@@ -155,29 +176,29 @@ export default function CartPage() {
         {/* HEADER */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3">
-            <div className="bg-orange-100 p-2 rounded-lg text-orange-600">
+            <div className="bg-[#234C6A] p-3 rounded-2xl text-white shadow-lg shadow-blue-900/20">
               <ShoppingCart size={24} />
             </div>
-            <h1 className="text-2xl font-black text-slate-800 tracking-tight">Keranjang Belanja</h1>
+            <h1 className="text-3xl font-black text-[#234C6A] tracking-tighter uppercase">Keranjang Belanja</h1>
           </div>
-          <span className="text-sm font-medium text-gray-500 bg-white px-3 py-1 rounded-full border">
-            {cart.length} Produk
+          <span className="text-xs font-black text-gray-400 bg-white px-4 py-2 rounded-full border uppercase tracking-widest">
+            {cart.length} Item
           </span>
         </div>
 
         {/* EMPTY STATE */}
         {cart.length === 0 && (
-          <div className="bg-white p-12 rounded-3xl shadow-sm text-center border-2 border-dashed border-gray-200">
-            <div className="bg-gray-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
-              <ShoppingCart className="text-gray-300" size={40} />
+          <div className="bg-white p-16 rounded-[3rem] shadow-xl shadow-blue-900/5 text-center border border-gray-100">
+            <div className="bg-gray-50 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6">
+              <ShoppingCart className="text-gray-200" size={48} />
             </div>
-            <h2 className="text-xl font-bold text-slate-800">Keranjangmu Masih Kosong</h2>
-            <p className="text-gray-500 mt-2 mb-8">Yuk, cari onderdil atau aksesoris motor impianmu!</p>
+            <h2 className="text-2xl font-black text-[#234C6A] uppercase tracking-tighter">Keranjang Kosong</h2>
+            <p className="text-gray-400 font-medium mt-2 mb-10">Belum ada onderdil yang kamu pilih, yuk belanja dulu!</p>
             <button
               onClick={() => router.push("/marketplace")}
-              className="bg-orange-500 hover:bg-orange-600 text-white px-8 py-3 rounded-xl font-bold transition-all shadow-lg shadow-orange-200"
+              className="bg-[#FF6D1F] hover:bg-orange-600 text-white px-10 py-4 rounded-2xl font-black uppercase tracking-widest transition-all shadow-xl shadow-orange-100 active:scale-95"
             >
-              Mulai Belanja
+              Cari Sparepart
             </button>
           </div>
         )}
@@ -186,80 +207,79 @@ export default function CartPage() {
         <div className="space-y-4">
           {cart.map((item) => {
             const isChecked = selected.includes(item.id);
-            const imgPath = item.product.img_url[0]
-              ? `https://tekweb-uas-production.up.railway.app/images/${item.product.img_url[0]}`
-              : "/no-image.png";
+            const imgPath = getCartImageUrl(item.product.img_url);
 
             return (
               <div
                 key={item.id}
-                className={`group flex items-center gap-4 p-4 bg-white rounded-2xl border transition-all duration-300
-                ${isChecked ? "border-orange-500 bg-orange-50/30" : "border-transparent shadow-sm hover:shadow-md"}
+                className={`group flex items-center gap-4 p-5 bg-white rounded-4xl border transition-all duration-300
+                ${isChecked ? "border-[#FF6D1F] bg-orange-50/30 shadow-orange-100 shadow-lg" : "border-gray-100 shadow-sm hover:shadow-md"}
               `}
               >
                 {/* CHECKBOX */}
                 <button
                   onClick={() => toggleSelect(item.id)}
-                  className={`shrink-0 w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all
-                  ${isChecked ? "bg-orange-500 border-orange-500 shadow-sm" : "border-gray-300 bg-white"}
+                  className={`shrink-0 w-7 h-7 rounded-xl border-2 flex items-center justify-center transition-all
+                  ${isChecked ? "bg-[#FF6D1F] border-[#FF6D1F] shadow-md" : "border-gray-200 bg-white"}
                 `}
                 >
-                  {isChecked && <Check size={14} className="text-white stroke-4" />}
+                  {isChecked && <Check size={16} className="text-white stroke-4" />}
                 </button>
 
                 {/* IMAGE */}
                 <div 
-                  className="relative w-20 h-20 md:w-24 md:h-24 rounded-xl overflow-hidden border bg-gray-100 cursor-pointer"
-                  onClick={() => router.push(`/marketplace/detailProduk?id=${item.product.id}`)}
+                  className="relative w-24 h-24 rounded-2xl overflow-hidden border border-gray-50 bg-white cursor-pointer"
+                  onClick={() => router.push(`/marketplace/detail-produk/${item.product.slug}`)}
                 >
                   <img
                     src={imgPath}
                     alt={item.product.name}
-                    className="w-full h-full object-cover transition-transform group-hover:scale-110"
+                    className="w-full h-full object-contain p-2 transition-transform group-hover:scale-110"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).src = "https://placehold.co/200x200?text=Error"; }}
                   />
                 </div>
 
                 {/* INFO */}
                 <div className="flex-1 min-w-0">
                   <h2 
-                    className="font-bold text-slate-800 truncate cursor-pointer hover:text-orange-500 transition-colors"
-                    onClick={() => router.push(`/marketplace/detailProduk?id=${item.product.id}`)}
+                    className="font-black text-[#234C6A] text-lg truncate cursor-pointer hover:text-[#FF6D1F] transition-colors uppercase tracking-tight"
+                    onClick={() => router.push(`/marketplace/detail-produk/${item.product.slug}`)}
                   >
                     {item.product.name}
                   </h2>
-                  <p className="text-orange-600 font-extrabold text-lg mt-1">
+                  <p className="text-[#FF6D1F] font-black text-xl mt-1">
                     {formatRupiah(item.product.price)}
                   </p>
                   
-                  {/* MOBILE QTY & DELETE */}
-                  <div className="flex md:hidden items-center justify-between mt-3">
-                    <div className="flex items-center gap-2 bg-gray-100 p-1 rounded-lg">
-                      <button onClick={() => updateQty(item.id, item.quantity - 1)} className="p-1 hover:text-orange-500"><Minus size={14}/></button>
-                      <span className="text-sm font-bold w-6 text-center">{item.quantity}</span>
-                      <button onClick={() => updateQty(item.id, item.quantity + 1)} className="p-1 hover:text-orange-500"><Plus size={14}/></button>
+                  {/* MOBILE ACTIONS */}
+                  <div className="flex md:hidden items-center justify-between mt-4">
+                    <div className="flex items-center gap-3 bg-gray-50 p-1.5 rounded-xl border">
+                      <button onClick={() => updateQty(item.id, item.quantity - 1)} className="p-1 text-gray-400 hover:text-[#FF6D1F]"><Minus size={16}/></button>
+                      <span className="text-sm font-black w-6 text-center text-[#234C6A]">{item.quantity}</span>
+                      <button onClick={() => updateQty(item.id, item.quantity + 1)} className="p-1 text-gray-400 hover:text-[#FF6D1F]"><Plus size={16}/></button>
                     </div>
-                    <button onClick={() => removeItem(item.id)} className="text-red-400 p-2"><Trash2 size={18}/></button>
+                    <button onClick={() => removeItem(item.id)} className="text-red-400 p-2 hover:text-red-600"><Trash2 size={20}/></button>
                   </div>
                 </div>
 
                 {/* DESKTOP ACTIONS */}
-                <div className="hidden md:flex flex-col items-end gap-3">
-                  <button onClick={() => removeItem(item.id)} className="text-gray-400 hover:text-red-500 transition-colors">
-                    <Trash2 size={20} />
+                <div className="hidden md:flex flex-col items-end gap-4">
+                  <button onClick={() => removeItem(item.id)} className="text-gray-300 hover:text-red-500 transition-colors">
+                    <Trash2 size={22} />
                   </button>
-                  <div className="flex items-center gap-4 bg-gray-50 border rounded-xl p-1 px-2">
+                  <div className="flex items-center gap-5 bg-gray-50 border border-gray-100 rounded-2xl p-1.5 px-3">
                     <button 
                       onClick={() => updateQty(item.id, item.quantity - 1)}
-                      className="w-8 h-8 flex items-center justify-center hover:bg-white rounded-lg transition-colors"
+                      className="w-8 h-8 flex items-center justify-center hover:bg-white hover:text-[#FF6D1F] rounded-xl transition-all text-gray-400"
                     >
-                      <Minus size={16} />
+                      <Minus size={18} />
                     </button>
-                    <span className="font-bold text-slate-700 min-w-5 text-center">{item.quantity}</span>
+                    <span className="font-black text-[#234C6A] min-w-5 text-center">{item.quantity}</span>
                     <button 
                       onClick={() => updateQty(item.id, item.quantity + 1)}
-                      className="w-8 h-8 flex items-center justify-center hover:bg-white rounded-lg transition-colors"
+                      className="w-8 h-8 flex items-center justify-center hover:bg-white hover:text-[#FF6D1F] rounded-xl transition-all text-gray-400"
                     >
-                      <Plus size={16} />
+                      <Plus size={18} />
                     </button>
                   </div>
                 </div>
@@ -270,14 +290,14 @@ export default function CartPage() {
 
         {/* STICKY FOOTER */}
         {selectedItems.length > 0 && (
-          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-4xl bg-slate-900 text-white p-4 md:p-6 rounded-3xl shadow-2xl flex flex-col md:flex-row justify-between items-center gap-4 border border-white/10 backdrop-blur-md">
+          <div className="fixed bottom-8 left-1/2 -translate-x-1/2 w-[calc(100%-2.5rem)] max-w-4xl bg-[#234C6A] text-white p-5 md:p-7 rounded-[2.5rem] shadow-2xl flex flex-col md:flex-row justify-between items-center gap-5 border border-white/10 backdrop-blur-md">
             <div className="flex items-center gap-6">
-              <div className="hidden md:block bg-white/10 p-3 rounded-2xl">
-                <ShoppingCart className="text-orange-400" />
+              <div className="hidden md:block bg-white/10 p-4 rounded-2xl">
+                <ShoppingCart className="text-[#FF6D1F]" size={28} />
               </div>
               <div>
-                <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">Total Pembayaran</p>
-                <p className="text-2xl font-black text-orange-400 leading-none">
+                <p className="text-[10px] text-blue-200 font-black uppercase tracking-widest mb-1">Total Pembayaran</p>
+                <p className="text-3xl font-black text-[#FF6D1F] leading-none tracking-tighter">
                   {formatRupiah(total)}
                 </p>
               </div>
@@ -288,10 +308,10 @@ export default function CartPage() {
                 localStorage.setItem("checkout_items", JSON.stringify(selectedItems));
                 router.push("/checkout");
               }}
-              className="w-full md:w-auto bg-orange-500 hover:bg-orange-600 text-white px-10 py-4 rounded-2xl font-black flex items-center justify-center gap-3 transition-all transform active:scale-95 shadow-lg shadow-orange-500/20"
+              className="w-full md:w-auto bg-[#FF6D1F] hover:bg-orange-600 text-white px-12 py-5 rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-3 transition-all transform active:scale-95 shadow-xl shadow-orange-500/20"
             >
-              Checkout Sekarang ({selectedItems.length})
-              <ArrowRight size={20} />
+              Checkout ({selectedItems.length})
+              <ArrowRight size={22} />
             </button>
           </div>
         )}
