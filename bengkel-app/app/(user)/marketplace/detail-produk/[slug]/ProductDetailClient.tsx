@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import Link from "next/link";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -15,9 +14,12 @@ import { alertSuccess, alertError } from "@/components/Alert";
 const BASE_URL = "https://tekweb-uas-production.up.railway.app";
 const API_URL = `${BASE_URL}/api`;
 
+/* ================= INTERFACE ================= */
+
 interface Product {
   id: number;
   name: string;
+  slug: string;
   price: any;
   original_price?: any;
   is_promo?: boolean;
@@ -37,38 +39,47 @@ interface Review {
 
 interface Props {
   product: Product;
-  reviews: Review[];
-  avgRating: string;
-  totalReviews: number;
 }
 
-export default function ProductDetailClient({
-  product,
-  reviews,
-  avgRating,
-  totalReviews,
-}: Props) {
+export default function ProductDetailClient({ product }: Props) {
   const router = useRouter();
+
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [avgRating, setAvgRating] = useState("0.0");
+  const [totalReviews, setTotalReviews] = useState(0);
   const [currentImgIndex, setCurrentImgIndex] = useState(0);
   const [loadingCart, setLoadingCart] = useState(false);
 
-  // 🔹 IMAGE URL SAFE
-  const getImageUrl = useCallback(
-    (index: number) => {
-      const img = product.img_urls?.[index];
-      if (!img) return `${BASE_URL}/storage/products/default.png`;
-      if (img.startsWith("http")) return img;
-      return `${BASE_URL}/storage/products/${img.replace("products/", "")}`;
-    },
-    [product.img_urls]
-  );
+  /* ================= IMAGE ================= */
 
-  // 🔹 ADD TO CART
+  const getImageUrl = (index: number) => {
+    const img = product.img_urls?.[index];
+    if (!img) return `${BASE_URL}/storage/products/default.png`;
+    if (img.startsWith("http")) return img;
+    return `${BASE_URL}/storage/products/${img}`;
+  };
+
+  /* ================= FETCH REVIEW (ANTI LOOP) ================= */
+
+  useEffect(() => {
+    fetch(`${API_URL}/reviews?product_id=${product.id}`)
+      .then((res) => res.json())
+      .then((data) => {
+        setReviews(data.reviews || []);
+        setAvgRating(data.average_rating || "0.0");
+        setTotalReviews(data.total_reviews || 0);
+      })
+      .catch(() => {});
+  }, [product.id]);
+
+  /* ================= CART ================= */
+
   const handleAddToCart = async () => {
     const token = document.cookie.match(/token=([^;]+)/)?.[1];
     if (!token) {
       alertError("Silakan login terlebih dahulu");
-      return router.push("/auth/login");
+      router.push("/auth/login");
+      return;
     }
 
     setLoadingCart(true);
@@ -95,32 +106,30 @@ export default function ProductDetailClient({
     }
   };
 
-  const p = parseFloat(product.price || 0);
+  const p = parseFloat(product.price);
   const op = product.original_price ? parseFloat(product.original_price) : 0;
   const hasPromo = product.is_promo && op > p;
 
   return (
     <div className="bg-gray-50 min-h-screen pb-20">
       <div className="max-w-6xl mx-auto px-4 py-8">
-
-        {/* 🔥 BACK BUTTON ANTI LOOP */}
-        <Link
-          href="/marketplace"
+        <button
+          onClick={() => router.back()}
           className="flex items-center gap-2 mb-8 font-bold text-[#234C6A]"
         >
-          <ArrowLeft size={20} /> Kembali ke Marketplace
-        </Link>
+          <ArrowLeft size={20} /> Kembali
+        </button>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
           {/* IMAGE */}
-          <div className="relative rounded-2xl bg-white border overflow-hidden">
+          <div className="relative bg-white rounded-2xl border">
             <img
               src={getImageUrl(currentImgIndex)}
               alt={product.name}
               className="w-full h-[500px] object-contain p-6"
             />
 
-            {product.img_urls?.length > 1 && (
+            {product.img_urls.length > 1 && (
               <>
                 <button
                   onClick={() =>
@@ -130,7 +139,7 @@ export default function ProductDetailClient({
                         product.img_urls.length
                     )
                   }
-                  className="absolute left-4 top-1/2 bg-white p-2 rounded-full shadow"
+                  className="absolute left-4 top-1/2 bg-white p-2 rounded-full"
                 >
                   <ChevronLeft />
                 </button>
@@ -140,7 +149,7 @@ export default function ProductDetailClient({
                       (i) => (i + 1) % product.img_urls.length
                     )
                   }
-                  className="absolute right-4 top-1/2 bg-white p-2 rounded-full shadow"
+                  className="absolute right-4 top-1/2 bg-white p-2 rounded-full"
                 >
                   <ChevronRight />
                 </button>
@@ -183,16 +192,6 @@ export default function ProductDetailClient({
               )}
             </button>
           </div>
-        </div>
-
-        {/* DESKRIPSI */}
-        <div className="mt-12 bg-white p-8 rounded-2xl border">
-          <h2 className="text-xl font-black mb-4">Deskripsi Produk</h2>
-          <div
-            dangerouslySetInnerHTML={{
-              __html: product.description?.replace(/\n/g, "<br/>"),
-            }}
-          />
         </div>
       </div>
     </div>
