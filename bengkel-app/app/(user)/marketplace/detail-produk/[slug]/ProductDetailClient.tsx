@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -51,13 +52,18 @@ export default function ProductDetailClient({
   const [currentImgIndex, setCurrentImgIndex] = useState(0);
   const [loadingCart, setLoadingCart] = useState(false);
 
-  const getImageUrl = useCallback((index: number) => {
-    const img = product.img_urls?.[index];
-    if (!img) return `${BASE_URL}/storage/products/default.png`;
-    if (img.startsWith("http")) return img;
-    return `${BASE_URL}/storage/products/${img.replace("products/", "")}`;
-  }, [product.img_urls]);
+  // 🔹 IMAGE URL SAFE
+  const getImageUrl = useCallback(
+    (index: number) => {
+      const img = product.img_urls?.[index];
+      if (!img) return `${BASE_URL}/storage/products/default.png`;
+      if (img.startsWith("http")) return img;
+      return `${BASE_URL}/storage/products/${img.replace("products/", "")}`;
+    },
+    [product.img_urls]
+  );
 
+  // 🔹 ADD TO CART
   const handleAddToCart = async () => {
     const token = document.cookie.match(/token=([^;]+)/)?.[1];
     if (!token) {
@@ -96,16 +102,18 @@ export default function ProductDetailClient({
   return (
     <div className="bg-gray-50 min-h-screen pb-20">
       <div className="max-w-6xl mx-auto px-4 py-8">
-        <button
-          onClick={() => router.back()}
+
+        {/* 🔥 BACK BUTTON ANTI LOOP */}
+        <Link
+          href="/marketplace"
           className="flex items-center gap-2 mb-8 font-bold text-[#234C6A]"
         >
-          <ArrowLeft size={20} /> Kembali
-        </button>
+          <ArrowLeft size={20} /> Kembali ke Marketplace
+        </Link>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
           {/* IMAGE */}
-          <div className="relative overflow-hidden rounded-2xl bg-white border">
+          <div className="relative rounded-2xl bg-white border overflow-hidden">
             <img
               src={getImageUrl(currentImgIndex)}
               alt={product.name}
@@ -117,10 +125,12 @@ export default function ProductDetailClient({
                 <button
                   onClick={() =>
                     setCurrentImgIndex(
-                      (i) => (i - 1 + product.img_urls.length) % product.img_urls.length
+                      (i) =>
+                        (i - 1 + product.img_urls.length) %
+                        product.img_urls.length
                     )
                   }
-                  className="absolute left-4 top-1/2 bg-white p-2 rounded-full"
+                  className="absolute left-4 top-1/2 bg-white p-2 rounded-full shadow"
                 >
                   <ChevronLeft />
                 </button>
@@ -130,7 +140,7 @@ export default function ProductDetailClient({
                       (i) => (i + 1) % product.img_urls.length
                     )
                   }
-                  className="absolute right-4 top-1/2 bg-white p-2 rounded-full"
+                  className="absolute right-4 top-1/2 bg-white p-2 rounded-full shadow"
                 >
                   <ChevronRight />
                 </button>
@@ -166,7 +176,11 @@ export default function ProductDetailClient({
               disabled={loadingCart || product.stock === 0}
               className="w-full bg-[#FF6D1F] text-white py-4 rounded-xl font-black"
             >
-              {loadingCart ? <Loader2 className="animate-spin mx-auto" /> : "Masukkan Keranjang"}
+              {loadingCart ? (
+                <Loader2 className="animate-spin mx-auto" />
+              ) : (
+                "Masukkan Keranjang"
+              )}
             </button>
           </div>
         </div>
