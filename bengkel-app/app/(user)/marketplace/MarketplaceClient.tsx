@@ -45,17 +45,14 @@ export default function MarketplaceClient() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("Semua");
 
-  // 🚀 LOGIKA GAMBAR SUPER AMAN
+  // ================= IMAGE HANDLER (FIX PATH) =================
   const getImageUrl = (imgData?: any): string => {
     let img = "";
 
-    // 1. Cek jika data adalah array
     if (Array.isArray(imgData) && imgData.length > 0) {
       img = imgData[0];
-    } 
-    // 2. Cek jika data adalah string (bisa jadi JSON string)
-    else if (typeof imgData === 'string') {
-      if (imgData.startsWith('[') && imgData.endsWith(']')) {
+    } else if (typeof imgData === "string") {
+      if (imgData.startsWith("[") && imgData.endsWith("]")) {
         try {
           const parsed = JSON.parse(imgData);
           img = Array.isArray(parsed) ? parsed[0] : parsed;
@@ -67,18 +64,19 @@ export default function MarketplaceClient() {
       }
     }
 
-    if (!img || typeof img !== 'string') return "/no-image.png";
+    if (!img || typeof img !== "string") return "/no-image.png";
     if (img.startsWith("http")) return img;
 
-    // 3. Bersihkan path dari 'public/' atau 'products/' double
-    const clean = img.replace("public/products/", "")
-                     .replace("products/", "")
-                     .replace("public/", "");
+    const clean = img
+      .replace("public/images/", "")
+      .replace("images/", "")
+      .replace("public/", "");
 
-    return `${BASE_URL}/storage/products/${clean}`;
+    // 🔥 FIX UTAMA (sesuai lokasi file public/images)
+    return `${BASE_URL}/images/${clean}`;
   };
 
-  // FETCH DATA AWAL
+  // ================= FETCH DATA =================
   const initMarketplace = useCallback(async () => {
     setLoading(true);
     const headers = { Accept: "application/json" };
@@ -100,7 +98,7 @@ export default function MarketplaceClient() {
     }
   }, []);
 
-  // FETCH JUMLAH BARANG DI KERANJANG
+  // ================= CART COUNT =================
   const fetchCartCount = useCallback(async () => {
     const token = document.cookie.match(/token=([^;]+)/)?.[1];
     if (!token) return;
@@ -113,7 +111,9 @@ export default function MarketplaceClient() {
         const items = json.cart || json.data || [];
         setCartCount(items.length);
       }
-    } catch (err) { console.error("Cart Count Error:", err); }
+    } catch (err) {
+      console.error("Cart Count Error:", err);
+    }
   }, []);
 
   useEffect(() => {
@@ -121,7 +121,7 @@ export default function MarketplaceClient() {
     fetchCartCount();
   }, [initMarketplace, fetchCartCount]);
 
-  // 🔥 TAMBAH KE CART
+  // ================= ADD TO CART =================
   const handleAddToCart = async (productId: number, finalPrice: number) => {
     const token = document.cookie.match(/token=([^;]+)/)?.[1];
     if (!token) {
@@ -152,24 +152,29 @@ export default function MarketplaceClient() {
         const error = await res.json();
         throw new Error(error.message || "Gagal masuk keranjang");
       }
-    } catch (err: any) { 
-      alertError(err.message || "Gagal menambah keranjang"); 
+    } catch (err: any) {
+      alertError(err.message || "Gagal menambah keranjang");
     }
   };
 
+  // ================= FILTER =================
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
       const matchSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchCategory = selectedCategory === "Semua" || p.jenis_barang === selectedCategory;
+      const matchCategory =
+        selectedCategory === "Semua" || p.jenis_barang === selectedCategory;
       return matchSearch && matchCategory;
     });
   }, [products, searchQuery, selectedCategory]);
 
-  if (loading) return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0f172a]">
-      <Loader2 className="animate-spin text-orange-400" size={50} />
-    </div>
-  );
+  // ================= LOADING =================
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#0f172a]">
+        <Loader2 className="animate-spin text-orange-400" size={50} />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 pb-24 font-sans">
@@ -179,8 +184,8 @@ export default function MarketplaceClient() {
           <h1 className="text-5xl font-black italic tracking-tighter uppercase">
             Bengkel<span className="text-orange-400">Market</span>
           </h1>
-          <button 
-            onClick={() => router.push("/cart")} 
+          <button
+            onClick={() => router.push("/cart")}
             className="group relative bg-white/5 border border-white/10 p-5 rounded-4xl hover:bg-orange-500 transition-all shadow-2xl active:scale-90"
           >
             <ShoppingCart size={28} />
@@ -194,7 +199,6 @@ export default function MarketplaceClient() {
       </div>
 
       <div className="max-w-7xl mx-auto px-6 -mt-12 relative z-20">
-        
         {/* HOT PROMO */}
         {promotions.length > 0 && selectedCategory === "Semua" && !searchQuery && (
           <section className="mb-24">
@@ -227,10 +231,14 @@ export default function MarketplaceClient() {
                         original_price: originalPrice,
                         discountPercent: discountLabel,
                         jenis_barang: p.jenis_barang,
-                        img_urls: getImageUrl(p.img_urls), // Mengirim string murni
+                        img_urls: getImageUrl(p.img_urls),
                       }}
-                      onClick={() => router.push(`/marketplace/detail-produk-promo/${p.slug}`)}
-                      onAdd={() => handleAddToCart(p.id, Math.round(promoPrice))}
+                      onClick={() =>
+                        router.push(`/marketplace/detail-produk-promo/${p.slug}`)
+                      }
+                      onAdd={() =>
+                        handleAddToCart(p.id, Math.round(promoPrice))
+                      }
                     />
                   );
                 })
@@ -239,7 +247,7 @@ export default function MarketplaceClient() {
           </section>
         )}
 
-        {/* KATALOG PRODUK */}
+        {/* KATALOG */}
         <section>
           <div className="inline-flex items-center gap-4 mb-12 border-b-8 border-[#0f172a] pb-4 text-[#0f172a]">
             <Tag size={40} className="text-orange-500" />
@@ -252,13 +260,17 @@ export default function MarketplaceClient() {
             {filteredProducts.map((p) => (
               <ProductCard
                 key={p.id}
-                product={{ 
-                  ...p, 
-                  price: Number(p.price), 
-                  img_urls: [getImageUrl(p.img_urls)] // Mengirim array
+                product={{
+                  ...p,
+                  price: Number(p.price),
+                  img_urls: [getImageUrl(p.img_urls)],
                 }}
-                onClick={() => router.push(`/marketplace/detail-produk/${p.slug}`)}
-                onAdd={(id) => handleAddToCart(id, Number(p.price))}
+                onClick={() =>
+                  router.push(`/marketplace/detail-produk/${p.slug}`)
+                }
+                onAdd={(id) =>
+                  handleAddToCart(id, Number(p.price))
+                }
               />
             ))}
           </div>
