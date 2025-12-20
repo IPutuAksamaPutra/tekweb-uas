@@ -133,9 +133,23 @@ class OrderController extends Controller
     // ====================================================
     public function adminIndex()
     {
-        // 🔥 Admin butuh melihat SIAPA yang beli (user) 
-        // dan APA yang dibeli (item)
         $orders = Order::with('user:id,name')->latest()->get();
+
+        // Map setiap order untuk mengisi nama produk secara manual
+        $orders->transform(function ($order) {
+            $items = is_string($order.items) ? json_decode($order.items, true) : $order.items;
+            
+            if (is_array($items)) {
+                foreach ($items as &$item) {
+                    // Cari nama produk berdasarkan product_id
+                    $product = \App\Models\Product::find($item['product_id']);
+                    $item['product_name'] = $product ? $product->name : 'Produk Tidak Ditemukan';
+                }
+            }
+            
+            $order->items = $items;
+            return $order;
+        });
 
         return response()->json([
             'status' => 'success',
