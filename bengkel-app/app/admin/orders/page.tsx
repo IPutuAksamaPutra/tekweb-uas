@@ -2,25 +2,20 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { 
-  Package, Loader2, User as UserIcon, RefreshCw, 
-  CheckCircle, CreditCard, MapPin, Phone 
+  Package, Loader2, RefreshCw 
 } from "lucide-react";
 import { alertSuccess, alertError } from "@/components/Alert";
 
-/* =====================
-    INTERFACE
-===================== */
 interface OrderItem {
   product_id: number;
-  product_name?: string; 
+  product_name?: string;
   quantity: number;
   subtotal: number;
 }
 
 interface Order {
   id: number;
-  user?: { name: string };
-  items: OrderItem[] | string;
+  items: OrderItem[];
   name: string; 
   no_tlp: string;
   address: string;
@@ -31,12 +26,11 @@ interface Order {
   created_at: string;
 }
 
-export default function AdminOrdersPage() {
+export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
 
-  // 🔥 PASTIKAN URL INI BENAR (TANPA SLASH DI AKHIR)
   const apiUrl = "https://tekweb-uas-production.up.railway.app/api";
 
   const getCookie = (name: string) => {
@@ -47,67 +41,60 @@ export default function AdminOrdersPage() {
 
   const loadOrders = useCallback(async () => {
     const token = getCookie("token");
-    
-    // DEBUG: Cek apakah token kebaca di console browser
-    console.log("Fetching dengan Token:", token);
-
     if (!token) {
-      console.error("Token tidak ditemukan di cookie!");
       setLoading(false);
       return;
     }
 
     try {
-      const res = await fetch(`${apiUrl}/admin/orders`, {
-        method: "GET",
-        headers: { 
-            "Authorization": `Bearer ${token}`,
-            "Accept": "application/json",
-            "Content-Type": "application/json",
+      const res = await fetch(`${apiUrl}/orders`, {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Accept": "application/json",
         },
-        // mode: 'cors' // Opsional jika masih kena CORS
       });
 
       if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.message || `Error ${res.status}: Gagal ambil data`);
+        const err = await res.json();
+        throw new Error(err.message || `Error ${res.status}`);
       }
 
       const data = await res.json();
-      console.log("Data diterima:", data);
-
       setOrders(data.orders || []);
     } catch (err: any) {
-      console.error("Fetch Error:", err.message);
-      alertError(err.message || "Gagal menyambung ke server");
+      alertError(err.message || "Gagal ambil data");
     } finally {
       setLoading(false);
     }
   }, [apiUrl]);
 
-  async function updateStatus(orderId: number, status: string) {
+  const updateStatus = async (orderId: number, status: string) => {
     const token = getCookie("token");
     if (!token) return;
+
     setUpdatingId(orderId);
+
     try {
-      const res = await fetch(`${apiUrl}/admin/orders/${orderId}/status`, {
+      const res = await fetch(`${apiUrl}/orders/${orderId}/status`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${token}`,
           "Content-Type": "application/json",
           "Accept": "application/json"
         },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status })
       });
+
       if (!res.ok) throw new Error("Gagal update status");
-      alertSuccess("Status Berhasil Diperbarui");
+
+      alertSuccess("Status berhasil diperbarui");
       loadOrders();
     } catch (err: any) {
       alertError(err.message);
     } finally {
       setUpdatingId(null);
     }
-  }
+  };
 
   useEffect(() => {
     loadOrders();
@@ -139,7 +126,7 @@ export default function AdminOrdersPage() {
         </header>
 
         <div className="grid gap-6">
-          {orders.length > 0 ? orders.map((order) => (
+          {orders.length > 0 ? orders.map(order => (
             <div key={order.id} className="bg-white rounded-3xl border-2 shadow-lg overflow-hidden">
               <div className="bg-gray-50 px-8 py-4 border-b flex justify-between items-center">
                 <div>
@@ -148,7 +135,7 @@ export default function AdminOrdersPage() {
                 </div>
                 <div className="text-right">
                   <span className="text-[10px] font-black text-gray-400 uppercase">Customer</span>
-                  <p className="font-bold text-orange-600 uppercase text-sm italic">{order.user?.name || order.name}</p>
+                  <p className="font-bold text-orange-600 uppercase text-sm italic">{order.name}</p>
                 </div>
               </div>
 
@@ -163,7 +150,7 @@ export default function AdminOrdersPage() {
                       </tr>
                     </thead>
                     <tbody className="text-sm font-bold text-[#234C6A]">
-                      {(Array.isArray(order.items) ? order.items : []).map((item, i) => (
+                      {order.items.map((item, i) => (
                         <tr key={i} className="border-b last:border-0">
                           <td className="py-3 uppercase">{item.product_name || `Produk #${item.product_id}`}</td>
                           <td className="py-3">{item.quantity}</td>

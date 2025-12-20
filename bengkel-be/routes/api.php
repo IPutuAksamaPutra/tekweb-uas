@@ -118,9 +118,8 @@ Route::middleware(['auth:sanctum','role:admin,super_admin'])->group(function () 
 // =======================================================
 // 6. ADMIN ORDERS
 // =======================================================
-Route::middleware(['auth:sanctum', 'role:admin,super_admin'])
-    ->prefix('admin')
-    ->group(function () {
-        Route::get('orders', [OrderController::class, 'adminIndex']); // <-- Ganti index() jadi adminIndex()
-        Route::patch('orders/{id}/status', [OrderController::class, 'updateStatus']);
-    });
+// User harus login
+Route::middleware('auth:sanctum')->group(function () {
+    Route::apiResource('orders', OrderController::class)
+        ->only(['index','show','store']);
+});
