@@ -37,31 +37,37 @@ interface Review {
   user: { name: string };
 }
 
-interface Props {
-  product: Product;
-}
-
-export default function ProductDetailClient({ product }: Props) {
+export default function ProductDetailClient({ slug }: { slug: string }) {
   const router = useRouter();
 
+  const [product, setProduct] = useState<Product | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [avgRating, setAvgRating] = useState("0.0");
   const [totalReviews, setTotalReviews] = useState(0);
   const [currentImgIndex, setCurrentImgIndex] = useState(0);
   const [loadingCart, setLoadingCart] = useState(false);
+  const [error, setError] = useState(false);
 
-  /* ================= IMAGE ================= */
+  /* ================= FETCH PRODUCT ================= */
 
-  const getImageUrl = (index: number) => {
-    const img = product.img_urls?.[index];
-    if (!img) return `${BASE_URL}/storage/products/default.png`;
-    if (img.startsWith("http")) return img;
-    return `${BASE_URL}/storage/products/${img}`;
-  };
+  useEffect(() => {
+    fetch(`${API_URL}/products/slug/${slug}`)
+      .then((res) => {
+        if (!res.ok) throw new Error();
+        return res.json();
+      })
+      .then((data) => {
+        if (!data?.product?.id) throw new Error();
+        setProduct(data.product);
+      })
+      .catch(() => setError(true));
+  }, [slug]);
 
   /* ================= FETCH REVIEW (ANTI LOOP) ================= */
 
   useEffect(() => {
+    if (!product?.id) return;
+
     fetch(`${API_URL}/reviews?product_id=${product.id}`)
       .then((res) => res.json())
       .then((data) => {
@@ -70,11 +76,22 @@ export default function ProductDetailClient({ product }: Props) {
         setTotalReviews(data.total_reviews || 0);
       })
       .catch(() => {});
-  }, [product.id]);
+  }, [product?.id]);
+
+  /* ================= IMAGE ================= */
+
+  const getImageUrl = (index: number) => {
+    const img = product?.img_urls?.[index];
+    if (!img) return `${BASE_URL}/storage/products/default.png`;
+    if (img.startsWith("http")) return img;
+    return `${BASE_URL}/storage/products/${img}`;
+  };
 
   /* ================= CART ================= */
 
   const handleAddToCart = async () => {
+    if (!product) return;
+
     const token = document.cookie.match(/token=([^;]+)/)?.[1];
     if (!token) {
       alertError("Silakan login terlebih dahulu");
@@ -105,6 +122,16 @@ export default function ProductDetailClient({ product }: Props) {
       setLoadingCart(false);
     }
   };
+
+  /* ================= STATE HANDLING ================= */
+
+  if (error) {
+    return <p className="text-center mt-20">Produk tidak ditemukan</p>;
+  }
+
+  if (!product) {
+    return <p className="text-center mt-20">Loading...</p>;
+  }
 
   const p = parseFloat(product.price);
   const op = product.original_price ? parseFloat(product.original_price) : 0;
