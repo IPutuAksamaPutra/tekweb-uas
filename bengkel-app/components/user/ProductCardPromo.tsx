@@ -10,7 +10,7 @@ interface PromoProduct {
   original_price: number;
   discountPercent: number;
   jenis_barang: string;
-  img_urls: string; // ganti nama sesuai API, berisi URL lengkap
+  img_urls: string; // nama file saja (contoh: xxx.jpg)
 }
 
 interface Props {
@@ -27,6 +27,10 @@ export default function ProductCardPromo({
   onAdd,
   onClick,
 }: Props) {
+  const BASE_URL =
+    process.env.NEXT_PUBLIC_API_URL ||
+    "https://tekweb-uas-production.up.railway.app";
+
   return (
     <div
       onClick={onClick}
@@ -35,7 +39,11 @@ export default function ProductCardPromo({
       {/* BAGIAN GAMBAR */}
       <div className="relative h-48 w-full bg-slate-100 overflow-hidden">
         <img
-          src={product.img_urls || "/no-image.png"} 
+          src={
+            product.img_urls
+              ? `${BASE_URL}/images/${product.img_urls}`
+              : "/no-image.png"
+          }
           alt={product.name}
           onError={(e) => {
             const target = e.target as HTMLImageElement;
@@ -59,7 +67,7 @@ export default function ProductCardPromo({
           <p className="text-[9px] font-bold text-slate-400 mt-2 uppercase tracking-[0.2em] bg-slate-50 inline-block px-2 py-1 rounded-md border border-slate-100">
             {product.jenis_barang}
           </p>
-          
+
           <div className="mt-4">
             <p className="text-[10px] text-slate-300 line-through font-bold italic">
               Rp {formatRupiah(product.original_price)}
