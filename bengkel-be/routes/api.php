@@ -10,8 +10,10 @@ use App\Http\Controllers\Api\BookingController;
 use App\Http\Controllers\Api\CashierController;
 use App\Http\Controllers\Api\PromotionController;
 use App\Http\Controllers\Api\CartController;
-use App\Http\Controllers\Api\OrderController; // 🔥 Ini yang kita pakai
+use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\ReviewController;
+use App\Http\Controllers\Admin\AdminOrderController;
+
 
 // ==================================
 // 1. PUBLIC ROUTES
@@ -114,12 +116,11 @@ Route::middleware(['auth:sanctum','role:admin,super_admin'])->group(function () 
 
 
 // =======================================================
-// 6. ADMIN ORDERS (DIUBAH KE OrderController @adminIndex)
+// 6. ADMIN ORDERS
 // =======================================================
-Route::middleware(['auth:sanctum', 'role:admin,super_admin,kasir'])
+Route::middleware(['auth:sanctum', 'role:admin,super_admin'])
     ->prefix('admin')
     ->group(function () {
-        // 🔥 Sekarang panggil OrderController, bukan AdminOrderController
-        Route::get('orders', [OrderController::class, 'adminIndex']); 
+        Route::get('orders', [OrderController::class, 'index']);
         Route::post('orders/{id}/status', [OrderController::class, 'updateStatus']);
 });
