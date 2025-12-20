@@ -5,48 +5,129 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\Order;
-use App\Models\Product;
 use App\Models\Cart;
-use Illuminate\Support\Facades\DB;
+use App\Models\Product;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
 
 class OrderController extends Controller
 {
     public function __construct()
     {
-        // Tetap pakai auth agar tahu siapa yang memanggil API
         $this->middleware('auth:sanctum');
     }
 
+    // ====================================================
+    // 1. LIST PESANAN MILIK USER SENDIRI (Customer)
+    // ====================================================
+    public function index(Request $request)
+    {
+        $orders = Order::where('user_id', $request->user()->id)
+            ->orderByDesc('created_at')
+            ->get();
+
+        return response()->json([
+            'status'  => 'success',
+            'message' => 'Daftar pesanan ditemukan',
+            'orders'  => $orders
+        ]);
+    }
+
+    // ====================================================
+    // 2. DETAIL PESANAN
+    // ====================================================
+    public function show(Request $request, $id)
+    {
+        $order = Order::where('user_id', $request->user()->id)
+            ->where('id', $id)
+            ->firstOrFail();
+
+        return response()->json([
+            'status'  => 'success',
+            'order'   => $order
+        ]);
+    }
+
+    // ====================================================
+    // 3. CHECKOUT (Simpan Pesanan)
+    // ====================================================
+    public function store(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'items'    => 'required|array',
+            'name'     => 'required|string',
+            'no_tlp'   => 'required|string',
+            'address'  => 'required|string',
+            'total'    => 'required|numeric',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+
+        try {
+            $orderResult = DB::transaction(function () use ($request) {
+                // Cek stok
+                foreach ($request->items as $item) {
+                    $product = Product::find($item['product_id']);
+                    if (!$product || $product->stock < $item['quantity']) {
+                        throw new \Exception('Stok ' . ($product->name ?? 'produk') . ' tidak cukup');
+                    }
+                }
+
+                // Buat Order
+                $order = Order::create([
+                    'user_id'  => $request->user()->id,
+                    'items'    => $request->items,
+                    'name'     => $request->name,
+                    'no_tlp'   => $request->no_tlp,
+                    'address'  => $request->address,
+                    'delivery' => $request->delivery ?? 'kurir',
+                    'payment'  => $request->payment ?? 'transfer',
+                    'total'    => $request->total,
+                    'status'   => 'pending'
+                ]);
+
+                // Kurangi stok
+                foreach ($request->items as $item) {
+                    Product::where('id', $item['product_id'])->decrement('stock', $item['quantity']);
+                }
+
+                // Hapus Cart
+                Cart::where('user_id', $request->user()->id)->delete();
+
+                return $order;
+            });
+
+            return response()->json(['status' => 'success', 'order' => $orderResult], 201);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 400);
+        }
+    }
+
+    // ====================================================
+    // 4. KHUSUS ADMIN - LIST SEMUA PESANAN (FIX NAMA PRODUK)
+    // ====================================================
     public function adminIndex()
     {
         try {
-            // Ambil semua order tanpa filter role dulu untuk memastikan data keluar
+            // Ambil semua order + nama user yang login
             $orders = Order::with('user:id,name')->latest()->get();
 
-            // Jika database kosong, jangan di-loop, langsung kirim array kosong
-            if ($orders->isEmpty()) {
-                return response()->json(['status' => 'success', 'orders' => []]);
-            }
-
+            // Suntikkan nama produk ke dalam items JSON
             $orders->transform(function ($order) {
-                // TAHAP AMAN 1: Pastikan items bukan NULL
                 $items = $order->items;
                 
-                // Jika database menyimpan dalam bentuk String, kita decode manual
                 if (is_string($items)) {
                     $items = json_decode($items, true);
                 }
 
-                // TAHAP AMAN 2: Hanya loop jika items adalah Array
                 if (is_array($items)) {
                     foreach ($items as &$item) {
-                        // Cari produk dengan full namespace agar tidak Class Not Found
-                        $product = \App\Models\Product::find($item['product_id'] ?? 0);
-                        $item['product_name'] = $product ? $product->name : 'Produk Terhapus';
+                        $p = Product::find($item['product_id']);
+                        $item['product_name'] = $p ? $p->name : 'Produk Tidak Ditemukan';
                     }
-                } else {
-                    $items = []; // Jika data korup, tampilkan array kosong
                 }
 
                 $order->items = $items;
@@ -56,17 +137,32 @@ class OrderController extends Controller
             return response()->json([
                 'status' => 'success',
                 'orders' => $orders
-            ], 200);
+            ]);
 
-        } catch (\Throwable $e) {
-            // Trik Debug: Jika error, Laravel akan mengirim pesan aslinya ke Frontend
+        } catch (\Exception $e) {
             return response()->json([
-                'status' => 'error',
-                'message' => $e->getMessage(),
-                'line' => $e->getLine()
-            ], 200); // Paksa 200 agar pesan error tidak terblokir status 500
+                'status'  => 'error',
+                'message' => 'Gagal mengambil data admin: ' . $e->getMessage()
+            ], 500);
         }
     }
 
-    // Fungsi lain (store, updateStatus) biarkan tetap ada di bawah sini...
+    // ====================================================
+    // 5. UPDATE STATUS (Dipanggil Admin)
+    // ====================================================
+    public function updateStatus(Request $request, $id)
+    {
+        try {
+            $order = Order::findOrFail($id);
+            $order->update(['status' => $request->status]);
+
+            return response()->json([
+                'status'  => 'success',
+                'message' => 'Status berhasil diperbarui',
+                'order'   => $order
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
+        }
+    }
 }
