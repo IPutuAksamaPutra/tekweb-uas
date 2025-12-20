@@ -6,6 +6,7 @@ use Illuminate\Support\ServiceProvider;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Facades\Artisan; // ⬅️ TAMBAH INI
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -25,6 +26,13 @@ class AppServiceProvider extends ServiceProvider
         // 🔐 Paksa HTTPS di production (fix mixed content)
         if (config('app.env') === 'production') {
             URL::forceScheme('https');
+
+            // 🚀 AUTO MIGRATE (Railway tanpa shell)
+            try {
+                Artisan::call('migrate', ['--force' => true]);
+            } catch (\Throwable $e) {
+                // sengaja dikosongkan supaya app tidak crash
+            }
         }
 
         VerifyEmail::toMailUsing(function (object $notifiable, string $url) {
