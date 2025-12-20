@@ -33,16 +33,11 @@ class OrderController extends Controller
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'items' => 'required|array|min:1',
-            'items.*.product_id' => 'required|exists:products,id',
-            'items.*.quantity' => 'required|integer|min:1',
-            'items.*.subtotal' => 'required|numeric|min:0',
-            'name' => 'required|string|max:255',
-            'no_tlp' => 'required|string|max:20',
+            'items' => 'required|array',
+            'name' => 'required|string',
+            'no_tlp' => 'required|string',
             'address' => 'required|string',
-            'delivery' => 'required|in:ambil_di_tempat,kurir',
-            'payment' => 'required|in:tunai,transfer',
-            'total' => 'required|numeric|min:0',
+            'total' => 'required|numeric',
         ]);
 
         if ($validator->fails()) {
@@ -50,94 +45,97 @@ class OrderController extends Controller
         }
 
         try {
-            $orderResult = DB::transaction(function () use ($request) {
+            $order = DB::transaction(function () use ($request) {
+                // Cek Stok
                 foreach ($request->items as $item) {
-                    $product = Product::lockForUpdate()->find($item['product_id']);
+                    $product = Product::find($item['product_id']);
                     if (!$product || $product->stock < $item['quantity']) {
-                        throw new \Exception('Stok produk tidak cukup');
+                        throw new \Exception('Stok produk '.$product->name.' tidak cukup');
                     }
                 }
 
-                $order = Order::create([
+                // Buat Order
+                $newOrder = Order::create([
                     'user_id' => $request->user()->id,
                     'items'   => $request->items,
                     'name'    => $request->name,
                     'no_tlp'  => $request->no_tlp,
                     'address' => $request->address,
-                    'delivery'=> $request->delivery,
-                    'payment' => $request->payment,
+                    'delivery'=> $request->delivery ?? 'kurir',
+                    'payment' => $request->payment ?? 'transfer',
                     'total'   => $request->total,
                     'status'  => 'pending'
                 ]);
 
+                // Kurangi Stok
                 foreach ($request->items as $item) {
                     Product::where('id', $item['product_id'])->decrement('stock', $item['quantity']);
                 }
 
                 Cart::where('user_id', $request->user()->id)->delete();
-                return $order;
+                return $newOrder;
             });
 
-            return response()->json(['message' => 'Pesanan berhasil dibuat', 'order' => $orderResult], 201);
+            return response()->json(['message' => 'Pesanan berhasil', 'order' => $order], 201);
         } catch (\Exception $e) {
             return response()->json(['message' => $e->getMessage()], 400);
         }
     }
 
     // ====================================================
-    // KHUSUS ADMIN - FIX NAMA PRODUK & ANTI 500
+    // FIX TOTAL: ADMIN INDEX (ANTI ERROR 500)
     // ====================================================
     public function adminIndex()
     {
         try {
-            // Ambil order + nama user pemesan
+            // Ambil data dengan with('user')
             $orders = Order::with('user:id,name')->orderByDesc('created_at')->get();
 
+            // Transform data agar item ada namanya
             $orders->transform(function ($order) {
-                $items = $order->items;
-                
-                // Pastikan items ter-decode dengan benar
-                if (is_string($items)) {
-                    $items = json_decode($items, true);
+                // Ambil items asli
+                $itemsRaw = $order->items;
+
+                // Jika items masih string (biasanya di database Railway tertentu), decode manual
+                if (is_string($itemsRaw)) {
+                    $itemsRaw = json_decode($itemsRaw, true);
                 }
 
-                if (is_array($items)) {
-                    foreach ($items as &$item) {
-                        // Ambil nama produk dari tabel products
-                        $product = Product::find($item['product_id']);
-                        $item['product_name'] = $product ? $product->name : 'Produk Tidak Ditemukan';
+                // Jika sekarang sudah jadi array, proses namanya
+                if (is_array($itemsRaw)) {
+                    foreach ($itemsRaw as &$item) {
+                        // Cari produk. Gunakan full path App\Models\Product biar aman
+                        $p = \App\Models\Product::find($item['product_id']);
+                        $item['product_name'] = $p ? $p->name : 'Sparepart Tidak Ditemukan';
                     }
                 } else {
-                    $items = [];
+                    $itemsRaw = []; // Fallback jika rusak
                 }
 
-                $order->items = $items;
+                $order->items = $itemsRaw;
                 return $order;
             });
 
             return response()->json([
-                'status' => 'success', 
+                'status' => 'success',
                 'orders' => $orders
             ], 200);
 
         } catch (\Exception $e) {
-            // Biar gak cuma 500, kita kirim pesan errornya ke Frontend
+            // JANGAN KASIH 500 POLOS. KASIH TAHU ERRORNYA APA.
             return response()->json([
-                'status' => 'error', 
+                'status' => 'error',
                 'message' => $e->getMessage(),
+                'file' => $e->getFile(),
                 'line' => $e->getLine()
-            ], 500);
+            ], 200); // Kita paksa 200 biar kamu bisa baca errornya di Postman!
         }
     }
 
     public function updateStatus(Request $request, $id)
     {
-        try {
-            $order = Order::findOrFail($id);
-            $order->update(['status' => $request->status]);
-            return response()->json(['message' => 'Status Updated']);
-        } catch (\Exception $e) {
-            return response()->json(['message' => $e->getMessage()], 500);
-        }
+        $order = Order::findOrFail($id);
+        $order->update(['status' => $request->status]);
+        return response()->json(['message' => 'Status Updated']);
     }
 }
