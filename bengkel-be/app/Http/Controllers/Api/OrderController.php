@@ -24,10 +24,9 @@ class OrderController extends Controller
     {
         $user = $request->user();
 
-        // ⛔ WAJIB: cegah 500
         if (!$user) {
             return response()->json([
-                'status' => 'error',
+                'status'  => 'error',
                 'message' => 'Unauthenticated'
             ], 401);
         }
@@ -49,7 +48,7 @@ class OrderController extends Controller
 
         if (!$user) {
             return response()->json([
-                'status' => 'error',
+                'status'  => 'error',
                 'message' => 'Unauthenticated'
             ], 401);
         }
@@ -60,7 +59,7 @@ class OrderController extends Controller
 
         return response()->json([
             'status' => 'success',
-            'order' => $order
+            'order'  => $order
         ]);
     }
 
@@ -71,7 +70,7 @@ class OrderController extends Controller
 
         if (!$user) {
             return response()->json([
-                'status' => 'error',
+                'status'  => 'error',
                 'message' => 'Unauthenticated'
             ], 401);
         }
@@ -94,16 +93,15 @@ class OrderController extends Controller
         try {
             $order = DB::transaction(function () use ($request, $user) {
 
-                // Validasi item & stok
                 foreach ($request->items as $item) {
                     if (!isset($item['product_id'], $item['quantity'])) {
-                        throw new \Exception("Data item tidak valid");
+                        throw new \Exception('Data item tidak valid');
                     }
 
                     $product = Product::find($item['product_id']);
 
                     if (!$product) {
-                        throw new \Exception("Produk tidak ditemukan");
+                        throw new \Exception('Produk tidak ditemukan');
                     }
 
                     if ($product->stock < $item['quantity']) {
@@ -111,7 +109,6 @@ class OrderController extends Controller
                     }
                 }
 
-                // Simpan order
                 $order = Order::create([
                     'user_id'  => $user->id,
                     'items'    => $request->items,
@@ -124,13 +121,11 @@ class OrderController extends Controller
                     'status'   => 'pending',
                 ]);
 
-                // Kurangi stok
                 foreach ($request->items as $item) {
                     Product::where('id', $item['product_id'])
                         ->decrement('stock', $item['quantity']);
                 }
 
-                // Kosongkan cart
                 Cart::where('user_id', $user->id)->delete();
 
                 return $order;
@@ -141,7 +136,7 @@ class OrderController extends Controller
                 'order'  => $order
             ], 201);
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return response()->json([
                 'status'  => 'error',
                 'message' => $e->getMessage()
@@ -152,45 +147,42 @@ class OrderController extends Controller
     /* ===================== ADMIN ===================== */
 
     // Semua order (admin)
-   public function adminIndex()
-{
-    try {
-        // Ambil data tanpa relasi user dulu untuk bypass error
-        $orders = Order::latest()->get();
+    public function adminIndex()
+    {
+        try {
+            $orders = Order::latest()->get();
 
-        $orders->transform(function ($order) {
-            // Pastikan items adalah array (karena kita pakai casting di Model)
-            $items = $order->items;
+            $orders->transform(function ($order) {
+                $items = is_array($order->items) ? $order->items : [];
 
-            if (is_array($items)) {
                 foreach ($items as &$item) {
-                    $product = \App\Models\Product::find($item['product_id'] ?? 0);
-                    $item['product_name'] = $product ? $product->name : 'Produk Tidak Terdaftar';
+                    $product = Product::find($item['product_id'] ?? null);
+                    $item['product_name'] = $product?->name ?? 'Produk Tidak Terdaftar';
                 }
-            }
 
-            $order->items = $items ?? [];
-            return $order;
-        });
+                $order->items = $items;
+                return $order;
+            });
 
-        return response()->json([
-            'status' => 'success',
-            'orders' => $orders
-        ]);
+            return response()->json([
+                'status' => 'success',
+                'orders' => $orders
+            ]);
 
-    } catch (\Throwable $e) {
-        return response()->json([
-            'status'  => 'error',
-            'message' => $e->getMessage(),
-            'line'    => $e->getLine()
-        ], 500);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => $e->getMessage(),
+            ], 500);
+        }
     }
-}
+
     // Update status order (admin)
     public function updateStatus(Request $request, $id)
     {
         try {
             $order = Order::findOrFail($id);
+
             $order->update([
                 'status' => $request->status
             ]);
@@ -200,7 +192,7 @@ class OrderController extends Controller
                 'message' => 'Status Updated'
             ]);
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return response()->json([
                 'status'  => 'error',
                 'message' => $e->getMessage()
