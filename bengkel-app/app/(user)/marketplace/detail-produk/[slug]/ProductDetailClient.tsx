@@ -46,25 +46,42 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
   const [totalReviews, setTotalReviews] = useState(0);
   const [currentImgIndex, setCurrentImgIndex] = useState(0);
   const [loadingCart, setLoadingCart] = useState(false);
+  const [loadingPage, setLoadingPage] = useState(true); // State loading yang jelas
   const [error, setError] = useState(false);
+  const [isMount, setIsMount] = useState(false); // Guard untuk Hydration
+
+  /* ================= HYDRATION GUARD ================= */
+  useEffect(() => {
+    setIsMount(true);
+  }, []);
 
   /* ================= FETCH PRODUCT ================= */
-
   useEffect(() => {
+    if (!slug) return;
+
+    setLoadingPage(true);
     fetch(`${API_URL}/products/slug/${slug}`)
       .then((res) => {
-        if (!res.ok) throw new Error();
+        if (!res.ok) throw new Error("Gagal mengambil data");
         return res.json();
       })
       .then((data) => {
-        if (!data?.product?.id) throw new Error();
-        setProduct(data.product);
+        // Penyesuaian: Pastikan mengambil object produk yang benar dari response API
+        const fetchedProduct = data.product || data.data || data;
+        if (fetchedProduct) {
+          setProduct(fetchedProduct);
+        } else {
+          throw new Error("Produk kosong");
+        }
       })
-      .catch(() => setError(true));
+      .catch((err) => {
+        console.error(err);
+        setError(true);
+      })
+      .finally(() => setLoadingPage(false));
   }, [slug]);
 
-  /* ================= FETCH REVIEW (ANTI LOOP) ================= */
-
+  /* ================= FETCH REVIEW ================= */
   useEffect(() => {
     if (!product?.id) return;
 
@@ -78,17 +95,19 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
       .catch(() => {});
   }, [product?.id]);
 
-  /* ================= IMAGE ================= */
-
+  /* ================= IMAGE HELPER ================= */
   const getImageUrl = (index: number) => {
-    const img = product?.img_urls?.[index];
+    const urls = product?.img_urls || [];
+    const img = urls[index];
     if (!img) return `${BASE_URL}/storage/products/default.png`;
     if (img.startsWith("http")) return img;
-    return `${BASE_URL}/storage/products/${img}`;
+    
+    // Perbaikan path storage railway
+    const fileName = img.replace("public/products/", "").replace("products/", "");
+    return `${BASE_URL}/storage/products/${fileName}`;
   };
 
-  /* ================= CART ================= */
-
+  /* ================= CART HANDLER ================= */
   const handleAddToCart = async () => {
     if (!product) return;
 
@@ -106,6 +125,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
+          "Accept": "application/json"
         },
         body: JSON.stringify({
           product_id: product.id,
@@ -123,14 +143,28 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
     }
   };
 
-  /* ================= STATE HANDLING ================= */
+  /* ================= RENDERING ================= */
+  
+  if (!isMount) return null;
 
-  if (error) {
-    return <p className="text-center mt-20">Produk tidak ditemukan</p>;
+  if (loadingPage) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center">
+        <Loader2 className="animate-spin text-[#FF6D1F] mb-4" size={40} />
+        <p className="font-bold text-gray-500">Memuat Detail Produk...</p>
+      </div>
+    );
   }
 
-  if (!product) {
-    return <p className="text-center mt-20">Loading...</p>;
+  if (error || !product) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center">
+        <p className="text-xl font-bold text-gray-400">Produk tidak ditemukan</p>
+        <button onClick={() => router.back()} className="mt-4 text-blue-500 underline">
+          Kembali
+        </button>
+      </div>
+    );
   }
 
   const p = parseFloat(product.price);
@@ -142,80 +176,91 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
       <div className="max-w-6xl mx-auto px-4 py-8">
         <button
           onClick={() => router.back()}
-          className="flex items-center gap-2 mb-8 font-bold text-[#234C6A]"
+          className="flex items-center gap-2 mb-8 font-bold text-[#234C6A] hover:underline"
         >
-          <ArrowLeft size={20} /> Kembali
+          <ArrowLeft size={20} /> Kembali ke Marketplace
         </button>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-          {/* IMAGE */}
-          <div className="relative bg-white rounded-2xl border">
+          {/* IMAGE SECTION */}
+          <div className="relative bg-white rounded-3xl border shadow-sm overflow-hidden h-[500px] flex items-center justify-center">
             <img
               src={getImageUrl(currentImgIndex)}
               alt={product.name}
-              className="w-full h-[500px] object-contain p-6"
+              className="max-w-full max-h-full object-contain p-4"
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).src = "https://placehold.co/600x600?text=No+Image";
+              }}
             />
 
-            {product.img_urls.length > 1 && (
+            {product.img_urls && product.img_urls.length > 1 && (
               <>
                 <button
-                  onClick={() =>
-                    setCurrentImgIndex(
-                      (i) =>
-                        (i - 1 + product.img_urls.length) %
-                        product.img_urls.length
-                    )
-                  }
-                  className="absolute left-4 top-1/2 bg-white p-2 rounded-full"
+                  onClick={() => setCurrentImgIndex((i) => (i - 1 + product.img_urls.length) % product.img_urls.length)}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/80 p-3 rounded-full shadow-md hover:bg-white"
                 >
-                  <ChevronLeft />
+                  <ChevronLeft size={24} />
                 </button>
                 <button
-                  onClick={() =>
-                    setCurrentImgIndex(
-                      (i) => (i + 1) % product.img_urls.length
-                    )
-                  }
-                  className="absolute right-4 top-1/2 bg-white p-2 rounded-full"
+                  onClick={() => setCurrentImgIndex((i) => (i + 1) % product.img_urls.length)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/80 p-3 rounded-full shadow-md hover:bg-white"
                 >
-                  <ChevronRight />
+                  <ChevronRight size={24} />
                 </button>
               </>
             )}
           </div>
 
-          {/* INFO */}
+          {/* INFO SECTION */}
           <div className="space-y-6">
-            <h1 className="text-4xl font-black">{product.name}</h1>
+            <div>
+               <span className="bg-blue-100 text-[#234C6A] text-xs font-black px-3 py-1 rounded-full uppercase">
+                  {product.jenis_barang}
+               </span>
+               <h1 className="text-5xl font-black mt-4 leading-tight">{product.name}</h1>
+            </div>
 
-            <div className="flex items-center gap-2">
-              <Star className="text-yellow-500 fill-yellow-500" />
-              <b>{avgRating}</b>
-              <span className="text-gray-500">
-                ({totalReviews} ulasan)
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-1">
+                <Star className="text-yellow-500 fill-yellow-500" size={20} />
+                <b className="text-xl">{avgRating}</b>
+              </div>
+              <div className="w-1 h-1 bg-gray-300 rounded-full"></div>
+              <span className="text-gray-500 font-medium">
+                {totalReviews} ulasan pembeli
               </span>
             </div>
 
-            <div className="bg-white p-6 rounded-2xl border">
+            <div className="bg-white p-8 rounded-4xl border shadow-sm">
               {hasPromo && (
-                <p className="line-through text-gray-400">
+                <p className="line-through text-gray-400 font-bold text-lg mb-1">
                   Rp {op.toLocaleString("id-ID")}
                 </p>
               )}
-              <p className="text-4xl font-black text-[#FF6D1F]">
+              <p className="text-6xl font-black text-[#FF6D1F]">
                 Rp {p.toLocaleString("id-ID")}
               </p>
+              <p className="mt-4 text-gray-500 font-bold uppercase text-xs tracking-widest">
+                Tersedia: {product.stock} Unit
+              </p>
+            </div>
+
+            <div className="bg-white p-6 rounded-2xl border">
+               <h3 className="font-black mb-2 uppercase text-xs text-gray-400">Deskripsi Produk</h3>
+               <p className="text-gray-600 leading-relaxed whitespace-pre-line">
+                  {product.description || "Tidak ada deskripsi."}
+               </p>
             </div>
 
             <button
               onClick={handleAddToCart}
               disabled={loadingCart || product.stock === 0}
-              className="w-full bg-[#FF6D1F] text-white py-4 rounded-xl font-black"
+              className="w-full bg-[#FF6D1F] hover:bg-orange-600 transition-all text-white py-6 rounded-2xl font-black text-xl shadow-xl shadow-orange-100 disabled:bg-gray-300 disabled:shadow-none"
             >
               {loadingCart ? (
                 <Loader2 className="animate-spin mx-auto" />
               ) : (
-                "Masukkan Keranjang"
+                product.stock === 0 ? "Stok Habis" : "Masukkan Keranjang"
               )}
             </button>
           </div>
