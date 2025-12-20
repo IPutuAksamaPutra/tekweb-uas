@@ -17,12 +17,20 @@ class OrderController extends Controller
         $this->middleware('auth:sanctum');
     }
 
-    // Semua user bisa lihat order mereka sendiri
+    // Ambil semua order user
     public function index(Request $request)
     {
         $orders = Order::where('user_id', $request->user()->id)
-            ->orderByDesc('created_at')
-            ->get();
+                        ->orderByDesc('created_at')
+                        ->get();
+
+        // Decode items JSON
+        $orders->transform(function ($order) {
+            $items = $order->items;
+            if (is_string($items)) $items = json_decode($items, true) ?: [];
+            $order->items = $items;
+            return $order;
+        });
 
         return response()->json([
             'message' => 'Daftar pesanan ditemukan',
@@ -30,11 +38,16 @@ class OrderController extends Controller
         ]);
     }
 
+    // Detail order
     public function show(Request $request, $id)
     {
         $order = Order::where('user_id', $request->user()->id)
-            ->where('id', $id)
-            ->firstOrFail();
+                      ->where('id', $id)
+                      ->firstOrFail();
+
+        $items = $order->items;
+        if (is_string($items)) $items = json_decode($items, true) ?: [];
+        $order->items = $items;
 
         return response()->json([
             'message' => 'Detail pesanan',
@@ -42,6 +55,7 @@ class OrderController extends Controller
         ]);
     }
 
+    // Buat order baru
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -58,7 +72,7 @@ class OrderController extends Controller
 
         try {
             $order = DB::transaction(function () use ($request) {
-                // cek stok
+                // Cek stok
                 foreach ($request->items as $item) {
                     $product = Product::find($item['product_id']);
                     if (!$product || $product->stock < $item['quantity']) {
@@ -66,6 +80,7 @@ class OrderController extends Controller
                     }
                 }
 
+                // Buat order
                 $newOrder = Order::create([
                     'user_id' => $request->user()->id,
                     'items' => $request->items,
@@ -78,20 +93,20 @@ class OrderController extends Controller
                     'status' => 'pending'
                 ]);
 
-                // kurangi stok
+                // Kurangi stok
                 foreach ($request->items as $item) {
                     Product::where('id', $item['product_id'])
-                        ->decrement('stock', $item['quantity']);
+                           ->decrement('stock', $item['quantity']);
                 }
 
-                // hapus cart
+                // Kosongkan cart
                 Cart::where('user_id', $request->user()->id)->delete();
 
                 return $newOrder;
             });
 
             return response()->json([
-                'message' => 'Pesanan berhasil',
+                'message' => 'Pesanan berhasil dibuat',
                 'order' => $order
             ], 201);
 
@@ -100,5 +115,13 @@ class OrderController extends Controller
                 'message' => $e->getMessage()
             ], 400);
         }
+    }
+
+    // Update status (optional, bisa dipakai superadmin nanti)
+    public function updateStatus(Request $request, $id)
+    {
+        $order = Order::findOrFail($id);
+        $order->update(['status' => $request->status]);
+        return response()->json(['message' => 'Status diperbarui']);
     }
 }

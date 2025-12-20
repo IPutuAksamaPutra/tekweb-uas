@@ -120,6 +120,8 @@ Route::middleware(['auth:sanctum','role:admin,super_admin'])->group(function () 
 // =======================================================
 // User harus login
 Route::middleware('auth:sanctum')->group(function () {
-    Route::apiResource('orders', OrderController::class)
-        ->only(['index','show','store']);
+    Route::get('orders', [OrderController::class, 'index']); // list order
+    Route::get('orders/{id}', [OrderController::class, 'show']); // detail order
+    Route::post('orders', [OrderController::class, 'store']); // buat order
+    Route::post('orders/{id}/status', [OrderController::class, 'updateStatus']); // optional
 });
