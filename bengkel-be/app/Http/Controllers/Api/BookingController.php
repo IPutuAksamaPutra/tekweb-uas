@@ -161,9 +161,9 @@ class BookingController extends Controller
         ], 200);
     }
     
-    /**
-     * --- 6. READ (Pencarian Booking Pending/Confirmed untuk Kasir) ---
-     */
+    // ================================================================
+    // 🕵️‍♂️ 6. SEARCH BOOKING KHUSUS KASIR (BERDASARKAN NAMA & DATA LAIN)
+    // ================================================================
     public function pendingForCashier(Request $request)
     {
         $user = $request->user();
@@ -171,6 +171,7 @@ class BookingController extends Controller
             return response()->json(['message' => 'Anda tidak diizinkan mengakses data kasir.'], 403);
         }
 
+        // Ambil data yang statusnya masih aktif (belum selesai)
         $query = Booking::whereIn('status', ['Pending', 'Confirmed']);
 
         if ($request->has('q')) { 
@@ -178,65 +179,65 @@ class BookingController extends Controller
             $searchTerm = "%{$search}%";
             
             $query->where(function ($q) use ($searchTerm) {
-                
-                $q->whereRaw('LOWER(COALESCE(jenis_service, "")) LIKE ?', [$searchTerm])
-                  ->orWhereRaw('LOWER(COALESCE(no_wa, "")) LIKE ?', [$searchTerm])
-                  ->orWhereRaw('LOWER(COALESCE(nama_kendaraan, "")) LIKE ?', [$searchTerm]);
+                // Cari di tabel user (Nama Pelanggan)
+                $q->whereHas('user', function ($uq) use ($searchTerm) {
+                    $uq->where('name', 'LIKE', $searchTerm);
+                })
+                // Cari di kolom booking sendiri
+                ->orWhereRaw('LOWER(COALESCE(jenis_service, "")) LIKE ?', [$searchTerm])
+                ->orWhereRaw('LOWER(COALESCE(no_wa, "")) LIKE ?', [$searchTerm])
+                ->orWhereRaw('LOWER(COALESCE(nama_kendaraan, "")) LIKE ?', [$searchTerm]);
                 
                 if (Schema::hasColumn('bookings', 'code')) {
                     $q->orWhereRaw('LOWER(COALESCE(code, "")) LIKE ?', [$searchTerm]);
                 }
-            })
-            // Mencari berdasarkan Nama Pelanggan (dari relasi user)
-            ->orWhereHas('user', function ($q) use ($searchTerm) {
-                 $q->where('name', 'LIKE', $searchTerm);
             });
         }
 
-        // Memuat relasi 'user' secara efisien
         $bookings = $query
             ->with('user:id,name,email') 
             ->latest()
+            ->limit(10) // Batasi agar pencarian tetap cepat
             ->get()
-            // ✅ MAPPING NAMA USER: Inject user_name ke tingkat root objek
             ->map(function ($booking) {
-                $bookingData = $booking->toArray();
-                
-                // 🔥 Mengambil nama dari relasi 'user'
-                $bookingData['user_name'] = $booking->user->name ?? 'Pelanggan'; 
-                
-                // Pastikan remaining_due ada
-                $bookingData['remaining_due'] = $booking->remaining_due ?? 0;
-                
-                return $bookingData;
+                return [
+                    'id' => $booking->id,
+                    'user_id' => $booking->user_id,
+                    'user_name' => $booking->user->name ?? 'Pelanggan', // Nama Customer di tingkat root
+                    'jenis_service' => $booking->jenis_service,
+                    'nama_kendaraan' => $booking->nama_kendaraan,
+                    'no_wa' => $booking->no_wa,
+                    'status' => $booking->status,
+                    'remaining_due' => $booking->remaining_due ?? 0, // Pastikan field ini ada di DB
+                ];
             });
 
         return response()->json([
+            'success' => true,
             'message' => 'Daftar booking siap kasir berhasil diambil.',
             'data' => $bookings
         ]);
     }
 
-    // --- 7. Index Admin (Delegasi ke pendingForCashier) ---
+    // --- 7. Index Admin ---
     public function indexAdmin(Request $request)
     {
         return $this->pendingForCashier($request);
     }
 
-        public function myBookings(Request $request)
-        {
-            $user = $request->user();
-            if (!$user) {
-                return response()->json(['message' => 'Unauthorized'], 401);
-            }
-
-            return response()->json([
-                'message' => 'Riwayat booking berhasil diambil.',
-                'bookings' => Booking::where('user_id', $user->id)
-                    ->latest()
-                    ->get()
-            ]);
+    // --- 8. My Bookings ---
+    public function myBookings(Request $request)
+    {
+        $user = $request->user();
+        if (!$user) {
+            return response()->json(['message' => 'Unauthorized'], 401);
         }
 
-    
+        return response()->json([
+            'message' => 'Riwayat booking berhasil diambil.',
+            'bookings' => Booking::where('user_id', $user->id)
+                ->latest()
+                ->get()
+        ]);
+    }
 }

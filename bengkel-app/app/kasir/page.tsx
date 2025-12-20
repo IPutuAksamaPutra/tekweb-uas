@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useEffect, useCallback, FormEvent } from 'react';
 import { Trash2, Search, Plus, CreditCard, Banknote, Landmark, Loader2, UserPlus, Receipt } from 'lucide-react'; 
+import { alertSuccess, alertError } from "@/components/Alert";
 
 /* =======================
     TIPE DATA & INTERFACES
@@ -32,7 +33,8 @@ interface Booking {
     user_name?: string;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_LARAVEL_API_URL || 'https://tekweb-uas-production.up.railway.app/api';
+const BASE_URL = 'https://tekweb-uas-production.up.railway.app';
+const API_URL = `${BASE_URL}/api`;
 
 /* =======================
     UTILITIES
@@ -42,7 +44,7 @@ const getAuthToken = (): string | undefined => {
     return document.cookie.match(/token=([^;]+)/)?.[1];
 };
 
-const isBooking = (item: Product | Booking): item is Booking => {
+const isBooking = (item: any): item is Booking => {
     return (item as Booking).jenis_service !== undefined;
 };
 
@@ -127,7 +129,7 @@ const ServiceInput: React.FC<{ onAddItem: (item: CartItem) => void }> = ({ onAdd
             name: `Jasa: ${name.trim()}`, 
             price: parsedPrice,
             quantity: 1,
-            originalId: null,
+            originalId: 0, 
         });
         setName(''); setPrice('');
     };
@@ -138,33 +140,27 @@ const ServiceInput: React.FC<{ onAddItem: (item: CartItem) => void }> = ({ onAdd
                 <div className="p-2 bg-white/10 rounded-lg text-white">
                     <Plus size={18} />
                 </div>
-                <h4 className="font-black text-white uppercase text-xs tracking-widest">Tambah Biaya Jasa Manual</h4>
+                <h4 className="font-black text-white uppercase text-xs tracking-widest italic">Biaya Jasa Manual</h4>
             </div>
             <div className="space-y-4">
-                <div>
-                    <p className="text-[9px] font-black text-blue-200 uppercase tracking-widest ml-1 mb-1">Nama Layanan</p>
-                    <input
-                        type="text"
-                        placeholder="Contoh: Tambal Ban / Stel Rantai"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        className="w-full p-4 rounded-2xl border-none bg-white shadow-inner font-bold text-sm outline-none focus:ring-2 focus:ring-[#FF6D1F]"
-                        required
-                    />
-                </div>
-                <div>
-                    <p className="text-[9px] font-black text-blue-200 uppercase tracking-widest ml-1 mb-1">Nominal Harga (Rp)</p>
-                    <input
-                        type="number"
-                        placeholder="0"
-                        value={price}
-                        onChange={(e) => setPrice(e.target.value)}
-                        className="w-full p-4 rounded-2xl border-none bg-white shadow-inner font-bold text-sm outline-none focus:ring-2 focus:ring-[#FF6D1F]"
-                        required
-                    />
-                </div>
-                <button type="submit" className="w-full bg-[#FF6D1F] text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-orange-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-orange-900/20">
-                    Masukkan ke Keranjang
+                <input
+                    type="text"
+                    placeholder="Nama Layanan (e.g. Stel Klep)"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full p-4 rounded-2xl border-none bg-white shadow-inner font-bold text-sm outline-none focus:ring-2 focus:ring-[#FF6D1F]"
+                    required
+                />
+                <input
+                    type="number"
+                    placeholder="Nominal (Rp)"
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                    className="w-full p-4 rounded-2xl border-none bg-white shadow-inner font-bold text-sm outline-none focus:ring-2 focus:ring-[#FF6D1F]"
+                    required
+                />
+                <button type="submit" className="w-full bg-[#FF6D1F] text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:bg-orange-600 transition-all shadow-lg">
+                    Tambah Jasa
                 </button>
             </div>
         </form>
@@ -172,7 +168,7 @@ const ServiceInput: React.FC<{ onAddItem: (item: CartItem) => void }> = ({ onAdd
 };
 
 /* =======================
-    SUB-COMPONENT: SEARCH
+    SUB-COMPONENT: SEARCH (UNIQUE KEYS FIX)
 ======================= */
 const ItemSearchInput: React.FC<{ onSelect: (item: CartItem) => void }> = ({ onSelect }) => {
     const [searchTerm, setSearchTerm] = useState('');
@@ -186,8 +182,8 @@ const ItemSearchInput: React.FC<{ onSelect: (item: CartItem) => void }> = ({ onS
             const token = getAuthToken();
             try {
                 const [pRes, bRes] = await Promise.all([
-                    fetch(`${API_URL}/products/search/cashier?q=${searchTerm}`, { headers: { Authorization: `Bearer ${token}` } }),
-                    fetch(`${API_URL}/bookings/search/cashier?q=${searchTerm}`, { headers: { Authorization: `Bearer ${token}` } }),
+                    fetch(`${API_URL}/products/search/cashier?query=${searchTerm}`, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } }),
+                    fetch(`${API_URL}/bookings/search/cashier?query=${searchTerm}`, { headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' } }),
                 ]);
                 const products = pRes.ok ? (await pRes.json()).products || [] : [];
                 const bookings = bRes.ok ? (await bRes.json()).data || [] : []; 
@@ -221,7 +217,7 @@ const ItemSearchInput: React.FC<{ onSelect: (item: CartItem) => void }> = ({ onS
     return (
         <div className="relative">
             <div className="relative group">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#FF6D1F] transition-colors" size={20} />
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#FF6D1F]" size={20} />
                 <input
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
@@ -231,16 +227,21 @@ const ItemSearchInput: React.FC<{ onSelect: (item: CartItem) => void }> = ({ onS
             </div>
             {(loading || results.length > 0) && (
                 <div className="absolute z-50 w-full bg-white rounded-2xl border shadow-2xl mt-2 max-h-80 overflow-y-auto p-2">
-                    {loading && <div className="p-4 text-center text-gray-400 font-bold">Mencari...</div>}
-                    {results.map((item) => (
-                        <div key={item.id} onClick={() => handleSelect(item)} className="p-4 hover:bg-orange-50 rounded-xl cursor-pointer flex justify-between items-center border-b last:border-0">
-                            <div>
-                                <p className="font-black text-[#234C6A] uppercase text-[9px] tracking-widest">{isBooking(item) ? '📅 Booking' : '📦 Part'}</p>
-                                <p className="font-bold text-slate-700">{isBooking(item) ? (item as Booking).jenis_service : (item as Product).name}</p>
+                    {loading && <div className="p-4 text-center text-gray-400 font-bold italic">Mencari Data...</div>}
+                    {results.map((item: any) => {
+                        // FIX: Key unik untuk mencegah React error
+                        const uniqueKey = isBooking(item) ? `book-${item.id}` : `prod-${item.id}`;
+                        return (
+                            <div key={uniqueKey} onClick={() => handleSelect(item)} className="p-4 hover:bg-orange-50 rounded-xl cursor-pointer flex justify-between items-center border-b last:border-0">
+                                <div>
+                                    <p className="font-black text-[#234C6A] uppercase text-[9px] tracking-widest">{isBooking(item) ? '📅 Booking' : '📦 Part'}</p>
+                                    <p className="font-bold text-slate-700">{isBooking(item) ? item.jenis_service : item.name}</p>
+                                    {!isBooking(item) && <p className="text-[9px] font-bold text-slate-400 italic">Stok: {item.stock}</p>}
+                                </div>
+                                <p className="font-black text-[#FF6D1F]">Rp {(isBooking(item) ? item.remaining_due : item.price)?.toLocaleString('id-ID')}</p>
                             </div>
-                            <p className="font-black text-[#FF6D1F]">Rp {(isBooking(item) ? (item as Booking).remaining_due : (item as Product).price)?.toLocaleString('id-ID')}</p>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             )}
         </div>
@@ -263,7 +264,7 @@ const CashierPage: React.FC = () => {
     const change = useMemo(() => paymentMethod === 'Cash' ? cashReceived - total : 0, [paymentMethod, cashReceived, total]);
 
     const handleAddItem = (item: CartItem) => {
-        const index = cartItems.findIndex((i) => i.originalId === item.originalId && i.type === 'product');
+        const index = cartItems.findIndex((i) => i.originalId === item.originalId && i.type === item.type);
         if (index > -1 && item.type === 'product') {
             const updated = [...cartItems];
             updated[index].quantity += 1;
@@ -275,13 +276,20 @@ const CashierPage: React.FC = () => {
 
     const handleProcessTransaction = async () => {
         if (cartItems.length === 0) return;
-        if (paymentMethod === 'Cash' && change < 0) return alert('Uang tidak cukup!');
+        if (paymentMethod === 'Cash' && change < 0) return alertError('Uang tidak cukup!');
 
         setIsProcessing(true);
         const token = getAuthToken();
 
         const transactionData = {
-            items: cartItems.map(item => ({ item_id: item.originalId, type: item.type, name: item.name, price: item.price, quantity: item.quantity, subtotal: item.price * item.quantity })),
+            items: cartItems.map(item => ({ 
+                item_id: item.originalId, 
+                type: item.type, 
+                name: item.name, 
+                price: item.price, 
+                quantity: item.quantity, 
+                subtotal: item.price * item.quantity 
+            })),
             total_amount: total,
             payment_method: paymentMethod,
             paid_amount: paymentMethod === 'Cash' ? cashReceived : total, 
@@ -295,15 +303,17 @@ const CashierPage: React.FC = () => {
                 body: JSON.stringify(transactionData),
             });
 
-            if (!response.ok) throw new Error('Gagal memproses transaksi.');
+            if (!response.ok) {
+                const errJson = await response.json();
+                throw new Error(errJson.message || 'Gagal memproses transaksi.');
+            }
 
-            // 🔥 CETAK STRUK SEBELUM RESET
+            alertSuccess("Transaksi Berhasil!");
             printReceipt(cartItems, total, paymentMethod, transactionData.paid_amount, change);
-
             setCartItems([]);
             setCashReceived(0);
         } catch (error: any) {
-            alert(error.message);
+            alertError(error.message);
         } finally {
             setIsProcessing(false);
         }
@@ -312,43 +322,38 @@ const CashierPage: React.FC = () => {
     if (!isMount) return null;
 
     return (
-        <div className="min-h-screen bg-slate-50 p-4 lg:p-10">
+        <div className="min-h-screen bg-slate-50 p-4 lg:p-10 font-sans">
             <div className="max-w-7xl mx-auto grid grid-cols-12 gap-8">
-                
-                {/* LEFT SIDE */}
+                {/* LEFT */}
                 <div className="col-span-12 lg:col-span-8 space-y-8">
                     <header className="flex justify-between items-center">
-                        <h1 className="text-4xl font-black text-[#234C6A] tracking-tighter uppercase">Point of Sale</h1>
-                        <span className="p-3 bg-white rounded-2xl border shadow-sm font-black text-[10px] text-gray-400 uppercase tracking-widest">Store: Singaraja</span>
+                        <h1 className="text-4xl font-black text-[#234C6A] tracking-tighter uppercase italic">Bengkel<span className="text-orange-500">POS</span></h1>
                     </header>
-
                     <ItemSearchInput onSelect={handleAddItem} />
-
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <ServiceInput onAddItem={handleAddItem} />
                         <div className="bg-white rounded-[2.5rem] border-2 border-dashed border-gray-200 flex flex-col items-center justify-center p-8 text-center grayscale opacity-50">
                             <UserPlus size={40} className="text-gray-300 mb-2" />
                             <p className="font-black text-[#234C6A] text-xs uppercase tracking-widest">Customer Member</p>
-                            <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">Maintenance Mode</p>
+                            <p className="text-[10px] text-gray-400 font-bold uppercase mt-1 italic">Soon</p>
                         </div>
                     </div>
-
                     <div className="bg-white rounded-[2.5rem] shadow-xl overflow-hidden border border-gray-100">
                         <table className="w-full">
-                             <thead className="bg-gray-50 border-b border-gray-100">
+                            <thead className="bg-gray-50 border-b">
                                 <tr className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                                    <th className="p-6 text-left">Daftar Item</th> 
+                                    <th className="p-6 text-left">Daftar Item</th>
                                     <th className="p-6 text-center">Qty</th>
                                     <th className="p-6 text-right">Subtotal</th>
-                                    <th className="p-6 text-center"></th>
+                                    <th className="p-6 text-center">Aksi</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-gray-50">
+                            <tbody className="divide-y">
                                 {cartItems.map((item) => (
-                                    <tr key={item.id} className="hover:bg-gray-50/50 transition-colors">
+                                    <tr key={item.id} className="hover:bg-gray-50/50">
                                         <td className="p-6">
-                                            <p className="font-black text-[#234C6A]">{item.name}</p>
-                                            <p className="text-[10px] font-black text-[#FF6D1F] uppercase tracking-widest">Rp {item.price.toLocaleString('id-ID')}</p>
+                                            <p className="font-black text-[#234C6A] uppercase text-sm">{item.name}</p>
+                                            <p className="text-[10px] font-black text-[#FF6D1F] uppercase italic">Rp {item.price.toLocaleString('id-ID')}</p>
                                         </td>
                                         <td className="p-6 text-center font-black text-slate-400">{item.quantity}</td>
                                         <td className="p-6 text-right font-black text-[#234C6A]">Rp {(item.price * item.quantity).toLocaleString('id-ID')}</td>
@@ -361,47 +366,40 @@ const CashierPage: React.FC = () => {
                         </table>
                     </div>
                 </div>
-
-                {/* RIGHT SIDE (PAYMENT) */}
+                {/* RIGHT */}
                 <div className="col-span-12 lg:col-span-4 space-y-6">
-                    <div className="bg-[#234C6A] rounded-[2.5rem] p-8 text-white shadow-2xl relative overflow-hidden">
-                        <div className="absolute top-0 right-0 p-4 opacity-10"><Receipt size={100} /></div>
-                        <h2 className="text-xs font-black uppercase tracking-widest mb-2 opacity-60">Grand Total</h2>
-                        <p className="text-5xl font-black">Rp {total.toLocaleString('id-ID')}</p>
+                    <div className="bg-[#234C6A] rounded-[2.5rem] p-8 text-white shadow-2xl relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:rotate-12 transition-transform duration-500"><Receipt size={100} /></div>
+                        <h2 className="text-xs font-black uppercase tracking-widest mb-2 opacity-60 italic">Grand Total</h2>
+                        <p className="text-5xl font-black italic tracking-tighter">Rp {total.toLocaleString('id-ID')}</p>
                     </div>
-
                     <div className="bg-white rounded-[2.5rem] shadow-xl p-8 border border-gray-100 space-y-8">
                         <div className="grid grid-cols-3 gap-3">
                             <PaymentButton active={paymentMethod === 'Cash'} onClick={() => setPaymentMethod('Cash')} icon={<Banknote />} label="Tunai" />
                             <PaymentButton active={paymentMethod === 'Card'} onClick={() => setPaymentMethod('Card')} icon={<CreditCard />} label="Kartu" />
                             <PaymentButton active={paymentMethod === 'Transfer'} onClick={() => setPaymentMethod('Transfer')} icon={<Landmark />} label="Bank" />
                         </div>
-                        
                         {paymentMethod === 'Cash' && (
                             <div className="space-y-4">
-                                <div>
-                                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1 mb-2 block">Uang Masuk</label>
-                                    <input
-                                        type="number"
-                                        value={cashReceived || ''}
-                                        onChange={(e) => setCashReceived(parseFloat(e.target.value) || 0)}
-                                        className="w-full p-5 rounded-2xl bg-gray-50 border-none font-black text-3xl text-[#234C6A] focus:ring-2 focus:ring-[#FF6D1F]"
-                                        placeholder="0"
-                                    />
-                                </div>
+                                <input
+                                    type="number"
+                                    value={cashReceived || ''}
+                                    onChange={(e) => setCashReceived(parseFloat(e.target.value) || 0)}
+                                    className="w-full p-5 rounded-2xl bg-gray-50 border-none font-black text-3xl text-[#234C6A] focus:ring-2 focus:ring-[#FF6D1F] outline-none shadow-inner"
+                                    placeholder="Uang Cash..."
+                                />
                                 <div className={`p-5 rounded-2xl flex justify-between items-center ${change < 0 ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-700'}`}>
-                                    <span className="text-[10px] font-black uppercase tracking-widest">Kembalian</span>
-                                    <span className="font-black text-2xl">Rp {Math.max(0, change).toLocaleString('id-ID')}</span>
+                                    <span className="text-[10px] font-black uppercase italic tracking-widest">Kembalian</span>
+                                    <span className="font-black text-2xl italic">Rp {Math.max(0, change).toLocaleString('id-ID')}</span>
                                 </div>
                             </div>
                         )}
-
                         <button
                             disabled={isProcessing || (paymentMethod === 'Cash' && change < 0) || cartItems.length === 0}
                             onClick={handleProcessTransaction}
-                            className="w-full bg-[#FF6D1F] hover:bg-orange-600 text-white py-6 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-orange-200 transition-all flex items-center justify-center gap-3 active:scale-95 disabled:bg-gray-200 disabled:shadow-none"
+                            className="w-full bg-[#FF6D1F] hover:bg-orange-600 text-white py-6 rounded-2xl font-black uppercase tracking-widest shadow-xl transition-all flex items-center justify-center gap-3 active:scale-95 disabled:bg-gray-200"
                         >
-                            {isProcessing ? <Loader2 className="animate-spin" /> : 'Selesaikan Transaksi'}
+                            {isProcessing ? <Loader2 className="animate-spin" /> : <><Receipt size={20} /> Selesaikan</>}
                         </button>
                     </div>
                 </div>
@@ -410,9 +408,8 @@ const CashierPage: React.FC = () => {
     );
 };
 
-/* --- MINI COMPONENT --- */
 const PaymentButton = ({ active, onClick, icon, label }: any) => (
-    <button onClick={onClick} className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${active ? 'bg-orange-50 border-[#FF6D1F] text-[#FF6D1F]' : 'bg-white border-gray-100 text-gray-400'}`}>
+    <button onClick={onClick} className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${active ? 'bg-orange-50 border-[#FF6D1F] text-[#FF6D1F] scale-105' : 'bg-white border-gray-100 text-gray-400'}`}>
         {icon} <span className="text-[9px] font-black uppercase tracking-widest">{label}</span>
     </button>
 );
