@@ -222,4 +222,21 @@ class BookingController extends Controller
     {
         return $this->pendingForCashier($request);
     }
+
+        public function myBookings(Request $request)
+        {
+            $user = $request->user();
+            if (!$user) {
+                return response()->json(['message' => 'Unauthorized'], 401);
+            }
+
+            return response()->json([
+                'message' => 'Riwayat booking berhasil diambil.',
+                'bookings' => Booking::where('user_id', $user->id)
+                    ->latest()
+                    ->get()
+            ]);
+        }
+
+    
 }
