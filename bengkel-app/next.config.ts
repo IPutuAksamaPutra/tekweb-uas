@@ -1,9 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // 🔥 Mencegah useEffect jalan 2x di mode dev (menghindari loop fetch)
+  // 🔥 Penting: Mencegah useEffect berjalan 2x agar fetch tidak boros
   reactStrictMode: false,
 
   images: {
+    // Mengizinkan Next.js memuat gambar dari domain ini
     domains: [
       "localhost",
       "tekweb-uas-production.up.railway.app",
@@ -22,18 +23,8 @@ const nextConfig = {
       },
     ],
   },
-
-  // 🔥 TAMBAHKAN INI UNTUK FIX CORS
-  async rewrites() {
-    return [
-      {
-        // Setiap kali kamu panggil /api/railway/ di frontend, 
-        // Next.js akan mengambilkan datanya dari link asli di bawah
-        source: '/api/railway/:path*',
-        destination: 'https://tekweb-uas-production.up.railway.app/api/:path*',
-      },
-    ];
-  },
+  
+  // Bagian rewrites dihapus sesuai permintaanmu agar fetch langsung di tiap halaman
 };
 
 module.exports = nextConfig;

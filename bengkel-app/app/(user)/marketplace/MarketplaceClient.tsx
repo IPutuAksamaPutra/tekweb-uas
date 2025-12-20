@@ -9,7 +9,7 @@ import {
   Package, 
   Loader2,
   RefreshCw,
-  AlertCircle // 🔥 Impor ini ditambahkan untuk memperbaiki error Anda
+  AlertCircle 
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { alertError } from "@/components/Alert";
@@ -25,9 +25,9 @@ interface Product {
   img_url: string[]; 
 }
 
-// Menggunakan Proxy /api/railway sesuai konfigurasi next.config.js Anda
-const API_URL = "/api/railway"; 
+// 🔥 Tembak langsung ke URL asli sesuai maumu
 const BASE_URL = "https://tekweb-uas-production.up.railway.app";
+const API_URL = `${BASE_URL}/api`;
 
 export default function MarketplacePage() {
   const router = useRouter();
@@ -49,17 +49,20 @@ export default function MarketplacePage() {
     setLoading(true);
     setErrorStatus(null);
     try {
+      // Tembak langsung ke Railway (Bisa gagal jika CORS di Laravel belum diatur '*')
       const res = await fetch(`${API_URL}/products`, {
         method: "GET",
-        headers: { "Accept": "application/json" }
+        headers: { 
+          "Accept": "application/json",
+          "Content-Type": "application/json"
+        },
+        mode: "cors" 
       });
       
-      // Menangani error 502 jika Railway sedang crashed
-      if (res.status === 502) {
-        throw new Error("Server Railway (502) sedang offline atau crashed.");
+      if (!res.ok) {
+        if (res.status === 502) throw new Error("Server Railway (502) sedang Offline/Crashed.");
+        throw new Error(`HTTP Error: ${res.status}`);
       }
-      
-      if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
       
       const data = await res.json();
       const list = data.products || data.data || data || [];
@@ -88,7 +91,7 @@ export default function MarketplacePage() {
         setCartCount((res.cart_items || res.data || []).length);
       }
     } catch (err) {
-      console.warn("Update keranjang gagal karena server bermasalah.");
+      console.warn("Update keranjang gagal.");
     }
   }, [getToken]);
 
@@ -102,6 +105,9 @@ export default function MarketplacePage() {
   const getProductImage = (p: Product) => {
     const rawImg = p.img_url?.[0]; 
     if (!rawImg) return "https://placehold.co/400x400?text=No+Image";
+    if (rawImg.startsWith("http")) return rawImg;
+    
+    // Perbaikan path agar sinkron dengan storage:link Railway
     const cleanImg = rawImg.replace("public/products/", "").replace("products/", "");
     return `${BASE_URL}/storage/products/${cleanImg}`;
   };
@@ -115,12 +121,11 @@ export default function MarketplacePage() {
   if (!isMount) return null;
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20 font-sans">
-      {/* HEADER SECTION */}
+    <div className="min-h-screen bg-gray-50 pb-20 font-sans text-slate-900">
       <div className="bg-[#234C6A] text-white p-10 rounded-b-[3.5rem] shadow-2xl">
         <div className="max-w-6xl mx-auto flex justify-between items-center">
           <h1 className="text-4xl font-black tracking-tighter uppercase">Marketplace</h1>
-          <button onClick={() => router.push("/cart")} className="relative p-4 bg-white/10 rounded-2xl hover:bg-[#FF6D1F] transition-all">
+          <button onClick={() => router.push("/cart")} className="relative p-4 bg-white/10 rounded-2xl hover:bg-[#FF6D1F]">
             <ShoppingCart size={24} />
             {cartCount > 0 && (
               <span className="absolute -top-1 -right-1 bg-[#FF6D1F] text-white text-[10px] font-black w-6 h-6 rounded-full flex items-center justify-center border-2 border-[#234C6A]">
@@ -129,59 +134,30 @@ export default function MarketplacePage() {
             )}
           </button>
         </div>
-
-        {/* SEARCH BAR */}
-        <div className="max-w-4xl mx-auto mt-10 relative">
-          <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-          <input 
-            type="text"
-            placeholder="Cari kebutuhan motor kamu..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-white text-slate-800 p-5 pl-14 rounded-2xl font-black shadow-2xl outline-none focus:ring-4 focus:ring-orange-500/20 transition-all placeholder:text-gray-300 placeholder:font-bold"
-          />
-        </div>
       </div>
 
       <div className="max-w-6xl mx-auto px-4 mt-12">
-        {/* FILTER KATEGORI */}
-        <div className="flex gap-3 overflow-x-auto pb-6 scrollbar-hide">
-          {["Semua", "Sparepart", "Aksesoris"].map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setSelectedCategory(cat)}
-              className={`px-8 py-3 rounded-xl font-black uppercase text-[10px] tracking-widest transition-all border-2
-                ${selectedCategory === cat 
-                  ? "bg-[#FF6D1F] border-[#FF6D1F] text-white shadow-lg shadow-orange-200" 
-                  : "bg-white border-transparent text-gray-400 hover:border-gray-100"}`}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
-
-        {/* LOGIKA TAMPILAN (LOADING / ERROR / DATA) */}
         {loading ? (
           <div className="flex flex-col items-center justify-center py-32">
             <Loader2 className="animate-spin text-[#FF6D1F] mb-4" size={48} />
-            <p className="font-black text-[#234C6A] uppercase text-[10px] tracking-widest">Menyambungkan ke Railway...</p>
+            <p className="font-black text-[#234C6A] uppercase text-[10px] tracking-widest">Memuat Produk...</p>
           </div>
         ) : errorStatus ? (
-          <div className="text-center py-32 bg-white rounded-[3rem] border-2 border-red-50 shadow-xl mx-auto max-w-2xl">
+          <div className="text-center py-32 bg-white rounded-[3rem] border-2 border-red-50 shadow-xl mx-auto max-w-2xl px-6">
             <AlertCircle className="mx-auto text-red-500 mb-4" size={64} />
-            <h3 className="text-xl font-black text-red-600 uppercase tracking-tighter">Backend Sedang Bermasalah</h3>
-            <p className="text-gray-400 font-bold text-xs mt-2 px-6 uppercase tracking-widest">{errorStatus}</p>
+            <h3 className="text-xl font-black text-red-600 uppercase">Koneksi Gagal</h3>
+            <p className="text-gray-400 font-bold text-xs mt-2 uppercase tracking-widest leading-relaxed">
+              {errorStatus} <br/> 
+              <span className="text-red-400 italic font-medium lowercase">
+                (Biasanya karena CORS. Pastikan Laravel config/cors.php sudah diatur '*')
+              </span>
+            </p>
             <button 
               onClick={fetchProducts} 
-              className="mt-8 px-8 py-4 bg-[#234C6A] text-white rounded-2xl font-black uppercase text-xs tracking-widest flex items-center gap-2 mx-auto hover:bg-[#FF6D1F] transition-all shadow-lg active:scale-95"
+              className="mt-8 px-8 py-4 bg-[#234C6A] text-white rounded-2xl font-black uppercase text-xs tracking-widest flex items-center gap-2 mx-auto hover:bg-[#FF6D1F]"
             >
-              <RefreshCw size={18} /> Coba Hubungkan Kembali
+              <RefreshCw size={18} /> Coba Lagi
             </button>
-          </div>
-        ) : filteredProducts.length === 0 ? (
-          <div className="text-center py-32 bg-white rounded-[3rem] border-2 border-dashed border-gray-100">
-            <Package className="mx-auto text-gray-200 mb-4" size={64} />
-            <h3 className="text-xl font-black text-[#234C6A] uppercase tracking-tighter">Produk Tidak Ditemukan</h3>
           </div>
         ) : (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-8">
@@ -199,7 +175,7 @@ export default function MarketplacePage() {
                     onError={(e) => { (e.currentTarget as HTMLImageElement).src = "https://placehold.co/400x400?text=Error+Image"; }}
                   />
                 </div>
-                <h2 className="font-black text-[#234C6A] text-lg uppercase truncate">{product.name}</h2>
+                <h2 className="font-black text-[#234C6A] text-lg uppercase truncate tracking-tight">{product.name}</h2>
                 <p className="text-[#FF6D1F] font-black text-2xl tracking-tighter">Rp {Number(product.price).toLocaleString("id-ID")}</p>
               </div>
             ))}
