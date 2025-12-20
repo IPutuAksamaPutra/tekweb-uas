@@ -121,6 +121,10 @@ Route::middleware(['auth:sanctum','role:admin,super_admin'])->group(function () 
 Route::middleware(['auth:sanctum', 'role:admin,super_admin'])
     ->prefix('admin')
     ->group(function () {
-        Route::get('orders', [OrderController::class, 'index']);
-        Route::post('orders/{id}/status', [OrderController::class, 'updateStatus']);
-});
+        // Ambil semua order untuk admin
+        Route::get('orders', [OrderController::class, 'adminIndex']);
+        
+        // Update status order
+        Route::patch('orders/{id}/status', [OrderController::class, 'updateStatus']);
+    });
+
