@@ -2,12 +2,10 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import {
-  Search,
   ShoppingCart,
   Loader2,
   Tag,
   Flame,
-  X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import ProductCard from "@/components/user/ProductCard";
@@ -19,7 +17,7 @@ interface Product {
   id: number;
   name: string;
   slug: string;
-  price: string; // Harga asli dari database
+  price: string; 
   stock: number;
   jenis_barang: string;
   img_urls: string[];
@@ -34,7 +32,6 @@ interface PromoData {
   products: Product[];
 }
 
-/* ================= CONFIG ================= */
 const BASE_URL = "https://tekweb-uas-production.up.railway.app";
 const API_URL = `${BASE_URL}/api`;
 
@@ -48,14 +45,40 @@ export default function MarketplaceClient() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("Semua");
 
-  const getImageUrl = (imgData?: string[] | string) => {
-    const img = Array.isArray(imgData) ? imgData[0] : imgData;
-    if (!img) return "/no-image.png";
+  // 🚀 LOGIKA GAMBAR SUPER AMAN
+  const getImageUrl = (imgData?: any): string => {
+    let img = "";
+
+    // 1. Cek jika data adalah array
+    if (Array.isArray(imgData) && imgData.length > 0) {
+      img = imgData[0];
+    } 
+    // 2. Cek jika data adalah string (bisa jadi JSON string)
+    else if (typeof imgData === 'string') {
+      if (imgData.startsWith('[') && imgData.endsWith(']')) {
+        try {
+          const parsed = JSON.parse(imgData);
+          img = Array.isArray(parsed) ? parsed[0] : parsed;
+        } catch {
+          img = imgData;
+        }
+      } else {
+        img = imgData;
+      }
+    }
+
+    if (!img || typeof img !== 'string') return "/no-image.png";
     if (img.startsWith("http")) return img;
-    const clean = img.replace("public/products/", "").replace("products/", "");
+
+    // 3. Bersihkan path dari 'public/' atau 'products/' double
+    const clean = img.replace("public/products/", "")
+                     .replace("products/", "")
+                     .replace("public/", "");
+
     return `${BASE_URL}/storage/products/${clean}`;
   };
 
+  // FETCH DATA AWAL
   const initMarketplace = useCallback(async () => {
     setLoading(true);
     const headers = { Accept: "application/json" };
@@ -71,12 +94,13 @@ export default function MarketplaceClient() {
       const rawPromos = promoJson.promotions || promoJson.data || [];
       setPromotions(rawPromos.filter((p: PromoData) => p.is_active));
     } catch (err) {
-      console.error(err);
+      console.error("Fetch Error:", err);
     } finally {
       setLoading(false);
     }
   }, []);
 
+  // FETCH JUMLAH BARANG DI KERANJANG
   const fetchCartCount = useCallback(async () => {
     const token = document.cookie.match(/token=([^;]+)/)?.[1];
     if (!token) return;
@@ -86,9 +110,10 @@ export default function MarketplaceClient() {
       });
       if (res.ok) {
         const json = await res.json();
-        setCartCount((json.cart || json.data || []).length);
+        const items = json.cart || json.data || [];
+        setCartCount(items.length);
       }
-    } catch (err) { console.error(err); }
+    } catch (err) { console.error("Cart Count Error:", err); }
   }, []);
 
   useEffect(() => {
@@ -96,10 +121,11 @@ export default function MarketplaceClient() {
     fetchCartCount();
   }, [initMarketplace, fetchCartCount]);
 
+  // 🔥 TAMBAH KE CART
   const handleAddToCart = async (productId: number, finalPrice: number) => {
     const token = document.cookie.match(/token=([^;]+)/)?.[1];
     if (!token) {
-      alertError("Silakan login dulu");
+      alertError("Silakan login dulu, Bos!");
       router.push("/auth/login");
       return;
     }
@@ -115,15 +141,20 @@ export default function MarketplaceClient() {
         body: JSON.stringify({
           product_id: productId,
           quantity: 1,
-          price: finalPrice, // Mengirim harga setelah diskon ke keranjang
+          price: Math.round(finalPrice),
         }),
       });
 
       if (res.ok) {
-        alertSuccess("Masuk keranjang!");
+        alertSuccess("Mantap! Barang masuk keranjang.");
         fetchCartCount();
+      } else {
+        const error = await res.json();
+        throw new Error(error.message || "Gagal masuk keranjang");
       }
-    } catch { alertError("Gagal"); }
+    } catch (err: any) { 
+      alertError(err.message || "Gagal menambah keranjang"); 
+    }
   };
 
   const filteredProducts = useMemo(() => {
@@ -134,22 +165,37 @@ export default function MarketplaceClient() {
     });
   }, [products, searchQuery, selectedCategory]);
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-900"><Loader2 className="animate-spin text-orange-400" size={50} /></div>;
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center bg-[#0f172a]">
+      <Loader2 className="animate-spin text-orange-400" size={50} />
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-slate-50 pb-24 font-sans">
+      {/* HEADER */}
       <div className="bg-[#0f172a] text-white p-10 pb-24 relative overflow-hidden">
         <div className="max-w-7xl mx-auto flex justify-between items-center relative z-10">
-          <h1 className="text-5xl font-black italic tracking-tighter uppercase">Bengkel<span className="text-orange-400">Market</span></h1>
-          <button onClick={() => router.push("/cart")} className="group relative bg-white/5 border border-white/10 p-5 rounded-4xl hover:bg-orange-500 transition-all shadow-2xl">
+          <h1 className="text-5xl font-black italic tracking-tighter uppercase">
+            Bengkel<span className="text-orange-400">Market</span>
+          </h1>
+          <button 
+            onClick={() => router.push("/cart")} 
+            className="group relative bg-white/5 border border-white/10 p-5 rounded-4xl hover:bg-orange-500 transition-all shadow-2xl active:scale-90"
+          >
             <ShoppingCart size={28} />
-            {cartCount > 0 && <span className="absolute -top-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-red-600 text-[11px] font-black text-white ring-4 ring-[#0f172a] shadow-lg">{cartCount}</span>}
+            {cartCount > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full bg-red-600 text-[11px] font-black text-white ring-4 ring-[#0f172a] shadow-lg animate-bounce">
+                {cartCount}
+              </span>
+            )}
           </button>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-6 -mt-12 relative z-20">
-        {/* 🔥 HOT PROMO - LOGIKA PERHITUNGAN BENAR */}
+        
+        {/* HOT PROMO */}
         {promotions.length > 0 && selectedCategory === "Semua" && !searchQuery && (
           <section className="mb-24">
             <h2 className="text-4xl font-black mb-10 flex items-center gap-4 italic uppercase text-slate-900 tracking-tighter">
@@ -157,13 +203,12 @@ export default function MarketplaceClient() {
             </h2>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
-              {promotions.map((promo) => 
+              {promotions.map((promo) =>
                 promo.products.map((p) => {
-                  const originalPrice = Number(p.price); // Harga asli dari DB
+                  const originalPrice = Number(p.price);
                   let promoPrice = originalPrice;
                   let discountLabel = 0;
 
-                  // LOGIKA: Harga Promo = Harga Asli - Diskon
                   if (promo.discount_type === "percentage") {
                     discountLabel = promo.discount_value;
                     promoPrice = originalPrice - (originalPrice * (discountLabel / 100));
@@ -178,13 +223,13 @@ export default function MarketplaceClient() {
                       product={{
                         id: p.id,
                         name: p.name,
-                        price: Math.round(promoPrice), // Harga setelah diskon (Tampil Besar)
-                        original_price: originalPrice, // Harga sebelum diskon (Dicoret)
+                        price: Math.round(promoPrice),
+                        original_price: originalPrice,
                         discountPercent: discountLabel,
                         jenis_barang: p.jenis_barang,
-                        img_urls: getImageUrl(p.img_urls),
+                        img_urls: getImageUrl(p.img_urls), // Mengirim string murni
                       }}
-                      onClick={() => router.push(`/marketplace/detail-produk/${p.slug || p.id}`)}
+                      onClick={() => router.push(`/marketplace/detail-produk-promo/${p.slug}`)}
                       onAdd={() => handleAddToCart(p.id, Math.round(promoPrice))}
                     />
                   );
@@ -194,22 +239,35 @@ export default function MarketplaceClient() {
           </section>
         )}
 
-        {/* KATALOG */}
+        {/* KATALOG PRODUK */}
         <section>
           <div className="inline-flex items-center gap-4 mb-12 border-b-8 border-[#0f172a] pb-4 text-[#0f172a]">
             <Tag size={40} className="text-orange-500" />
-            <h2 className="text-6xl font-black uppercase tracking-tighter">Katalog <span className="text-orange-500">Produk</span></h2>
+            <h2 className="text-6xl font-black uppercase tracking-tighter">
+              Katalog <span className="text-orange-500">Produk</span>
+            </h2>
           </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
             {filteredProducts.map((p) => (
               <ProductCard
                 key={p.id}
-                product={{ ...p, price: Number(p.price), img_urls: [getImageUrl(p.img_urls)] }}
-                onClick={() => router.push(`/marketplace/detail-produk/${p.slug || p.id}`)}
+                product={{ 
+                  ...p, 
+                  price: Number(p.price), 
+                  img_urls: [getImageUrl(p.img_urls)] // Mengirim array
+                }}
+                onClick={() => router.push(`/marketplace/detail-produk/${p.slug}`)}
                 onAdd={(id) => handleAddToCart(id, Number(p.price))}
               />
             ))}
           </div>
+
+          {filteredProducts.length === 0 && (
+            <div className="text-center py-20 text-slate-300 font-black italic text-2xl uppercase">
+              Produk Tidak Ditemukan...
+            </div>
+          )}
         </section>
       </div>
     </div>
