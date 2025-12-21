@@ -74,20 +74,27 @@ export default function MarketplaceClient() {
   };
 
   /* ================= FETCH DATA ================= */
-  // 🛒 FIX: Ambil data keranjang dengan mapping yang benar
+  
+  // Fungsi untuk mengambil jumlah item di keranjang
   const fetchCartCount = useCallback(async () => {
     const token = document.cookie.match(/token=([^;]+)/)?.[1];
     if (!token) return;
     try {
       const res = await fetch(`${API_URL}/cart`, {
-        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+        headers: { 
+          Authorization: `Bearer ${token}`, 
+          Accept: "application/json" 
+        },
       });
       if (res.ok) {
         const json = await res.json();
-        const items = json.cart || json.data || [];
+        // Pastikan mapping data sesuai dengan struktur API (cart_items biasanya di UAS ini)
+        const items = json.cart_items || json.cart || json.data || [];
         setCartCount(items.length);
       }
-    } catch (err) { console.error("Cart Count Fetch Error:", err); }
+    } catch (err) { 
+      console.error("Cart Count Fetch Error:", err); 
+    }
   }, []);
 
   const initMarketplace = useCallback(async () => {
@@ -100,11 +107,12 @@ export default function MarketplaceClient() {
       ]);
       const prodJson = await prodRes.json();
       const promoJson = await promoRes.json();
+      
       setProducts(prodJson.products || prodJson.data || []);
       const rawPromos = promoJson.promotions || promoJson.data || [];
       setPromotions(rawPromos.filter((p: PromoData) => p.is_active));
       
-      // Sinkronkan angka keranjang saat load awal
+      // Ambil angka keranjang saat pertama kali masuk
       await fetchCartCount();
     } catch (err) {
       console.error("Fetch Error:", err);
@@ -134,6 +142,7 @@ export default function MarketplaceClient() {
       router.push("/auth/login");
       return;
     }
+
     try {
       const res = await fetch(`${API_URL}/cart`, {
         method: "POST",
@@ -151,7 +160,8 @@ export default function MarketplaceClient() {
       
       if (res.ok) {
         alertSuccess("Masuk keranjang!");
-        await fetchCartCount(); // 🔥 Refresh angka keranjang otomatis
+        // 🔥 SOLUSI: Panggil ulang fetchCartCount agar angka di navbar langsung update
+        await fetchCartCount(); 
       } else { 
         const errorData = await res.json();
         throw new Error(errorData.message || "Gagal menambah keranjang"); 
@@ -161,11 +171,10 @@ export default function MarketplaceClient() {
     }
   };
 
-  /* ================= FILTER LOGIC (FIXED) ================= */
+  /* ================= FILTER LOGIC ================= */
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
       const matchSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
-      // Handled Suku Cadang vs Sparepart (normalisasi)
       const matchCategory = selectedCategory === "Semua" || 
         p.jenis_barang === selectedCategory ||
         (selectedCategory === "Suku Cadang" && p.jenis_barang === "Sparepart");
@@ -197,6 +206,7 @@ export default function MarketplaceClient() {
              <button onClick={() => handleProtectedAction("/cart")} className="bg-[#234C6A] text-white px-5 py-2.5 rounded-2xl font-bold text-sm flex items-center gap-2 shadow-xl shadow-blue-900/20 hover:bg-[#1a3a52] transition-all">
                <ShoppingCart size={16} /> 
                <span>Keranjang</span>
+               {/* Angka di Desktop */}
                <span className="bg-white text-[#234C6A] px-2 rounded-lg ml-1 min-w-5 text-center">{cartCount}</span>
              </button>
           </div>
@@ -328,6 +338,7 @@ export default function MarketplaceClient() {
           </button>
           <button onClick={() => handleProtectedAction("/cart")} className="p-4 bg-orange-500 text-white rounded-3xl shadow-lg shadow-orange-500/40 relative active:scale-90 transition-transform">
             <ShoppingCart size={22} />
+            {/* Angka di Mobile */}
             {cartCount > 0 && (
               <span className="absolute -top-1 -right-1 bg-white text-orange-600 text-[10px] font-black w-5 h-5 rounded-full flex items-center justify-center">
                 {cartCount}
