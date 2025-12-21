@@ -2,7 +2,18 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Package, CheckCircle, Truck, Star, ArrowLeft, CreditCard, MapPin, Loader2 } from "lucide-react";
+import { 
+  Package, 
+  CheckCircle, 
+  Star, 
+  ArrowLeft, 
+  Loader2, 
+  Calendar, 
+  Tag, 
+  ReceiptText,
+  Clock,
+  ChevronRight
+} from "lucide-react";
 import { alertSuccess, alertError } from "@/components/Alert";
 import ReviewForm from "@/components/review/ReviewForm"; 
 
@@ -18,8 +29,6 @@ interface Order {
   items: Item[];
   total: number;
   status: string;
-  address?: string;
-  payment?: string;
   created_at?: string;
 }
 
@@ -46,7 +55,6 @@ export default function DetailPesanan() {
     [] 
   );
 
-  // Ambil data produk untuk menampilkan Nama & Gambar asli
   const fetchProductDetails = async (items: Item[]) => {
     try {
       const res = await fetch(`${BASE_URL}/api/products`);
@@ -112,94 +120,114 @@ export default function DetailPesanan() {
   if (!isMount) return null;
 
   if (loading) return (
-    <div className="min-h-screen flex flex-col justify-center items-center bg-gray-50 font-sans">
-      <Loader2 className="animate-spin h-12 w-12 text-orange-500" />
-      <p className="mt-4 text-[#234C6A] font-black uppercase text-xs tracking-widest italic">Syncing Invoice...</p>
+    <div className="min-h-screen flex flex-col justify-center items-center bg-[#F8FAFC]">
+      <Loader2 className="animate-spin h-10 w-10 text-[#234C6A]" />
+      <p className="mt-4 text-[#234C6A] font-bold text-sm tracking-widest uppercase italic">Syncing Invoice...</p>
     </div>
   );
 
-  if (!order) return <p className="text-center mt-20 font-black text-gray-400 uppercase tracking-widest italic">Invoice Not Found.</p>;
+  if (!order) return <p className="text-center mt-20 font-bold text-gray-400 uppercase italic">Invoice Not Found.</p>;
 
   return (
-    <div className="min-h-screen bg-gray-50 py-10 px-4 font-sans text-[#0f172a]">
-      <div className="max-w-3xl mx-auto space-y-6">
-        
-        <button
-          onClick={() => router.back()}
-          className="flex items-center gap-2 text-[10px] text-[#234C6A] font-black uppercase tracking-widest hover:text-orange-500 transition-all w-fit italic"
-        >
-          <ArrowLeft size={16} /> Back to History
-        </button>
+    <div className="min-h-screen bg-[#F8FAFC] pb-24 font-sans text-slate-900">
+      
+      {/* --- SIMPLE TOP NAV --- */}
+      <nav className="sticky top-0 z-50 bg-white border-b border-slate-100">
+        <div className="max-w-4xl mx-auto px-6 h-16 flex items-center justify-between">
+          <button
+            onClick={() => router.back()}
+            className="flex items-center gap-2 text-sm text-slate-500 hover:text-[#234C6A] transition-colors font-bold uppercase tracking-tighter"
+          >
+            <ArrowLeft size={18} /> Kembali
+          </button>
+          <div className="flex items-center gap-2 text-slate-300">
+             <ReceiptText size={16} />
+             <span className="text-[10px] font-black uppercase tracking-widest italic">Order Details</span>
+          </div>
+        </div>
+      </nav>
 
-        {/* --- CARD INVOICE --- */}
-        <div className="bg-white rounded-[2.5rem] border border-gray-100 shadow-2xl shadow-blue-900/5 overflow-hidden">
-          <div className="px-10 py-10 border-b border-gray-50 bg-white flex flex-wrap justify-between items-center gap-4">
-            <div className="space-y-1">
-              <h1 className="text-4xl font-black text-[#234C6A] tracking-tighter uppercase italic leading-none">Invoice #{order.id}</h1>
-              <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest italic mt-2">
-                Date: {order.created_at ? new Date(order.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-'}
+      <div className="max-w-3xl mx-auto px-4 mt-8 space-y-6">
+        
+        {/* --- CLEAN INVOICE CARD --- */}
+        <div className="bg-white rounded-4xl shadow-sm border border-slate-100 overflow-hidden">
+          
+          {/* Status & ID */}
+          <div className="p-8 sm:p-10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <p className="text-[10px] font-bold text-orange-500 uppercase tracking-widest mb-1 italic">Transaction ID</p>
+              <h1 className="text-3xl font-serif font-bold text-[#234C6A]">#{order.id}</h1>
+              <p className="text-xs text-slate-400 mt-1 font-medium italic">
+                Dipesan pada {order.created_at ? new Date(order.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : '-'}
               </p>
             </div>
-            <div className={`flex items-center gap-2 px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest italic border ${order.status === 'completed' ? 'bg-green-50 text-green-600 border-green-100' : 'bg-orange-50 text-orange-500 border-orange-100'}`}>
-              {order.status === "completed" ? "Selesai" : "Processing"}
+            <div className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest italic border
+              ${order.status === 'completed' ? 'bg-green-50 text-green-600 border-green-100' : 'bg-orange-50 text-orange-600 border-orange-100'}`}>
+              {order.status === "completed" ? "Selesai" : "Diproses"}
             </div>
           </div>
 
-          <div className="px-10 py-8 space-y-6">
-            <h3 className="font-black text-gray-400 text-[10px] uppercase tracking-[0.2em] italic mb-4 flex items-center gap-2"><Package size={14}/> Item Details</h3>
-            {/* PROTEKSI: Gunakan order?.items?.map agar tidak error undefined */}
+          {/* Items List */}
+          <div className="px-8 sm:px-10 py-6 border-t border-slate-50 space-y-6">
             {order?.items?.map((item, i) => (
-              <div key={i} className="flex items-center gap-6 p-6 rounded-4xl border border-gray-50 hover:bg-gray-50 transition-all group">
-                <div className="w-24 h-24 bg-white rounded-2xl overflow-hidden border-2 border-gray-50 flex items-center justify-center p-2 group-hover:border-orange-500 shrink-0 shadow-inner">
+              <div key={i} className="flex items-center gap-6 group">
+                <div className="w-20 h-20 bg-slate-50 rounded-2xl overflow-hidden flex items-center justify-center p-3 shrink-0 border border-slate-100">
                   {productDetails[item.product_id]?.image ? (
-                    <img src={productDetails[item.product_id].image!} alt="Produk" className="max-w-full max-h-full object-contain" />
-                  ) : <Package size={28} className="text-gray-200" />}
+                    <img src={productDetails[item.product_id].image!} alt="item" className="max-w-full max-h-full object-contain transition-transform group-hover:scale-105" />
+                  ) : <Package size={24} className="text-slate-200" />}
                 </div>
-                <div className="flex-1">
-                  <p className="font-black text-[#234C6A] text-lg uppercase italic tracking-tight leading-tight">
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-bold text-[#234C6A] text-base leading-tight uppercase italic truncate">
                     {productDetails[item.product_id]?.name || `Sparepart #${item.product_id}`}
+                  </h4>
+                  <p className="text-xs text-slate-400 mt-1 uppercase font-bold tracking-widest italic">
+                    {item.quantity} Unit <span className="mx-2 text-slate-200">|</span> Genuine Part
                   </p>
-                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-2">Quantity: <span className="text-orange-500">{item.quantity} Unit</span></p>
                 </div>
-                <div className="text-right">
-                  <p className="text-[9px] text-gray-400 font-black uppercase italic tracking-widest">Subtotal</p>
-                  <p className="font-black text-[#234C6A] text-xl italic tracking-tighter">Rp {(Number(item.subtotal) || 0).toLocaleString("id-ID")}</p>
+                <div className="text-right hidden sm:block">
+                  <p className="text-[10px] text-slate-300 font-bold uppercase mb-1">Subtotal</p>
+                  <p className="font-bold text-[#234C6A] text-lg italic tracking-tighter">
+                    Rp {(Number(item.subtotal) || 0).toLocaleString("id-ID")}
+                  </p>
                 </div>
               </div>
             ))}
           </div>
 
-          <div className="px-10 py-12 bg-[#234C6A] flex justify-between items-center text-white">
-            <span className="font-black uppercase tracking-[0.3em] text-[10px] text-white/40 italic">Amount Paid</span>
-            <span className="text-5xl font-black text-orange-500 tracking-tighter italic">Rp {(Number(order.total) || 0).toLocaleString("id-ID")}</span>
+          {/* Total Section (Dark Style from image_5098f3.png) */}
+          <div className="bg-[#0f172a] p-8 sm:p-10 flex flex-col sm:flex-row justify-between items-center gap-4 border-t-4 border-orange-500">
+            <div className="text-center sm:text-left">
+              <span className="text-[10px] font-black text-white/40 uppercase tracking-[0.3em] italic block mb-1">Amount Paid</span>
+              <p className="text-slate-500 text-[9px] uppercase tracking-widest italic">Pajak & Biaya layanan termasuk</p>
+            </div>
+            <div className="text-center sm:text-right">
+               <span className="text-4xl sm:text-6xl font-black text-[#FF6D1F] tracking-tighter italic">
+                 Rp {(Number(order.total) || 0).toLocaleString("id-ID")}
+               </span>
+            </div>
           </div>
         </div>
 
-        {/* --- SECTION ULASAN --- */}
+        {/* --- REVIEW ACTION --- */}
         {order.status === "completed" && (
-          <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
+          <div className="pb-20">
             {!showReview ? (
               <button 
                 onClick={() => setShowReview(true)} 
-                className="w-full bg-white border-4 border-dashed border-orange-500/20 text-orange-500 hover:bg-orange-500 hover:text-white px-10 py-8 rounded-4xl font-black uppercase italic tracking-widest transition-all flex items-center justify-center gap-4 shadow-xl active:scale-95"
+                className="w-full bg-white border border-slate-200 hover:border-orange-500 hover:text-orange-500 px-8 py-6 rounded-2xl font-black text-xs uppercase italic tracking-widest transition-all flex items-center justify-center gap-3 shadow-sm active:scale-[0.98]"
               >
-                <Star size={24} className="fill-current" /> Rate Your Experience
+                <Star size={18} fill="currentColor" /> Beri ulasan untuk produk ini
               </button>
             ) : (
-              <div className="bg-white rounded-[2.5rem] border-2 border-orange-500/10 shadow-2xl p-10">
-                <div className="flex justify-between items-center mb-10">
-                  <h3 className="text-2xl font-black text-[#234C6A] uppercase italic">Review Parts</h3>
-                  <button onClick={() => setShowReview(false)} className="text-[10px] font-black text-gray-400 hover:text-red-500 uppercase italic transition-all border-b-2 border-transparent hover:border-red-500">Cancel</button>
+              <div className="bg-white rounded-3xl border border-slate-100 shadow-xl p-8 sm:p-10 animate-in fade-in slide-in-from-bottom-2">
+                <div className="flex justify-between items-center mb-8">
+                  <h3 className="text-xl font-bold text-[#234C6A] uppercase italic">Ulasan Anda</h3>
+                  <button onClick={() => setShowReview(false)} className="text-xs font-bold text-slate-300 hover:text-red-500">BATAL</button>
                 </div>
-
-                {/* 🔥 PANGGIL COMPONENT REVIEW FORM DENGAN PROTEKSI DATA */}
                 <ReviewForm 
                   orderId={order.id} 
                   items={order.items || []} 
-                  onSuccess={() => {
-                    setShowReview(false);
-                    alertSuccess("Ulasan terkirim!");
-                  }} 
+                  onSuccess={() => { setShowReview(false); alertSuccess("Ulasan terkirim!"); }} 
                 />
               </div>
             )}

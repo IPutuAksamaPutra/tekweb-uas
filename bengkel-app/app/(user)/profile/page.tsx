@@ -54,14 +54,12 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [isMount, setIsMount] = useState(false);
 
-  // Helper baca cookie
   const getCookie = useCallback((name: string) => {
     if (typeof document === "undefined") return null;
     const match = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
     return match ? decodeURIComponent(match[2]) : null;
   }, []);
 
-  // Load data user
   useEffect(() => {
     setIsMount(true);
     const token = getCookie("token");
@@ -110,11 +108,8 @@ export default function ProfilePage() {
     if (!token) return alertError("Sesi telah habis.");
 
     try {
-      // Update local state
       setUser(formData);
-      // Update cookie
       document.cookie = `user=${JSON.stringify(formData)}; path=/; max-age=3600`;
-      
       alertSuccess("Profil berhasil diperbarui!");
       setEditing(false);
     } catch (err) {
@@ -125,7 +120,6 @@ export default function ProfilePage() {
   const handleLogout = () => {
     document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
     document.cookie = "user=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
-    
     alertSuccess("Logout berhasil!").then(() => {
       router.push("/auth/login");
     });
@@ -142,43 +136,44 @@ export default function ProfilePage() {
     );
 
   return (
-    <div className="min-h-screen bg-gray-50 flex justify-center items-center py-12 px-4">
-      <div className="max-w-xl w-full bg-white rounded-[2.5rem] shadow-2xl p-8 md:p-10 border-t-12 border-[#234C6A]">
+    <div className="min-h-screen bg-gray-50 flex justify-center items-start md:items-center py-6 md:py-12 px-4">
+      {/* Container dibuat Max-Width dan Responsif */}
+      <div className="w-full max-w-[550px] bg-white rounded-4xl md:rounded-[2.5rem] shadow-xl md:shadow-2xl p-6 md:p-10 border-t-8 md:border-t-12 border-[#234C6A]">
         
         {/* AVATAR SECTION */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="w-32 h-32 rounded-full bg-linear-to-tr from-[#FF6D1F] to-orange-300 flex items-center justify-center text-white text-5xl font-black shadow-xl">
-            {user?.name?.charAt(0).toUpperCase() || <UserIcon size={48} />}
+        <div className="flex flex-col items-center mb-6 md:mb-8">
+          <div className="w-24 h-24 md:w-32 md:h-32 rounded-full bg-linear-to-tr from-[#FF6D1F] to-orange-300 flex items-center justify-center text-white text-4xl md:text-5xl font-black shadow-lg">
+            {user?.name?.charAt(0).toUpperCase() || <UserIcon size={32} />}
           </div>
 
-          <h2 className="text-3xl font-black text-slate-800 mt-5 tracking-tight">
+          <h2 className="text-2xl md:text-3xl font-black text-slate-800 mt-4 md:mt-5 tracking-tight text-center break-all">
             {user?.name}
           </h2>
 
-          <div className={`mt-3 px-4 py-1.5 rounded-full flex items-center gap-2 text-xs font-black uppercase tracking-widest shadow-sm
+          <div className={`mt-3 px-4 py-1.5 rounded-full flex items-center gap-2 text-[10px] md:text-xs font-black uppercase tracking-widest shadow-sm
             ${user?.name === "Guest User" ? "bg-gray-100 text-gray-500" : "bg-green-100 text-green-700"}
           `}>
-            <ShieldCheck size={16} />
+            <ShieldCheck size={14} />
             {user?.role || (user?.name === "Guest User" ? "Guest" : "Member")}
           </div>
         </div>
 
-        {/* QUICK MENU */}
-        <div className="grid grid-cols-3 gap-3 mb-10">
+        {/* QUICK MENU - Grid tetap 3 namun dengan padding kecil di mobile */}
+        <div className="grid grid-cols-3 gap-2 md:gap-3 mb-8 md:mb-10">
           <QuickMenuButton 
-            icon={<ShoppingCart size={24} />} 
+            icon={<ShoppingCart className="w-5 h-5 md:w-6 md:h-6" />} 
             label="Keranjang" 
             color="orange" 
             onClick={() => router.push("/cart")} 
           />
           <QuickMenuButton 
-            icon={<ClipboardList size={24} />} 
+            icon={<ClipboardList className="w-5 h-5 md:w-6 md:h-6" />} 
             label="Pesanan" 
             color="blue" 
             onClick={() => router.push("/marketplace/pesanan")} 
           />
           <QuickMenuButton 
-            icon={<CalendarClock size={24} />} 
+            icon={<CalendarClock className="w-5 h-5 md:w-6 md:h-6" />} 
             label="Booking" 
             color="green" 
             onClick={() => router.push("/booking/history")} 
@@ -189,10 +184,10 @@ export default function ProfilePage() {
         <div className="space-y-6">
           <div className="flex items-center gap-3 border-b pb-2 mb-4 text-[#234C6A]">
             <UserIcon size={20} />
-            <h3 className="text-xl font-black uppercase tracking-tighter">Informasi Akun</h3>
+            <h3 className="text-lg md:text-xl font-black uppercase tracking-tighter italic">Informasi Akun</h3>
           </div>
 
-          <div className="grid gap-5">
+          <div className="grid gap-4 md:gap-5">
             <ProfileInput 
               label="Nama Lengkap" 
               value={formData.name} 
@@ -209,19 +204,19 @@ export default function ProfilePage() {
         </div>
 
         {/* ACTION BUTTONS */}
-        <div className="mt-10 flex flex-col gap-3">
+        <div className="mt-8 md:mt-10 flex flex-col gap-3">
           {!editing ? (
             <button
               onClick={() => setEditing(true)}
-              className="w-full py-4 rounded-2xl font-black text-white bg-[#234C6A] hover:bg-[#1a384d] transition-all flex items-center justify-center gap-2"
+              className="w-full py-4 rounded-xl md:rounded-2xl font-black text-white bg-[#234C6A] hover:bg-[#1a384d] transition-all flex items-center justify-center gap-2 active:scale-95 shadow-md"
             >
               <Pencil size={18} /> EDIT PROFIL
             </button>
           ) : (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
               <button
                 onClick={handleSave}
-                className="py-4 rounded-2xl font-black bg-green-600 text-white hover:bg-green-700 transition-all flex justify-center items-center gap-2"
+                className="py-4 rounded-xl md:rounded-2xl font-black bg-green-600 text-white hover:bg-green-700 transition-all flex justify-center items-center gap-2 active:scale-95 shadow-md"
               >
                 <Save size={18} /> SIMPAN
               </button>
@@ -230,7 +225,7 @@ export default function ProfilePage() {
                   setEditing(false);
                   setFormData(user || formData);
                 }}
-                className="py-4 rounded-2xl font-black text-red-500 border-2 border-red-500 hover:bg-red-50 transition-all flex justify-center items-center gap-2"
+                className="py-4 rounded-xl md:rounded-2xl font-black text-red-500 border-2 border-red-500 hover:bg-red-50 transition-all flex justify-center items-center gap-2 active:scale-95"
               >
                 <XCircle size={18} /> BATAL
               </button>
@@ -239,9 +234,9 @@ export default function ProfilePage() {
 
           <button
             onClick={handleLogout}
-            className="mt-4 flex items-center justify-center gap-2 text-gray-400 font-bold hover:text-red-600 transition-colors uppercase text-sm tracking-widest"
+            className="mt-4 flex items-center justify-center gap-2 text-gray-400 font-bold hover:text-red-600 transition-colors uppercase text-[10px] md:text-xs tracking-widest py-2"
           >
-            <LogOut size={18} /> Keluar dari Akun
+            <LogOut size={16} /> Keluar dari Akun
           </button>
         </div>
       </div>
@@ -262,26 +257,30 @@ function QuickMenuButton({ icon, label, color, onClick }: QuickMenuProps) {
   return (
     <button
       onClick={onClick}
-      className={`flex flex-col items-center gap-2 border-2 rounded-2xl p-4 transition-all duration-300 transform active:scale-95 ${colors[color]}`}
+      className={`flex flex-col items-center justify-center gap-1 md:gap-2 border-2 rounded-xl md:rounded-2xl p-3 md:p-4 transition-all duration-300 transform active:scale-90 ${colors[color]}`}
     >
-      <div className="mb-1">{icon}</div>
-      <span className="font-black text-[10px] uppercase tracking-wider">{label}</span>
+      <div className="mb-0.5">{icon}</div>
+      <span className="font-black text-[8px] md:text-[10px] uppercase tracking-wider text-center leading-tight">
+        {label}
+      </span>
     </button>
   );
 }
 
 function ProfileInput({ label, value, disabled, onChange }: ProfileInputProps) {
   return (
-    <div className="space-y-1">
-      <label className="text-xs font-black text-gray-400 uppercase ml-1 tracking-widest">{label}</label>
+    <div className="space-y-1.5">
+      <label className="text-[10px] md:text-xs font-black text-gray-400 uppercase ml-1 tracking-widest leading-none">
+        {label}
+      </label>
       <input
         type="text"
         disabled={disabled}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className={`w-full p-4 rounded-2xl border-2 transition-all outline-none font-bold
+        className={`w-full p-3.5 md:p-4 rounded-xl md:rounded-2xl border-2 transition-all outline-none font-bold text-sm md:text-base
           ${disabled 
-            ? "bg-gray-50 border-transparent text-slate-500" 
+            ? "bg-gray-50 border-transparent text-slate-500 cursor-not-allowed" 
             : "bg-white border-[#FF6D1F] text-slate-800 shadow-sm focus:shadow-md"}`}
       />
     </div>
