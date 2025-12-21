@@ -20,10 +20,21 @@ Route::post('register', [AuthController::class, 'register']);
 Route::post('login', [AuthController::class, 'login']);
 
 Route::get('/verify-email/{id}/{hash}', function (Request $request) {
+    // 🛡️ Tambahkan pengecekan signature agar aman
+    if (! $request->hasValidSignature()) {
+        return response()->json(['message' => 'Link verifikasi sudah kadaluwarsa atau tidak valid.'], 403);
+    }
+
     $user = \App\Models\User::findOrFail($request->route('id'));
-    if (!hash_equals((string) $request->route('hash'), sha1($user->getEmailForVerification()))) {
+
+    if (! hash_equals((string) $request->route('hash'), sha1($user->getEmailForVerification()))) {
         return response()->json(['message' => 'Hash tidak valid.'], 403);
     }
+
+    if ($user->hasVerifiedEmail()) {
+        return response()->json(['message' => 'Email sudah terverifikasi sebelumnya.']);
+    }
+
     $user->markEmailAsVerified();
     return response()->json(['message' => 'Email berhasil diverifikasi!']);
 })->name('verification.verify');

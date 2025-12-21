@@ -74,27 +74,7 @@ export default function MarketplaceClient() {
   };
 
   /* ================= FETCH DATA ================= */
-  const initMarketplace = useCallback(async () => {
-    setLoading(true);
-    const headers = { Accept: "application/json" };
-    try {
-      const [prodRes, promoRes] = await Promise.all([
-        fetch(`${API_URL}/products`, { headers, cache: "no-store" }),
-        fetch(`${API_URL}/promotions`, { headers, cache: "no-store" }),
-      ]);
-      const prodJson = await prodRes.json();
-      const promoJson = await promoRes.json();
-      setProducts(prodJson.products || prodJson.data || []);
-      const rawPromos = promoJson.promotions || promoJson.data || [];
-      setPromotions(rawPromos.filter((p: PromoData) => p.is_active));
-    } catch (err) {
-      console.error("Fetch Error:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  /* Ambil data keranjang dari API */
+  // 🛒 FIX: Ambil data keranjang dengan mapping yang benar
   const fetchCartCount = useCallback(async () => {
     const token = document.cookie.match(/token=([^;]+)/)?.[1];
     if (!token) return;
@@ -110,12 +90,33 @@ export default function MarketplaceClient() {
     } catch (err) { console.error("Cart Count Fetch Error:", err); }
   }, []);
 
+  const initMarketplace = useCallback(async () => {
+    setLoading(true);
+    const headers = { Accept: "application/json" };
+    try {
+      const [prodRes, promoRes] = await Promise.all([
+        fetch(`${API_URL}/products`, { headers, cache: "no-store" }),
+        fetch(`${API_URL}/promotions`, { headers, cache: "no-store" }),
+      ]);
+      const prodJson = await prodRes.json();
+      const promoJson = await promoRes.json();
+      setProducts(prodJson.products || prodJson.data || []);
+      const rawPromos = promoJson.promotions || promoJson.data || [];
+      setPromotions(rawPromos.filter((p: PromoData) => p.is_active));
+      
+      // Sinkronkan angka keranjang saat load awal
+      await fetchCartCount();
+    } catch (err) {
+      console.error("Fetch Error:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchCartCount]);
+
   useEffect(() => {
     initMarketplace();
-    fetchCartCount();
-  }, [initMarketplace, fetchCartCount]);
+  }, [initMarketplace]);
 
-  /* ================= AUTH & ACTION LOGIC ================= */
   const handleProtectedAction = (path: string) => {
     const token = document.cookie.match(/token=([^;]+)/)?.[1];
     if (!token) {
@@ -150,7 +151,7 @@ export default function MarketplaceClient() {
       
       if (res.ok) {
         alertSuccess("Masuk keranjang!");
-        await fetchCartCount(); 
+        await fetchCartCount(); // 🔥 Refresh angka keranjang otomatis
       } else { 
         const errorData = await res.json();
         throw new Error(errorData.message || "Gagal menambah keranjang"); 
@@ -160,11 +161,14 @@ export default function MarketplaceClient() {
     }
   };
 
-  /* ================= FILTER LOGIC ================= */
+  /* ================= FILTER LOGIC (FIXED) ================= */
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
       const matchSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchCategory = selectedCategory === "Semua" || p.jenis_barang === selectedCategory;
+      // Handled Suku Cadang vs Sparepart (normalisasi)
+      const matchCategory = selectedCategory === "Semua" || 
+        p.jenis_barang === selectedCategory ||
+        (selectedCategory === "Suku Cadang" && p.jenis_barang === "Sparepart");
       return matchSearch && matchCategory;
     });
   }, [products, searchQuery, selectedCategory]);
@@ -177,7 +181,6 @@ export default function MarketplaceClient() {
 
   return (
     <div className="min-h-screen bg-[#FAFAFC] pb-32 font-sans text-slate-900">
-      
       {/* 📱 TOP BAR */}
       <nav className="sticky top-0 z-60 bg-white/80 backdrop-blur-xl border-b border-slate-100 px-4 py-3 md:px-8">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
@@ -194,7 +197,7 @@ export default function MarketplaceClient() {
              <button onClick={() => handleProtectedAction("/cart")} className="bg-[#234C6A] text-white px-5 py-2.5 rounded-2xl font-bold text-sm flex items-center gap-2 shadow-xl shadow-blue-900/20 hover:bg-[#1a3a52] transition-all">
                <ShoppingCart size={16} /> 
                <span>Keranjang</span>
-               <span className="bg-white text-[#234C6A] px-2 rounded-lg ml-1">{cartCount}</span>
+               <span className="bg-white text-[#234C6A] px-2 rounded-lg ml-1 min-w-5 text-center">{cartCount}</span>
              </button>
           </div>
           <Menu className="md:hidden text-slate-400" size={24} />
@@ -202,7 +205,6 @@ export default function MarketplaceClient() {
       </nav>
 
       <main className="max-w-7xl mx-auto md:px-6">
-        
         {/* 🎬 HERO BANNER */}
         <div className="p-4 md:pt-10">
           <div className="bg-linear-to-br from-[#234C6A] to-[#3a78a6] rounded-[2.5rem] p-8 md:p-16 relative overflow-hidden shadow-xl shadow-blue-900/10 min-h-[220px] flex flex-col justify-center">
@@ -232,7 +234,6 @@ export default function MarketplaceClient() {
                 className="w-full pl-14 pr-4 py-4 rounded-3xl bg-white border border-slate-100 shadow-sm focus:ring-4 focus:ring-[#234C6A]/5 transition-all outline-none font-medium text-sm"
               />
             </div>
-            
             <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4">
               {["Semua", "Suku Cadang", "Aksesoris"].map((cat) => (
                 <button 
@@ -265,16 +266,14 @@ export default function MarketplaceClient() {
                   const originalPrice = Number(p.price);
                   const discount = promo.discount_type === "percentage" ? originalPrice * (promo.discount_value / 100) : promo.discount_value;
                   const promoPrice = originalPrice - discount;
-                  const discLabel = promo.discount_type === "percentage" ? promo.discount_value : Math.round((promo.discount_value / originalPrice) * 100);
                   return (
                     <ProductCardPromo
                       key={`${promo.id}-${p.id}`}
                       product={{
                         ...p,
-                        id: p.id,
                         price: Math.round(promoPrice),
                         original_price: originalPrice,
-                        discountPercent: discLabel,
+                        discountPercent: promo.discount_type === "percentage" ? promo.discount_value : Math.round((promo.discount_value / originalPrice) * 100),
                         img_urls: [getImageUrl(p.img_urls || (p as any).img_url)], 
                       }}
                       onClick={() => router.push(`/marketplace/detail-produk-promo/${p.slug}`)}
@@ -312,7 +311,7 @@ export default function MarketplaceClient() {
           ) : (
             <div className="bg-slate-50 rounded-[2.5rem] py-20 text-center border-2 border-dashed border-slate-200">
                <Sparkles className="mx-auto text-slate-200 mb-4" size={50} />
-               <p className="text-slate-400 font-bold text-sm uppercase tracking-widest">Produk belum tersedia</p>
+               <p className="text-slate-400 font-bold text-sm uppercase tracking-widest">Produk tidak ditemukan</p>
             </div>
           )}
         </section>

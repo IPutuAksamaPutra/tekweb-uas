@@ -31,69 +31,112 @@ export default function CartPage() {
   const [selected, setSelected] = useState<number[]>([]);
   const [isMount, setIsMount] = useState(false);
 
+  // Helper Ambil Token
   const getToken = useCallback(() => {
     if (typeof document === "undefined") return null;
     return document.cookie.match(/token=([^;]+)/)?.[1] || null;
   }, []);
 
+  // Ambil Data Keranjang
   const fetchCart = useCallback(async () => {
     const token = getToken();
     if (!token) { setLoading(false); return; }
     try {
       const res = await fetch(`${BASE_URL}/api/cart`, {
-        headers: { Authorization: `Bearer ${token}`, "Accept": "application/json" },
+        headers: { 
+          Authorization: `Bearer ${token}`, 
+          "Accept": "application/json" 
+        },
       });
       const data = await res.json();
+      
       if (res.ok) {
-        const normalized: CartItem[] = (data.cart_items ?? []).map((item: any) => ({
+        // Normalisasi data untuk memastikan price adalah number dan img_url adalah array
+        const rawItems = data.cart_items || data.data || [];
+        const normalized: CartItem[] = rawItems.map((item: any) => ({
           ...item,
           product: {
             ...item.product,
             price: Number(item.product.price),
-            img_url: Array.isArray(item.product.img_url) ? item.product.img_url : [item.product.img_url],
+            img_url: Array.isArray(item.product.img_url) 
+              ? item.product.img_url 
+              : (item.product.img_urls ? item.product.img_urls : [item.product.img_url]),
           },
         }));
         setCart(normalized);
       }
-    } catch (err) { console.error(err); } finally { setLoading(false); }
+    } catch (err) { 
+      console.error("Gagal mengambil keranjang:", err); 
+    } finally { 
+      setLoading(false); 
+    }
   }, [getToken]);
 
   useEffect(() => {
     setIsMount(true);
     const token = getToken();
     if (!token) {
-      alertLoginRequired().then((res) => { if (res.isConfirmed) router.push("/auth/login"); });
+      alertLoginRequired().then((res) => { 
+        if (res.isConfirmed) router.push("/auth/login"); 
+      });
       setLoading(false);
-    } else { fetchCart(); }
+    } else { 
+      fetchCart(); 
+    }
   }, [fetchCart, getToken, router]);
 
-  const getCartImageUrl = (imgArray: string[]) => {
-    const targetImg = imgArray[0];
-    if (!targetImg) return "https://placehold.co/200x200?text=No+Image";
-    if (targetImg.startsWith("http")) return targetImg;
-    const fileName = targetImg.replace("public/products/", "").replace("products/", "");
+  // Logika Gambar (Safe Array Access)
+  const getCartImageUrl = (imgArray: any) => {
+    // Jika data gambar tersimpan sebagai string JSON dalam array
+    let targetImg = Array.isArray(imgArray) ? imgArray[0] : imgArray;
+    
+    if (!targetImg) return "/no-image.png";
+    if (typeof targetImg === 'string' && targetImg.startsWith("http")) return targetImg;
+    
+    // Pembersihan path storage Laravel
+    const fileName = String(targetImg)
+      .replace("public/products/", "")
+      .replace("products/", "")
+      .replace("public/", "");
+      
     return `${BASE_URL}/storage/products/${fileName}`;
   };
 
+  // Update Quantity ke Database
   const updateQty = async (id: number, qty: number) => {
     if (qty < 1) return;
     const token = getToken();
     const item = cart.find((c) => c.id === id);
-    if (!item) return;
+    if (!item || !token) return;
+
+    // Optimistic Update (Update UI dulu baru Server)
     const oldCart = [...cart];
     setCart(cart.map(c => c.id === id ? { ...c, quantity: qty } : c));
+
     try {
       const res = await fetch(`${BASE_URL}/api/cart/${id}`, {
         method: "PUT",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ product_id: item.product.id, quantity: qty }),
+        headers: { 
+          Authorization: `Bearer ${token}`, 
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        body: JSON.stringify({ 
+          product_id: item.product.id, 
+          quantity: qty 
+        }),
       });
       if (!res.ok) throw new Error();
-    } catch (err) { setCart(oldCart); alertError("Gagal update."); }
+    } catch (err) { 
+      setCart(oldCart); 
+      alertError("Gagal memperbarui jumlah."); 
+    }
   };
 
+  // Hapus Item
   const removeItem = async (id: number) => {
     const token = getToken();
+    if (!token) return;
     try {
       const res = await fetch(`${BASE_URL}/api/cart/${id}`, {
         method: "DELETE",
@@ -102,23 +145,30 @@ export default function CartPage() {
       if (res.ok) {
         setCart(cart.filter(item => item.id !== id));
         setSelected(selected.filter(sId => sId !== id));
-        alertSuccess("Dihapus.");
+        alertSuccess("Produk dihapus dari keranjang.");
       }
-    } catch (err) { alertError("Gagal hapus."); }
+    } catch (err) { 
+      alertError("Gagal menghapus produk."); 
+    }
   };
 
   const toggleSelect = (id: number) => {
-    setSelected((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id] );
+    setSelected((prev) => 
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id] 
+    );
   };
 
+  // Perhitungan Biaya
   const selectedItems = cart.filter((c) => selected.includes(c.id));
-  const subtotal = selectedItems.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
-  const total = subtotal + (subtotal * 0.1);
+  const subtotal = selectedItems.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
+  const serviceFee = subtotal * 0.1;
+  const total = subtotal + serviceFee;
 
   if (!isMount) return null;
   if (loading) return (
     <div className="min-h-screen flex flex-col justify-center items-center bg-[#F4F9F4]">
       <Loader2 className="animate-spin text-[#234C6A]" size={40} />
+      <p className="mt-4 text-[#234C6A] font-bold italic">Memuat Keranjang...</p>
     </div>
   );
 
@@ -151,7 +201,7 @@ export default function CartPage() {
             </div>
             
             {cart.length === 0 ? (
-              <div className="bg-white p-12 rounded-3xl text-center border border-gray-100">
+              <div className="bg-white p-12 rounded-3xl text-center border border-gray-100 shadow-sm">
                 <p className="text-gray-400 mb-6 italic">Keranjang Anda masih kosong, ayo belanja!</p>
                 <button onClick={() => router.push("/marketplace")} className="text-[#234C6A] font-bold flex items-center gap-2 mx-auto hover:underline">
                    <ChevronLeft size={20} /> Mulai Belanja
@@ -170,10 +220,15 @@ export default function CartPage() {
 
                       {/* Image */}
                       <div className="w-20 h-20 md:w-28 md:h-28 bg-gray-50 rounded-xl overflow-hidden shrink-0 border border-gray-100">
-                        <img src={getCartImageUrl(item.product.img_url)} alt={item.product.name} className="w-full h-full object-cover" />
+                        <img 
+                          src={getCartImageUrl(item.product.img_url)} 
+                          alt={item.product.name} 
+                          className="w-full h-full object-cover"
+                          onError={(e) => { (e.target as HTMLImageElement).src = "/no-image.png" }} 
+                        />
                       </div>
 
-                      {/* Info & Controls Wrapper */}
+                      {/* Info & Controls */}
                       <div className="flex-1 flex flex-col justify-between min-w-0">
                         <div className="flex justify-between items-start gap-2">
                           <h3 className="font-bold text-sm md:text-lg text-black leading-tight truncate uppercase italic">{item.product.name}</h3>
@@ -185,10 +240,8 @@ export default function CartPage() {
                         <p className="text-[10px] md:text-xs text-gray-400 font-bold uppercase tracking-widest">Suku Cadang Original</p>
 
                         <div className="flex items-center justify-between mt-auto">
-                           {/* Price */}
                            <p className="font-black text-black text-sm md:text-lg italic tracking-tight">{formatRupiah(item.product.price)}</p>
                            
-                           {/* QTY Picker */}
                            <div className="flex items-center gap-2 md:gap-3 bg-slate-100 border border-gray-200 rounded-lg px-2 py-1">
                               <button onClick={() => updateQty(item.id, item.quantity - 1)} className="text-gray-500 hover:text-black p-1 transition-colors"><Minus size={14}/></button>
                               <span className="text-xs md:text-sm font-black w-4 text-center text-[#234C6A]">{item.quantity}</span>
@@ -203,11 +256,10 @@ export default function CartPage() {
             )}
           </div>
 
-          {/* RIGHT / BOTTOM: SUMMARY */}
+          {/* SUMMARY */}
           <div className="lg:sticky lg:top-24 h-fit">
             <h2 className="hidden lg:block text-2xl font-serif font-bold text-black italic uppercase tracking-tighter mb-8">Ringkasan Pesanan</h2>
             
-            {/* Summary Card */}
             <div className="bg-white rounded-2xl p-6 md:p-8 border border-gray-100 shadow-lg">
               <div className="space-y-3 mb-6">
                 <div className="flex justify-between text-sm font-medium">
@@ -216,7 +268,7 @@ export default function CartPage() {
                 </div>
                 <div className="flex justify-between text-sm font-medium">
                   <span className="text-gray-500">Biaya Layanan (10%)</span>
-                  <span className="text-black">{formatRupiah(subtotal * 0.1)}</span>
+                  <span className="text-black">{formatRupiah(serviceFee)}</span>
                 </div>
                 <div className="border-t border-dashed border-gray-200 pt-3 flex justify-between items-center">
                   <span className="font-bold text-black uppercase text-xs tracking-widest">Total Tagihan</span>
@@ -224,10 +276,12 @@ export default function CartPage() {
                 </div>
               </div>
 
-              {/* Desktop Checkout Button */}
               <button
                 disabled={selectedItems.length === 0}
-                onClick={() => { localStorage.setItem("checkout_items", JSON.stringify(selectedItems)); router.push("/checkout"); }}
+                onClick={() => { 
+                  localStorage.setItem("checkout_items", JSON.stringify(selectedItems)); 
+                  router.push("/checkout"); 
+                }}
                 className="hidden md:flex w-full bg-[#234C6A] hover:bg-black text-white py-4 rounded-xl font-bold transition-all items-center justify-center gap-2 disabled:bg-gray-200 disabled:text-gray-400 shadow-md uppercase tracking-widest text-sm italic"
               >
                 Lanjutkan Pembayaran
@@ -239,14 +293,17 @@ export default function CartPage() {
 
       {/* MOBILE STICKY CHECKOUT BAR */}
       {selectedItems.length > 0 && (
-        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 p-4 z-100 shadow-[0_-10px_25px_rgba(0,0,0,0.1)]">
+        <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 p-4 z-60 shadow-[0_-10px_25px_rgba(0,0,0,0.1)]">
            <div className="flex items-center justify-between gap-4 max-w-lg mx-auto">
               <div className="flex flex-col">
                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter italic">Total Bayar</span>
                  <span className="text-lg font-black text-[#234C6A] italic">{formatRupiah(total)}</span>
               </div>
               <button
-                onClick={() => { localStorage.setItem("checkout_items", JSON.stringify(selectedItems)); router.push("/checkout"); }}
+                onClick={() => { 
+                  localStorage.setItem("checkout_items", JSON.stringify(selectedItems)); 
+                  router.push("/checkout"); 
+                }}
                 className="flex-1 bg-[#234C6A] text-white py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 active:scale-95 shadow-lg shadow-blue-900/20 uppercase tracking-widest text-xs italic"
               >
                 Checkout ({selectedItems.length})
