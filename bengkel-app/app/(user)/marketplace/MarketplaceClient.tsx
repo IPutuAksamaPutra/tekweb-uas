@@ -210,7 +210,7 @@ export default function MarketplaceClient() {
                <span className="bg-white text-[#234C6A] px-2 rounded-lg ml-1 min-w-5 text-center">{cartCount}</span>
              </button>
           </div>
-          <Menu className="md:hidden text-slate-400" size={24} />
+          
         </div>
       </nav>
 

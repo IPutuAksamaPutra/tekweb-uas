@@ -193,7 +193,7 @@ export default function BookingPage() {
                   <input
                     name="no_wa"
                     required
-                    placeholder="85857336765"
+                    placeholder="85957436765"
                     className="w-full pl-14 pr-4 py-3 border border-gray-300 rounded-lg outline-none focus:border-[#FF6D1F] focus:ring-1 focus:ring-[#FF6D1F]"
                   />
                 </div>

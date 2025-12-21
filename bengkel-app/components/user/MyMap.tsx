@@ -9,7 +9,7 @@ import "leaflet/dist/leaflet.css";
 export default function MyMapComponent() {
   const [isClient, setIsClient] = useState(false);
 
-  const position: LatLngExpression = [-8.117498278884936, 115.08788956863872];
+  const position: LatLngExpression = [-8.127956165532007, 115.08284935979107];
 
   // Membuat objek ikon secara manual untuk menghindari error "iconUrl not set"
   const kustomIcon = new L.Icon({

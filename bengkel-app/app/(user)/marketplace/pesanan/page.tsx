@@ -161,7 +161,7 @@ export default function PesananPage() {
         {/* 🏷️ TITLE SECTION */}
         <div className="text-center space-y-3">
           <h1 className="text-3xl sm:text-5xl md:text-6xl font-black text-black tracking-tighter uppercase italic leading-none">
-            Riwayat <span className="text-[#FF6D1F]">Transaksi</span>
+            Riwayat <span className="text-[#FF6D1F]">Pesanan</span>
           </h1>
           <div className="h-1 sm:h-1.5 w-16 sm:w-24 bg-[#234C6A] mx-auto rounded-full" />
           <p className="text-gray-400 font-bold uppercase text-[8px] sm:text-[9px] tracking-[0.2em] sm:tracking-[0.3em] italic px-4">
