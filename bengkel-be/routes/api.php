@@ -35,7 +35,6 @@ Route::get('/email/verify/{id}/{hash}', function (Request $request, $id, $hash) 
     event(new Verified($user));
 
     return response()->json(['message' => 'Email verified successfully'], 200);
-
 });
 
 // ==================================

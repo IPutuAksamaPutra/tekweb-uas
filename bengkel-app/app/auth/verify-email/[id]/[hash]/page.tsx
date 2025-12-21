@@ -21,9 +21,7 @@ export default function VerifyEmailPage() {
         );
 
         let data: any = {};
-        try {
-          data = await res.json();
-        } catch {}
+        try { data = await res.json(); } catch {}
 
         if (res.ok) {
           setMessage('✅ Email berhasil diverifikasi! Mengalihkan ke login...');

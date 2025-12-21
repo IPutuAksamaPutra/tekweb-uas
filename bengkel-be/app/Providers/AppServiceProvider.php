@@ -13,12 +13,10 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        // Paksa HTTPS di production
         if (config('app.env') === 'production') {
             URL::forceScheme('https');
         }
 
-        // Custom email verification link ke frontend
         VerifyEmail::toMailUsing(function ($notifiable, $url) {
 
             $id = $notifiable->getKey();
