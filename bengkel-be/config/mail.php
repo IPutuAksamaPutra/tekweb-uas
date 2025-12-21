@@ -16,17 +16,19 @@ return [
     */
     'mailers' => [
 
+        // Resend API sebagai mailer default
         'resend' => [
             'transport' => 'resend',
             'api_key' => env('RESEND_API_KEY'),
         ],
 
+        // Optional: log untuk debugging
         'log' => [
             'transport' => 'log',
             'channel' => env('MAIL_LOG_CHANNEL'),
         ],
 
-        // optional kalau masih mau pakai SMTP
+        // Optional: SMTP masih bisa dipakai untuk testing lokal
         'smtp' => [
             'transport' => 'smtp',
             'host' => env('MAIL_HOST', 'smtp.gmail.com'),
@@ -45,7 +47,7 @@ return [
     |--------------------------------------------------------------------------
     */
     'from' => [
-        'address' => env('MAIL_FROM_ADDRESS', 'your_email@example.com'),
+        'address' => env('MAIL_FROM_ADDRESS', 'no-reply@bengkel-dexar.com'),
         'name' => env('MAIL_FROM_NAME', 'Bengkel Dexar'),
     ],
 
