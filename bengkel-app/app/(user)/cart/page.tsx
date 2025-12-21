@@ -51,7 +51,6 @@ export default function CartPage() {
       const data = await res.json();
       
       if (res.ok) {
-        // Normalisasi data untuk memastikan price adalah number dan img_url adalah array
         const rawItems = data.cart_items || data.data || [];
         const normalized: CartItem[] = rawItems.map((item: any) => ({
           ...item,
@@ -87,18 +86,10 @@ export default function CartPage() {
 
   // Logika Gambar (Safe Array Access)
   const getCartImageUrl = (imgArray: any) => {
-    // Jika data gambar tersimpan sebagai string JSON dalam array
     let targetImg = Array.isArray(imgArray) ? imgArray[0] : imgArray;
-    
     if (!targetImg) return "/no-image.png";
     if (typeof targetImg === 'string' && targetImg.startsWith("http")) return targetImg;
-    
-    // Pembersihan path storage Laravel
-    const fileName = String(targetImg)
-      .replace("public/products/", "")
-      .replace("products/", "")
-      .replace("public/", "");
-      
+    const fileName = String(targetImg).replace("public/products/", "").replace("products/", "").replace("public/", "");
     return `${BASE_URL}/storage/products/${fileName}`;
   };
 
@@ -109,7 +100,6 @@ export default function CartPage() {
     const item = cart.find((c) => c.id === id);
     if (!item || !token) return;
 
-    // Optimistic Update (Update UI dulu baru Server)
     const oldCart = [...cart];
     setCart(cart.map(c => c.id === id ? { ...c, quantity: qty } : c));
 
@@ -145,7 +135,7 @@ export default function CartPage() {
       if (res.ok) {
         setCart(cart.filter(item => item.id !== id));
         setSelected(selected.filter(sId => sId !== id));
-        alertSuccess("Produk dihapus dari keranjang.");
+        alertSuccess("Produk dihapus.");
       }
     } catch (err) { 
       alertError("Gagal menghapus produk."); 
@@ -158,17 +148,16 @@ export default function CartPage() {
     );
   };
 
-  // Perhitungan Biaya
+  // Perhitungan Biaya (Hanya Total Harga Produk)
   const selectedItems = cart.filter((c) => selected.includes(c.id));
   const subtotal = selectedItems.reduce((sum, item) => sum + (item.product.price * item.quantity), 0);
-  const serviceFee = subtotal * 0.1;
-  const total = subtotal + serviceFee;
+  const total = subtotal;
 
   if (!isMount) return null;
   if (loading) return (
     <div className="min-h-screen flex flex-col justify-center items-center bg-[#F4F9F4]">
       <Loader2 className="animate-spin text-[#234C6A]" size={40} />
-      <p className="mt-4 text-[#234C6A] font-bold italic">Memuat Keranjang...</p>
+      <p className="mt-4 text-[#234C6A] font-bold italic">Sinkronisasi Keranjang...</p>
     </div>
   );
 
@@ -240,8 +229,10 @@ export default function CartPage() {
                         <p className="text-[10px] md:text-xs text-gray-400 font-bold uppercase tracking-widest">Suku Cadang Original</p>
 
                         <div className="flex items-center justify-between mt-auto">
+                           {/* Price */}
                            <p className="font-black text-black text-sm md:text-lg italic tracking-tight">{formatRupiah(item.product.price)}</p>
                            
+                           {/* QTY Picker */}
                            <div className="flex items-center gap-2 md:gap-3 bg-slate-100 border border-gray-200 rounded-lg px-2 py-1">
                               <button onClick={() => updateQty(item.id, item.quantity - 1)} className="text-gray-500 hover:text-black p-1 transition-colors"><Minus size={14}/></button>
                               <span className="text-xs md:text-sm font-black w-4 text-center text-[#234C6A]">{item.quantity}</span>
@@ -256,19 +247,16 @@ export default function CartPage() {
             )}
           </div>
 
-          {/* SUMMARY */}
+          {/* RIGHT / BOTTOM: SUMMARY */}
           <div className="lg:sticky lg:top-24 h-fit">
             <h2 className="hidden lg:block text-2xl font-serif font-bold text-black italic uppercase tracking-tighter mb-8">Ringkasan Pesanan</h2>
             
+            {/* Summary Card */}
             <div className="bg-white rounded-2xl p-6 md:p-8 border border-gray-100 shadow-lg">
               <div className="space-y-3 mb-6">
                 <div className="flex justify-between text-sm font-medium">
-                  <span className="text-gray-500">Subtotal</span>
+                  <span className="text-gray-500">Subtotal Produk</span>
                   <span className="text-black">{formatRupiah(subtotal)}</span>
-                </div>
-                <div className="flex justify-between text-sm font-medium">
-                  <span className="text-gray-500">Biaya Layanan (10%)</span>
-                  <span className="text-black">{formatRupiah(serviceFee)}</span>
                 </div>
                 <div className="border-t border-dashed border-gray-200 pt-3 flex justify-between items-center">
                   <span className="font-bold text-black uppercase text-xs tracking-widest">Total Tagihan</span>
@@ -276,6 +264,7 @@ export default function CartPage() {
                 </div>
               </div>
 
+              {/* Desktop Checkout Button */}
               <button
                 disabled={selectedItems.length === 0}
                 onClick={() => { 
@@ -284,7 +273,7 @@ export default function CartPage() {
                 }}
                 className="hidden md:flex w-full bg-[#234C6A] hover:bg-black text-white py-4 rounded-xl font-bold transition-all items-center justify-center gap-2 disabled:bg-gray-200 disabled:text-gray-400 shadow-md uppercase tracking-widest text-sm italic"
               >
-                Lanjutkan Pembayaran
+                Checkout ({selectedItems.length})
               </button>
             </div>
           </div>
