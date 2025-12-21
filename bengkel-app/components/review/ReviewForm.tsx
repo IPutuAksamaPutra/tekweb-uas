@@ -10,7 +10,7 @@ interface Item {
 
 interface ReviewFormProps {
   orderId: number;
-  items: Item[];
+  items: Item[]; // Data ini dikirim dari page.tsx
   onSuccess: () => void;
 }
 
@@ -20,14 +20,14 @@ interface ProductMap {
 
 const BASE_URL = "https://tekweb-uas-production.up.railway.app";
 
-export default function ReviewForm({ orderId, items, onSuccess }: ReviewFormProps) {
+export default function ReviewForm({ orderId, items = [], onSuccess }: ReviewFormProps) {
   const [selectedProductId, setSelectedProductId] = useState<string>("");
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState("");
   const [loading, setLoading] = useState(false);
   const [productNames, setProductNames] = useState<ProductMap>({});
 
-  // Ambil Nama Produk Asli untuk Dropdown
+  // Ambil Nama Produk Asli agar dropdown tidak cuma "Produk #4"
   useEffect(() => {
     const fetchNames = async () => {
       try {
@@ -39,6 +39,7 @@ export default function ReviewForm({ orderId, items, onSuccess }: ReviewFormProp
         list.forEach((p: any) => { map[p.id] = p.name; });
         setProductNames(map);
 
+        // Set default ke produk pertama jika items tersedia
         if (items && items.length > 0) {
           setSelectedProductId(items[0].product_id.toString());
         }
@@ -49,12 +50,15 @@ export default function ReviewForm({ orderId, items, onSuccess }: ReviewFormProp
     fetchNames();
   }, [items]);
 
-  const getToken = () => document.cookie.match(/token=([^;]+)/)?.[1];
+  const getToken = () => {
+    if (typeof window === "undefined") return null;
+    return localStorage.getItem("token") || document.cookie.match(/token=([^;]+)/)?.[1];
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const token = getToken();
-    if (!token) return alertError("Sesi login berakhir.");
+    if (!token) return alertError("Silakan login kembali.");
 
     setLoading(true);
     try {
@@ -73,9 +77,10 @@ export default function ReviewForm({ orderId, items, onSuccess }: ReviewFormProp
         }),
       });
 
-      if (!res.ok) throw new Error("Gagal kirim ulasan");
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.message || "Gagal kirim ulasan");
 
-      alertSuccess("Ulasan terposting!");
+      alertSuccess("Ulasan terposting ke database!");
       onSuccess();
     } catch (err: any) {
       alertError(err.message);
@@ -86,13 +91,15 @@ export default function ReviewForm({ orderId, items, onSuccess }: ReviewFormProp
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {/* PILIH PRODUK */}
       <div>
-        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 italic">Pilih Produk</label>
+        <label className="block text-[10px] font-black uppercase text-slate-400 mb-3 italic">Pilih Produk</label>
         <select
           value={selectedProductId}
           onChange={(e) => setSelectedProductId(e.target.value)}
-          className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-4 font-bold text-[#234C6A] outline-none focus:border-orange-500 appearance-none transition-all"
+          className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-4 font-bold text-[#234C6A] outline-none focus:border-orange-500"
         >
+          {/* SAFETY CHECK: Gunakan items?.map */}
           {items?.map((item) => (
             <option key={item.product_id} value={item.product_id}>
               {productNames[item.product_id] || `Produk #${item.product_id}`}
@@ -101,37 +108,35 @@ export default function ReviewForm({ orderId, items, onSuccess }: ReviewFormProp
         </select>
       </div>
 
+      {/* RATING */}
       <div>
-        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 italic">Rating</label>
+        <label className="block text-[10px] font-black uppercase text-slate-400 mb-3 italic">Rating</label>
         <div className="flex gap-2">
           {[1, 2, 3, 4, 5].map((num) => (
-            <button key={num} type="button" onClick={() => setRating(num)} className="transition-transform active:scale-90">
+            <button key={num} type="button" onClick={() => setRating(num)}>
               <Star size={32} className={`${num <= rating ? "fill-orange-500 text-orange-500" : "text-slate-200"}`} />
             </button>
           ))}
         </div>
       </div>
 
+      {/* KOMENTAR */}
       <div>
-        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 italic">Komentar</label>
-        <div className="relative">
-          <MessageSquare className="absolute left-4 top-4 text-slate-300" size={18} />
-          <textarea
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl p-4 pl-12 h-32 outline-none focus:border-orange-500 font-bold text-slate-600 resize-none transition-all"
-            placeholder="Bagus lo, performa mesin jadi..."
-            required
-          />
-        </div>
+        <textarea
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl p-4 h-32 outline-none font-bold text-slate-600"
+          placeholder="Tulis ulasan..."
+          required
+        />
       </div>
 
       <button
         type="submit"
         disabled={loading}
-        className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-slate-300 text-white py-5 rounded-2xl font-black uppercase italic tracking-widest transition-all flex items-center justify-center gap-3 shadow-xl shadow-orange-100"
+        className="w-full bg-orange-500 text-white py-5 rounded-2xl font-black uppercase italic shadow-xl"
       >
-        {loading ? <Loader2 className="animate-spin" /> : "Kirim Ulasan"}
+        {loading ? <Loader2 className="animate-spin mx-auto" /> : "Kirim Ulasan"}
       </button>
     </form>
   );
