@@ -2,15 +2,14 @@
 
 namespace App\Models;
 
-// 1. Tambahkan baris MustVerifyEmail di bawah ini
-use Illuminate\Contracts\Auth\MustVerifyEmail;
+// Bagian MustVerifyEmail dihapus
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
-// 2. Tambahkan "implements MustVerifyEmail" setelah nama class
-class User extends Authenticatable implements MustVerifyEmail
+// Bagian "implements MustVerifyEmail" dihapus
+class User extends Authenticatable 
 {
     use HasApiTokens, HasFactory, Notifiable; 
 

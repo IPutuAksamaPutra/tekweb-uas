@@ -14,28 +14,12 @@ use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\ReviewController;
 
 // ==================================
-// 1. PUBLIC ROUTES
+// 1. PUBLIC ROUTES (Gausah Verif Email)
 // ==================================
 Route::post('register', [AuthController::class, 'register']);
 Route::post('login', [AuthController::class, 'login']);
 
-Route::get('/email/verify/{id}/{hash}', function (Request $request, $id, $hash) {
-
-    $user = User::findOrFail($id);
-
-    if (!hash_equals((string) $hash, sha1($user->getEmailForVerification()))) {
-        return response()->json(['message' => 'Invalid verification link'], 403);
-    }
-
-    if ($user->hasVerifiedEmail()) {
-        return response()->json(['message' => 'Email already verified'], 200);
-    }
-
-    $user->markEmailAsVerified();
-    event(new Verified($user));
-
-    return response()->json(['message' => 'Email verified successfully'], 200);
-});
+// Route verifikasi email lama dihapus dari sini
 
 // ==================================
 // 2. PUBLIC DATA
@@ -63,7 +47,7 @@ Route::middleware(['auth:sanctum', 'role:admin,super_admin,kasir'])->group(funct
     Route::apiResource('products', ProductController::class)->except(['index','show']);
     Route::apiResource('cashier', CashierController::class);
 
-    // Order Management (Admin/Kasir bisa lihat semua dan ganti status)
+    // Order Management
     Route::get('admin/orders', [OrderController::class, 'adminIndex']); 
     Route::post('admin/orders/{id}/status', [OrderController::class, 'updateStatus']);
 
@@ -95,7 +79,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('cart/{id}', [CartController::class,'update']);
     Route::delete('cart/{id}', [CartController::class,'destroy']);
 
-    // Orders (Milik Sendiri)
+    // Orders
     Route::get('orders', [OrderController::class, 'index']);
     Route::get('orders/{id}', [OrderController::class, 'show']);
     Route::post('orders', [OrderController::class, 'store']);

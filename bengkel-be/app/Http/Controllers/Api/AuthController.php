@@ -6,39 +6,34 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Auth\Events\Registered;
 use Illuminate\Support\Facades\Log;
 
 class AuthController extends Controller
 {
     /**
-     * REGISTER USER (CUSTOMER)
+     * REGISTER USER
+     * Langsung terdaftar dan bisa langsung login.
      */
     public function register(Request $request)
     {
         try {
+            // 1. Validasi Input
             $request->validate([
                 'name' => 'required|string|max:255',
                 'email' => 'required|email|unique:users,email',
                 'password' => 'required|min:6|confirmed'
             ]);
 
+            // 2. Buat User Baru
             $user = User::create([
                 'name' => $request->name,
                 'email' => $request->email,
                 'password' => Hash::make($request->password),
-                'role' => 'customer', // Default role untuk registrasi publik
+                'role' => 'customer', // Default role
             ]);
 
-            // Kirim email verifikasi tanpa memblokir request utama
-            try {
-                event(new Registered($user));
-            } catch (\Throwable $e) {
-                Log::error('Gagal kirim email verifikasi: ' . $e->getMessage());
-            }
-
             return response()->json([
-                'message' => 'Registrasi berhasil. Silakan cek email untuk verifikasi.',
+                'message' => 'Registrasi berhasil! Silakan login.',
                 'user' => $user,
             ], 201);
 
@@ -52,62 +47,50 @@ class AuthController extends Controller
     }
 
     /**
-     * LOGIN USER (WITH ROLE BYPASS FOR VERIFICATION)
+     * LOGIN USER
+     * Semua role (Admin, Customer, dll) bisa langsung masuk.
      */
     public function login(Request $request)
     {
-        $request->validate([
-            'email' => 'required|email',
-            'password' => 'required',
-        ]);
+        try {
+            $request->validate([
+                'email' => 'required|email',
+                'password' => 'required',
+            ]);
 
-        $user = User::where('email', $request->email)->first();
+            $user = User::where('email', $request->email)->first();
 
-        // 1. Cek keberadaan user dan kecocokan password
-        if (! $user || ! Hash::check($request->password, $user->password)) {
-            return response()->json([
-                'message' => 'Email atau password salah'
-            ], 401);
-        }
-
-        /**
-         * 2. LOGIKA BYPASS VERIFIKASI
-         * Role admin, super_admin, dan kasir diizinkan masuk tanpa verifikasi email.
-         * Customer wajib memiliki email_verified_at yang tidak null.
-         */
-        $privilegedRoles = ['super_admin', 'admin', 'kasir'];
-        
-        if (!in_array($user->role, $privilegedRoles)) {
-            if (!$user->hasVerifiedEmail()) {
+            // Cek user dan password
+            if (! $user || ! Hash::check($request->password, $user->password)) {
                 return response()->json([
-                    'message' => 'Akun customer ini belum diverifikasi. Silakan cek email Anda.'
-                ], 403);
+                    'message' => 'Email atau password salah'
+                ], 401);
             }
+
+            // Hapus token lama agar sesi tetap bersih
+            $user->tokens()->delete();
+
+            // Buat token baru menggunakan Sanctum
+            $token = $user->createToken('auth_token')->plainTextToken;
+
+            return response()->json([
+                'message' => 'Login berhasil',
+                'token' => $token,
+                'user' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'role' => $user->role,
+                ],
+            ]);
+
+        } catch (\Throwable $e) {
+            Log::error('Login error: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'Terjadi kesalahan pada server',
+                'error' => $e->getMessage(),
+            ], 500);
         }
-
-        // 3. Kelola Token Sanctum
-        $user->tokens()->delete(); // Hapus sesi lama
-        $token = $user->createToken('auth_token')->plainTextToken;
-
-        return response()->json([
-            'message' => 'Login berhasil',
-            'token' => $token,
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'role' => $user->role, // Penting untuk routing di frontend
-            ],
-        ]);
-    }
-
-    /**
-     * LOGOUT
-     */
-    public function logout(Request $request)
-    {
-        $request->user()->tokens()->delete();
-        return response()->json(['message' => 'Logout berhasil']);
     }
 
     /**
@@ -116,5 +99,16 @@ class AuthController extends Controller
     public function profile(Request $request)
     {
         return response()->json($request->user());
+    }
+
+    /**
+     * LOGOUT
+     */
+    public function logout(Request $request)
+    {
+        $request->user()->tokens()->delete();
+        return response()->json([
+            'message' => 'Logout berhasil'
+        ]);
     }
 }
