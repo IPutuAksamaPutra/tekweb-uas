@@ -15,7 +15,6 @@ const MyMaps = dynamic(() => import("@/components/user/MyMap"), {
 export default function Home() {
   return (
     <div className="grid gap-10">
-
       {/* HERO SECTION */}
       <section
         className="rounded-xl shadow text-white p-10"
@@ -23,20 +22,18 @@ export default function Home() {
       >
         {/* GRID HERO */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
-
           {/* ================= KIRI (KONTEN HERO) ================= */}
           <div>
             <h1 className="text-4xl font-bold mb-4">
-              Selamat Datang di BengkelApp
+              Selamat Datang di Bengkel Dexar
             </h1>
 
             <p className="text-lg opacity-90 leading-relaxed max-w-2xl">
-              Solusi mudah untuk booking bengkel, membeli sparepart, dan mengelola kebutuhan
-              perawatan kendaraan Anda dalam satu aplikasi.
+              Solusi mudah untuk booking bengkel, membeli sparepart, dan
+              mengelola kebutuhan perawatan kendaraan Anda dalam satu aplikasi.
             </p>
 
             <div className="mt-6 flex gap-4">
-
               {/* TOMBOL BOOKING */}
               <a
                 href="/booking"
@@ -65,13 +62,11 @@ export default function Home() {
           <div className="w-full h-[280px] lg:h-[260px] rounded-xl overflow-hidden shadow-lg border border-white/20">
             <MyMaps />
           </div>
-
         </div>
       </section>
 
       {/* FITUR SECTION (SEMUA CARD DIKEMBALIKAN) */}
       <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
-
         {/* CARD 1 */}
         <div
           className="bg-white rounded-xl shadow hover:shadow-lg transition p-6 border-t-4"
@@ -83,7 +78,10 @@ export default function Home() {
           <p className="text-gray-600 mb-4">
             Cari dan beli sparepart berkualitas dengan mudah.
           </p>
-          <a href="/marketplace" className="text-[#234C6A] font-semibold hover:underline">
+          <a
+            href="/marketplace"
+            className="text-[#234C6A] font-semibold hover:underline"
+          >
             Lihat Produk →
           </a>
         </div>
@@ -99,7 +97,10 @@ export default function Home() {
           <p className="text-gray-600 mb-4">
             Pilih jadwal servis tanpa harus mengantri lama.
           </p>
-          <a href="/booking" className="text-[#234C6A] font-semibold hover:underline">
+          <a
+            href="/booking"
+            className="text-[#234C6A] font-semibold hover:underline"
+          >
             Booking Sekarang →
           </a>
         </div>
@@ -115,13 +116,14 @@ export default function Home() {
           <p className="text-gray-600 mb-4">
             Lihat catatan servis kendaraan Anda kapan saja.
           </p>
-          <a href="/booking/history" className="text-[#234C6A] font-semibold hover:underline">
+          <a
+            href="/booking/history"
+            className="text-[#234C6A] font-semibold hover:underline"
+          >
             Lihat Riwayat →
           </a>
         </div>
-
       </section>
-
     </div>
   );
 }
