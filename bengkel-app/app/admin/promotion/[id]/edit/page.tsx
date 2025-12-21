@@ -2,18 +2,13 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { 
-  alertSuccess, 
-  alertError 
-} from "@/components/Alert";
+import { alertSuccess, alertError } from "@/components/Alert";
 import { 
   ArrowLeft, 
-  Save, 
   Tag, 
   Loader2, 
-  Package,
   CheckCircle2,
-  AlertTriangle
+  AlertCircle
 } from "lucide-react";
 
 /* ===============================
@@ -49,14 +44,12 @@ export default function EditPromotionPage() {
   const BASE_URL = "https://tekweb-uas-production.up.railway.app";
   const API_URL = `${BASE_URL}/api`;
 
-  /* ================= FETCH DATA (FIXED TOKEN READ) ================= */
+  /* ================= FETCH DATA ================= */
   const fetchData = useCallback(async () => {
-    // 1. Ambil token dengan log yang lebih jelas untuk debug
     const token = document.cookie.split('; ').find(row => row.startsWith('token='))?.split('=')[1];
     
     if (!token) {
-      console.warn("DEBUG: Token benar-benar hilang dari cookie!");
-      alertError("Sesi login hilang. Kamu harus login ulang.");
+      alertError("Sesi login hilang. Silakan login kembali.");
       router.push("/auth/login");
       return;
     }
@@ -73,14 +66,13 @@ export default function EditPromotionPage() {
         fetch(`${API_URL}/products`, { headers })
       ]);
 
-      // 2. Jika Server bilang 401, berarti token di browser ada tapi di database sudah hangus
       if (promoRes.status === 401) {
-        alertError("Sesi kadaluarsa di server. Login ulang ya!");
+        alertError("Sesi kadaluarsa. Silakan login ulang.");
         router.push("/auth/login");
         return;
       }
 
-      if (!promoRes.ok) throw new Error("Gagal memuat data promosi");
+      if (!promoRes.ok) throw new Error("Gagal mengambil data promosi.");
       
       const promoJson = await promoRes.json();
       const prodJson = await productsRes.json();
@@ -88,7 +80,6 @@ export default function EditPromotionPage() {
       const rawPromo = promoJson.data || promoJson.promotion || promoJson;
       const productList = prodJson.data || prodJson.products || [];
 
-      // HELPER: Format tanggal (Auto-fill data lama)
       const formatDT = (dateStr: string) => {
         if (!dateStr) return "";
         return dateStr.replace(" ", "T").substring(0, 16);
@@ -106,7 +97,7 @@ export default function EditPromotionPage() {
 
       setProducts(productList);
     } catch (err: any) {
-      alertError(err.message || "Gagal sinkronisasi data");
+      alertError(err.message || "Gagal sinkronisasi data.");
       router.push("/admin/promotion");
     } finally {
       setLoading(false);
@@ -121,7 +112,12 @@ export default function EditPromotionPage() {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     if (!promo) return;
     const { name, value } = e.target;
-    setPromo({ ...promo, [name]: value });
+    
+    // Memastikan tipe data tetap terjaga agar tidak muncul error "not assignable"
+    setPromo({ 
+      ...promo, 
+      [name]: name === "discount_value" ? Number(value) : value 
+    });
   };
 
   const toggleProduct = (id: number) => {
@@ -136,18 +132,23 @@ export default function EditPromotionPage() {
   const updatePromo = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!promo) return;
-    setSaving(true);
     
+    if (promo.product_ids.length === 0) {
+      alertError("Pilih minimal satu produk!");
+      return;
+    }
+
+    setSaving(true);
     const token = document.cookie.split('; ').find(row => row.startsWith('token='))?.split('=')[1];
 
     const payload = {
       name: promo.name,
       discount_type: promo.discount_type,
       discount_value: Number(promo.discount_value),
-      start_date: promo.start_date.replace("T", " "),
-      end_date: promo.end_date.replace("T", " "),
+      start_date: promo.start_date.replace("T", " ") + ":00",
+      end_date: promo.end_date.replace("T", " ") + ":00",
       is_active: promo.is_active ? 1 : 0,
-      product_ids: promo.product_ids,
+      product_ids: Array.from(promo.product_ids),
     };
 
     try {
@@ -161,9 +162,9 @@ export default function EditPromotionPage() {
         body: JSON.stringify(payload),
       });
 
-      if (!res.ok) throw new Error("Gagal update data");
+      if (!res.ok) throw new Error("Gagal memperbarui promosi.");
 
-      alertSuccess("Promosi berhasil diperbarui! ✨");
+      alertSuccess("Promosi berhasil diperbarui!");
       router.push("/admin/promotion");
     } catch (err: any) {
       alertError(err.message);
@@ -174,11 +175,12 @@ export default function EditPromotionPage() {
 
   if (!isMount) return null;
 
+  // Render loading jika data sedang diambil atau promo masih null
   if (loading || !promo) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
         <Loader2 className="animate-spin text-[#FF6D1F] mb-4" size={48} />
-        <p className="text-[#234C6A] font-black uppercase text-xs tracking-widest animate-pulse">Syncing Database...</p>
+        <p className="text-[#234C6A] font-black uppercase text-xs tracking-widest">Syncing Database...</p>
       </div>
     );
   }
@@ -191,8 +193,8 @@ export default function EditPromotionPage() {
         </button>
 
         <div className="bg-white rounded-[3rem] shadow-2xl overflow-hidden border border-gray-100">
-          <div className="bg-[#234C6A] p-10 text-white flex justify-between items-center relative">
-            <div className="relative z-10">
+          <div className="bg-[#234C6A] p-10 text-white flex justify-between items-center">
+            <div>
               <h1 className="text-3xl font-black uppercase tracking-tighter italic flex items-center gap-3">
                 <Tag className="text-[#FF6D1F]" size={36} /> Edit Data Promo
               </h1>
@@ -207,12 +209,13 @@ export default function EditPromotionPage() {
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Nama Promo</label>
                   <input name="name" value={promo.name} onChange={handleChange} className="w-full bg-gray-50 p-4 rounded-2xl font-bold outline-none focus:ring-2 focus:ring-[#FF6D1F]" required />
                 </div>
+                
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Tipe</label>
                     <select name="discount_type" value={promo.discount_type} onChange={handleChange} className="w-full bg-gray-50 p-4 rounded-2xl font-bold outline-none">
-                      <option value="percentage">%</option>
-                      <option value="fixed">Rp</option>
+                      <option value="percentage">% Persen</option>
+                      <option value="fixed">Rp Tetap</option>
                     </select>
                   </div>
                   <div>
@@ -220,6 +223,7 @@ export default function EditPromotionPage() {
                     <input type="number" name="discount_value" value={promo.discount_value} onChange={handleChange} className="w-full bg-gray-50 p-4 rounded-2xl font-bold outline-none" required />
                   </div>
                 </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Mulai</label>
@@ -230,16 +234,29 @@ export default function EditPromotionPage() {
                     <input type="datetime-local" name="end_date" value={promo.end_date} onChange={handleChange} className="w-full bg-gray-50 p-4 rounded-2xl font-bold outline-none" />
                   </div>
                 </div>
+
+                <div className="flex items-center gap-3 p-4 bg-orange-50 rounded-2xl border border-orange-100">
+                  <input 
+                    type="checkbox" 
+                    id="is_active" 
+                    checked={promo.is_active} 
+                    onChange={(e) => setPromo({ ...promo, is_active: e.target.checked })}
+                    className="w-5 h-5 accent-[#FF6D1F]"
+                  />
+                  <label htmlFor="is_active" className="text-sm font-black text-[#234C6A] uppercase italic cursor-pointer">Status Aktif</label>
+                </div>
               </div>
 
               <div className="space-y-4">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Daftar Produk ({promo.product_ids.length})</label>
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Pilih Produk ({promo.product_ids.length})</label>
                 <div className="border-2 border-gray-100 rounded-[2.5rem] bg-gray-50/30 p-4 max-h-[350px] overflow-y-auto shadow-inner">
                   {products.map((p) => {
                     const isSelected = promo.product_ids.includes(p.id);
                     return (
-                      <div key={p.id} onClick={() => toggleProduct(p.id)} className={`flex items-center gap-4 p-4 mb-2 rounded-3xl cursor-pointer transition-all ${isSelected ? 'bg-white border-2 border-[#FF6D1F] shadow-md' : 'bg-transparent'}`}>
-                        <div className={`w-5 h-5 rounded-md border-2 ${isSelected ? 'bg-[#FF6D1F] border-[#FF6D1F]' : 'border-gray-200'}`} />
+                      <div key={p.id} onClick={() => toggleProduct(p.id)} className={`flex items-center gap-4 p-4 mb-2 rounded-3xl cursor-pointer transition-all ${isSelected ? 'bg-white border-2 border-[#FF6D1F] shadow-md' : 'bg-transparent border-2 border-transparent'}`}>
+                        <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center ${isSelected ? 'bg-[#FF6D1F] border-[#FF6D1F]' : 'border-gray-200'}`}>
+                          {isSelected && <CheckCircle2 size={14} className="text-white" />}
+                        </div>
                         <div>
                           <p className="text-sm font-black uppercase text-[#234C6A]">{p.name}</p>
                           <p className="text-[10px] font-bold text-gray-400 tracking-widest">ID: {p.id}</p>
@@ -251,8 +268,8 @@ export default function EditPromotionPage() {
               </div>
             </div>
 
-            <button type="submit" disabled={saving} className="w-full bg-[#FF6D1F] hover:bg-orange-600 text-white py-6 rounded-4xl font-black uppercase tracking-widest shadow-xl active:scale-95 disabled:bg-gray-300">
-              {saving ? <Loader2 className="animate-spin" size={24} /> : "Update Data Promosi"}
+            <button type="submit" disabled={saving} className="w-full bg-[#FF6D1F] hover:bg-orange-600 text-white py-6 rounded-4xl font-black uppercase tracking-widest shadow-xl active:scale-95 disabled:bg-gray-300 transition-all flex items-center justify-center gap-3">
+              {saving ? <Loader2 className="animate-spin" size={24} /> : "Simpan Perubahan"}
             </button>
           </form>
         </div>
