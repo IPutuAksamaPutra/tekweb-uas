@@ -1,15 +1,14 @@
-<?php
+<?php 
 
 namespace App\Models;
 
-// Bagian MustVerifyEmail dihapus
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use Illuminate\Contracts\Auth\MustVerifyEmail; // ✅ TAMBAH INI
 
-// Bagian "implements MustVerifyEmail" dihapus
-class User extends Authenticatable 
+class User extends Authenticatable implements MustVerifyEmail // ✅ TAMBAH INI
 {
     use HasApiTokens, HasFactory, Notifiable; 
 
