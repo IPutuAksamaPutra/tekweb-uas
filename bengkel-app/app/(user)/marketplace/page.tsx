@@ -2,7 +2,7 @@ import { Metadata } from "next";
 import MarketplaceClient from "./MarketplaceClient"; // Komponen Client Anda
 
 export const metadata: Metadata = {
-  title: "Marketplace Sparepart & Aksesori Motor | bengkel Dexar",
+  title: "Marketplace Sparepart & Aksesoris Motor | Bengkel Dexar",
   description: "Beli sparepart motor original, ban, oli, dan aksesori motor terlengkap dengan harga terbaik. Melayani pengiriman ke seluruh Indonesia.",
   keywords: ["sparepart motor", "bengkel online", "toko aksesoris motor", "ban nmax", "oli mpx"],
   openGraph: {

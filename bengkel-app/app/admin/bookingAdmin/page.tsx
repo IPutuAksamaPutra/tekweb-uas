@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation"; // Tambahkan router untuk redirect manual jika perlu
 import { alertSuccess, alertError } from "@/components/Alert";
 import {
   User,
@@ -27,32 +28,41 @@ interface Booking {
 }
 
 export default function AdminBookingPage() {
+  const router = useRouter();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [isMount, setIsMount] = useState(false);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://tekweb-uas-production.up.railway.app";
 
-  // ================= TOKEN HELPER (FIXED) =================
-  const getTokenFromCookie = useCallback(() => {
+  // ================= TOKEN HELPER (DIPERKUAT) =================
+  const getToken = useCallback(() => {
     if (typeof document === "undefined") return null;
-    const value = `; ${document.cookie}`;
-    const parts = value.split(`; token=`);
-    if (parts.length === 2) return parts.pop()?.split(';').shift();
+    const name = "token=";
+    const decodedCookie = decodeURIComponent(document.cookie);
+    const ca = decodedCookie.split(';');
+    for (let i = 0; i < ca.length; i++) {
+      let c = ca[i].trim();
+      if (c.indexOf(name) === 0) return c.substring(name.length, c.length);
+    }
     return null;
   }, []);
 
   // ================= FETCH BOOKINGS =================
   const fetchBookings = useCallback(async () => {
+    // Pastikan hanya berjalan setelah komponen mount sempurna
+    const token = getToken();
+    
+    if (!token) {
+      // Jika di halaman lain aman, jangan langsung alert error di sini
+      // Berikan kesempatan untuk mencoba lagi atau cek konsol
+      console.warn("Sesi tidak ditemukan di halaman admin");
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
-      const token = getTokenFromCookie();
-      
-      if (!token) {
-        alertError("Sesi habis. Silakan login kembali.");
-        return;
-      }
-
       const res = await fetch(`${apiUrl}/api/bookings/manage`, {
         headers: {
           "Accept": "application/json",
@@ -61,7 +71,8 @@ export default function AdminBookingPage() {
       });
 
       if (res.status === 401) {
-        alertError("Token tidak valid atau kedaluwarsa.");
+        alertError("Sesi Admin telah berakhir. Silakan login kembali.");
+        router.push("/auth/login");
         return;
       }
 
@@ -75,27 +86,28 @@ export default function AdminBookingPage() {
     } finally {
       setLoading(false);
     }
-  }, [apiUrl, getTokenFromCookie]);
+  }, [apiUrl, getToken, router]);
 
   useEffect(() => {
     setIsMount(true);
-    fetchBookings();
+    // Berikan sedikit delay kecil (100ms) agar cookie benar-benar siap terbaca
+    const timer = setTimeout(() => {
+        fetchBookings();
+    }, 100);
+    return () => clearTimeout(timer);
   }, [fetchBookings]);
 
-  // ================= UPDATE STATUS (FIXED 401 & LOGIC) =================
+  // ================= UPDATE STATUS =================
   async function updateStatus(id: number, newStatus: string) {
-    const token = getTokenFromCookie();
-    
+    const token = getToken();
     if (!token) {
-      alertError("Token tidak ditemukan. Silakan login ulang.");
+      alertError("Gagal update: Sesi hilang.");
       return;
     }
 
-    // Simpan data lama untuk rollback jika gagal
     const previousBookings = [...bookings];
 
     try {
-      // Optimistic UI Update (Ganti di layar dulu biar cepet)
       setBookings((prev) =>
         prev.map((item) => (item.id === id ? { ...item, status: newStatus } : item))
       );
@@ -105,20 +117,20 @@ export default function AdminBookingPage() {
         headers: {
           "Accept": "application/json",
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`, // Header krusial agar tidak 401
+          "Authorization": `Bearer ${token}`,
         },
         body: JSON.stringify({ status: newStatus }),
       });
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.message || "Gagal memperbarui status ke server");
+        throw new Error(errData.message || "Gagal memperbarui status");
       }
 
-      alertSuccess(`Booking #${id} berhasil di-update ke ${newStatus}!`);
+      alertSuccess(`Booking #${id} di-update ke ${newStatus}!`);
     } catch (err: any) {
       alertError(err.message);
-      setBookings(previousBookings); // Rollback data jika gagal
+      setBookings(previousBookings);
     }
   }
 
@@ -128,8 +140,8 @@ export default function AdminBookingPage() {
     <div className="min-h-screen bg-slate-50 p-6 lg:p-10 text-slate-800">
       <header className="max-w-7xl mx-auto mb-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-black text-[#234C6A] flex items-center gap-3">
-            <span className="p-2 bg-[#FF6D1F] text-white rounded-xl shadow-lg">
+          <h1 className="text-3xl font-black text-[#234C6A] flex items-center gap-3 italic">
+            <span className="p-2 bg-[#FF6D1F] text-white rounded-xl shadow-lg not-italic">
               <ClipboardList size={28} />
             </span>
             Antrean Servis
@@ -139,7 +151,7 @@ export default function AdminBookingPage() {
         <button
           onClick={fetchBookings}
           disabled={loading}
-          className="flex items-center gap-2 bg-white border px-5 py-2.5 rounded-xl font-bold hover:bg-slate-50 transition-all shadow-sm disabled:opacity-50"
+          className="flex items-center gap-2 bg-white border-2 border-slate-200 px-5 py-2.5 rounded-xl font-bold hover:border-[#FF6D1F] transition-all shadow-sm disabled:opacity-50"
         >
           <RotateCw size={18} className={loading ? "animate-spin" : ""} />
           {loading ? "Sinkron..." : "Refresh Data"}
@@ -160,7 +172,7 @@ export default function AdminBookingPage() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {bookings.map((b) => (
-              <div key={b.id} className="bg-white rounded-4xl shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden group hover:border-[#FF6D1F] transition-all">
+              <div key={b.id} className="bg-white rounded-4xl shadow-xl shadow-slate-200/50 border-2 border-transparent overflow-hidden group hover:border-[#FF6D1F] transition-all relative">
                 <div className={`h-2.5 w-full ${b.status?.toLowerCase() === "confirmed" ? "bg-green-500" : "bg-amber-500"}`} />
                 <div className="p-6">
                   <div className="flex justify-between items-start mb-4">
@@ -171,14 +183,14 @@ export default function AdminBookingPage() {
                         <Bike size={22} className="text-[#FF6D1F]" />
                       )}
                     </div>
-                    <span className={`text-[10px] font-black uppercase px-3 py-1 rounded-lg border ${
+                    <span className={`text-[10px] font-black uppercase px-3 py-1 rounded-lg border-2 ${
                         b.status?.toLowerCase() === "confirmed" ? "bg-green-50 border-green-200 text-green-700" : "bg-amber-50 border-amber-200 text-amber-700"
                     }`}>
                       {b.status || "Pending"}
                     </span>
                   </div>
 
-                  <h3 className="text-lg font-black text-[#234C6A] mb-4 truncate italic uppercase">
+                  <h3 className="text-lg font-black text-[#234C6A] mb-4 truncate italic uppercase tracking-tighter">
                     {b.nama_kendaraan}
                   </h3>
 
@@ -212,7 +224,7 @@ export default function AdminBookingPage() {
                     <select
                       value={b.status || "Pending"}
                       onChange={(e) => updateStatus(b.id, e.target.value)}
-                      className="w-full bg-[#234C6A] text-white border-none p-3 rounded-xl font-black text-xs cursor-pointer focus:ring-4 focus:ring-orange-200 transition-all appearance-none"
+                      className="w-full bg-[#234C6A] text-white border-none p-3 rounded-xl font-black text-xs cursor-pointer focus:ring-4 focus:ring-orange-200 transition-all appearance-none outline-none"
                     >
                       <option value="Pending">🕒 MASIH PENDING</option>
                       <option value="Confirmed">✅ KONFIRMASI (OKE)</option>

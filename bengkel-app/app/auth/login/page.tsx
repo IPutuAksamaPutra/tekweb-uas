@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     follow: false,
   },
   openGraph: {
-    title: "Login Sistem - Bengkel Pedia",
+    title: "Login Sistem - Bengkel Dexar",
     description: "Akses dashboard pelanggan dan admin Bengkel Pedia.",
     url: "https://bengkeldexar.vercel.app/auth/login",
     siteName: "Bengkel Pedia",
