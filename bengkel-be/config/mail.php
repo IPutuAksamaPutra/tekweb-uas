@@ -2,33 +2,17 @@
 
 return [
 
-    /*
-    |--------------------------------------------------------------------------
-    | Default Mailer
-    |--------------------------------------------------------------------------
-    */
     'default' => env('MAIL_MAILER', 'smtp'),
 
-    /*
-    |--------------------------------------------------------------------------
-    | Mailer Configurations
-    |--------------------------------------------------------------------------
-    */
     'mailers' => [
-
         'smtp' => [
             'transport' => 'smtp',
-            'host' => env('MAIL_HOST', 'smtp.resend.com'),
+            'host' => env('MAIL_HOST', 'smtp.gmail.com'),
             'port' => env('MAIL_PORT', 587),
             'encryption' => env('MAIL_ENCRYPTION', 'tls'),
-            'username' => env('MAIL_USERNAME', 'resend'),
+            'username' => env('MAIL_USERNAME'),
             'password' => env('MAIL_PASSWORD'),
-            'timeout' => 5, // ⬅️ PENTING: kecilkan timeout
-            'local_domain' => env('MAIL_EHLO_DOMAIN'),
-        ],
-
-        'resend' => [
-            'transport' => 'resend',
+            'timeout' => null,
         ],
 
         'log' => [
@@ -37,13 +21,8 @@ return [
         ],
     ],
 
-    /*
-    |--------------------------------------------------------------------------
-    | Global "From" Address
-    |--------------------------------------------------------------------------
-    */
     'from' => [
-        'address' => env('MAIL_FROM_ADDRESS', 'onboarding@resend.dev'),
+        'address' => env('MAIL_FROM_ADDRESS', 'msuka5641l@gmail.com'),
         'name' => env('MAIL_FROM_NAME', 'Bengkel Dexar'),
     ],
 

@@ -19,25 +19,24 @@ use App\Http\Controllers\Api\ReviewController;
 Route::post('register', [AuthController::class, 'register']);
 Route::post('login', [AuthController::class, 'login']);
 
-Route::get('/verify-email/{id}/{hash}', function (Request $request) {
-    // 🛡️ Tambahkan pengecekan signature agar aman
-    if (! $request->hasValidSignature()) {
-        return response()->json(['message' => 'Link verifikasi sudah kadaluwarsa atau tidak valid.'], 403);
-    }
+Route::get('/email/verify/{id}/{hash}', function (Request $request, $id, $hash) {
 
-    $user = \App\Models\User::findOrFail($request->route('id'));
+    $user = User::findOrFail($id);
 
-    if (! hash_equals((string) $request->route('hash'), sha1($user->getEmailForVerification()))) {
-        return response()->json(['message' => 'Hash tidak valid.'], 403);
+    if (!hash_equals((string) $hash, sha1($user->getEmailForVerification()))) {
+        return response()->json(['message' => 'Invalid verification link'], 403);
     }
 
     if ($user->hasVerifiedEmail()) {
-        return response()->json(['message' => 'Email sudah terverifikasi sebelumnya.']);
+        return response()->json(['message' => 'Email already verified'], 200);
     }
 
     $user->markEmailAsVerified();
-    return response()->json(['message' => 'Email berhasil diverifikasi!']);
-})->name('verification.verify');
+    event(new Verified($user));
+
+    return response()->json(['message' => 'Email verified successfully'], 200);
+
+});
 
 // ==================================
 // 2. PUBLIC DATA

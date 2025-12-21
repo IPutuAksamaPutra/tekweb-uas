@@ -9,49 +9,28 @@ use Illuminate\Support\Facades\URL;
 
 class AppServiceProvider extends ServiceProvider
 {
-    /**
-     * Register any application services.
-     */
-    public function register(): void
-    {
-        //
-    }
+    public function register(): void {}
 
-    /**
-     * Bootstrap any application services.
-     */
     public function boot(): void
     {
-        /**
-         * 🔐 Paksa HTTPS di production (Railway)
-         * WAJIB supaya:
-         * - Link verifikasi email tidak http
-         * - Tidak kena mixed-content
-         */
+        // Paksa HTTPS di production
         if (config('app.env') === 'production') {
             URL::forceScheme('https');
         }
 
-        /**
-         * 📧 CUSTOM EMAIL VERIFICATION
-         * Link diarahkan ke FRONTEND (Next.js)
-         */
-        VerifyEmail::toMailUsing(function (object $notifiable, string $url) {
+        // Custom email verification link ke frontend
+        VerifyEmail::toMailUsing(function ($notifiable, $url) {
 
-            // ID & hash user
             $id = $notifiable->getKey();
             $hash = sha1($notifiable->getEmailForVerification());
-
-            // Ambil query expires & signature
             $query = parse_url($url, PHP_URL_QUERY);
 
-            // FRONTEND URL (dari .env)
             $frontendBaseUrl = rtrim(config('app.frontend_url'), '/');
-
-            // Final URL ke Next.js
             $frontendUrl = "{$frontendBaseUrl}/auth/verify-email/{$id}/{$hash}?{$query}";
 
             return (new MailMessage)
+                ->from(config('mail.from.address'), config('mail.from.name'))
+                ->replyTo(config('mail.from.address'))
                 ->subject('Verifikasi Alamat Email - Bengkel Dexar')
                 ->greeting('Halo, ' . $notifiable->name . ' 👋')
                 ->line('Terima kasih telah mendaftar.')
