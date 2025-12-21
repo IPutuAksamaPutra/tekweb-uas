@@ -19,7 +19,7 @@ use App\Http\Controllers\Api\ReviewController;
 Route::post('register', [AuthController::class, 'register']);
 Route::post('login', [AuthController::class, 'login']);
 
-Route::get('/email/verify/{id}/{hash}', function (Request $request) {
+Route::get('/verify-email/{id}/{hash}', function (Request $request) {
     // 🛡️ Tambahkan pengecekan signature agar aman
     if (! $request->hasValidSignature()) {
         return response()->json(['message' => 'Link verifikasi sudah kadaluwarsa atau tidak valid.'], 403);
