@@ -19,12 +19,14 @@ export default function NavbarUsr() {
   ];
 
   return (
-    <nav className="w-full text-white shadow-lg z-50 sticky top-0" style={{ backgroundColor: "#234C6A" }}>
+    <nav
+      className="w-full text-white shadow-lg z-50 sticky top-0"
+      style={{ backgroundColor: "#234C6A" }}
+    >
       <div className="container mx-auto px-4 md:px-0 flex items-center justify-between h-16">
-        
         {/* Logo/Brand */}
         <a href="/" className="text-xl font-bold tracking-wider">
-          BengkelApp
+          Bengkel Dexar
         </a>
 
         {/* =================================================== */}
@@ -32,7 +34,11 @@ export default function NavbarUsr() {
         {/* =================================================== */}
         <div className="hidden md:flex items-center gap-6 text-sm font-medium">
           {navItems.map((item) => (
-            <a key={item.name} href={item.href} className="hover:text-gray-300 transition duration-150">
+            <a
+              key={item.name}
+              href={item.href}
+              className="hover:text-gray-300 transition duration-150"
+            >
               {item.name}
             </a>
           ))}

@@ -5,8 +5,8 @@ export default function FooterUsr() {
       style={{ backgroundColor: "#234C6A" }}
     >
       <div className="container mx-auto text-center text-sm">
-        © {new Date().getFullYear()} Bengkel App — Create with ♥ by team Bengkel
-        App
+        © {new Date().getFullYear()} Bengkel Dexar — Create with ♥ by team
+        Bengkel App
       </div>
     </footer>
   );
