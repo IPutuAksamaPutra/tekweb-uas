@@ -12,7 +12,9 @@ import {
   Heart,
   Package,
   MessageSquare,
-  Wrench
+  Wrench,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import { alertSuccess, alertError } from "@/components/Alert";
 
@@ -46,6 +48,9 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
   const [activeTab, setActiveTab] = useState("description");
+  
+  // STATE BARU: Untuk mengontrol gambar yang sedang aktif
+  const [activeImgIndex, setActiveImgIndex] = useState(0);
 
   const getImageUrl = (imgData?: any) => {
     if (!imgData) return "/no-image.png";
@@ -77,8 +82,15 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
 
       let finalImages: string[] = [];
       const sourceImages = rawData.img_urls || rawData.img_url || [];
+      
+      // LOGIKA PARSING ARRAY GAMBAR
       if (typeof sourceImages === 'string') {
-        try { finalImages = JSON.parse(sourceImages); } catch { finalImages = [sourceImages]; }
+        try { 
+            const parsed = JSON.parse(sourceImages);
+            finalImages = Array.isArray(parsed) ? parsed : [parsed];
+        } catch { 
+            finalImages = sourceImages.split(',').map(s => s.trim()); 
+        }
       } else {
         finalImages = Array.isArray(sourceImages) ? sourceImages : [sourceImages];
       }
@@ -132,7 +144,6 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
 
   return (
     <div className="min-h-screen bg-white pb-20 font-sans text-gray-800">
-      {/* Top Navigation */}
       <nav className="max-w-7xl mx-auto px-4 md:px-6 py-4 md:py-6 flex items-center justify-between">
         <button onClick={() => router.back()} className="flex items-center gap-2 text-gray-400 hover:text-black transition-colors font-bold text-sm">
           <ArrowLeft size={18} /> KEMBALI
@@ -144,15 +155,16 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
 
       <main className="max-w-7xl mx-auto px-4 md:px-6 grid lg:grid-cols-2 gap-8 md:gap-12 items-start pt-6">
         
-        {/* GALLERY SECTION - BORDER HITAM HANYA DI SINI */}
+        {/* GALLERY SECTION (DIPERBARUI) */}
         <section className="space-y-4 md:space-y-6">
-          {/* Gambar Utama dengan Border Hitam Neobrutalism */}
           <div className="aspect-square bg-white rounded-3xl overflow-hidden border-2 border-black shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] relative group">
+            {/* Gambar Utama */}
             <img 
-              src={getImageUrl(product.img_urls)} 
+              src={getImageUrl(product.img_urls[activeImgIndex])} 
               alt={product.name} 
-              className="w-full h-full object-contain p-6 md:p-10 group-hover:scale-105 transition-transform duration-700"
+              className="w-full h-full object-contain p-6 md:p-10 transition-transform duration-500"
             />
+            
             <div className="absolute top-4 left-4 md:top-6 md:left-6">
               {product.stock > 0 ? (
                 <span className="bg-white text-black px-3 md:px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-tighter border-2 border-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]">Ready Stock</span>
@@ -160,17 +172,49 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
                 <span className="bg-red-50 text-red-600 px-3 md:px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-tighter border-2 border-red-200">Out of Stock</span>
               )}
             </div>
+
+            {/* Tombol Navigasi Panah (Hanya jika gambar > 1) */}
+            {product.img_urls.length > 1 && (
+                <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 flex justify-between opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                    <button 
+                        onClick={() => setActiveImgIndex((prev) => (prev === 0 ? product.img_urls.length - 1 : prev - 1))}
+                        className="p-2 bg-white border-2 border-black rounded-full shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] pointer-events-auto hover:bg-gray-50 active:translate-y-0.5 active:translate-x-0.5 active:shadow-none transition-all"
+                    >
+                        <ChevronLeft size={24} />
+                    </button>
+                    <button 
+                        onClick={() => setActiveImgIndex((prev) => (prev === product.img_urls.length - 1 ? 0 : prev + 1))}
+                        className="p-2 bg-white border-2 border-black rounded-full shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] pointer-events-auto hover:bg-gray-50 active:translate-y-0.5 active:translate-x-0.5 active:shadow-none transition-all"
+                    >
+                        <ChevronRight size={24} />
+                    </button>
+                </div>
+            )}
           </div>
           
-          {/* Thumbnail dengan Border Hitam */}
-          <div className="flex gap-3 md:gap-4 overflow-x-auto pb-2 scrollbar-hide">
-            <div className="min-w-20 md:min-w-24 w-20 md:w-24 h-20 md:h-24 rounded-2xl border-2 border-black p-1 cursor-pointer shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] bg-white">
-              <img src={getImageUrl(product.img_urls)} className="w-full h-full object-cover rounded-xl" alt="thumb" />
-            </div>
+          {/* List Thumbnail (Mapping Gambar) */}
+          <div className="flex gap-3 md:gap-4 overflow-x-auto pb-4 scrollbar-hide">
+            {product.img_urls.map((img, index) => (
+                <div 
+                    key={index}
+                    onClick={() => setActiveImgIndex(index)}
+                    className={`min-w-20 md:min-w-24 w-20 md:w-24 h-20 md:h-24 rounded-2xl border-2 cursor-pointer transition-all bg-white overflow-hidden p-1 ${
+                        activeImgIndex === index 
+                        ? "border-teal-600 shadow-[4px_4px_0px_0px_rgba(13,148,136,1)] scale-95" 
+                        : "border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:scale-105"
+                    }`}
+                >
+                    <img 
+                        src={getImageUrl(img)} 
+                        className="w-full h-full object-cover rounded-xl" 
+                        alt={`thumb-${index}`} 
+                    />
+                </div>
+            ))}
           </div>
         </section>
 
-        {/* INFO SECTION - TANPA BORDER TEBAL */}
+        {/* INFO SECTION */}
         <section className="flex flex-col gap-6 md:gap-8">
           <div className="space-y-2 md:space-y-3">
             <p className="text-teal-600 font-black text-xs tracking-[0.2em] uppercase italic">{product.jenis_barang}</p>
@@ -194,7 +238,6 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
             </p>
           </div>
 
-          {/* Interaction Section */}
           <div className="flex flex-col sm:flex-row gap-4 pt-2">
             <button 
               onClick={handleAddToCart}
@@ -208,7 +251,6 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
             </button>
           </div>
 
-          {/* Icon Stats */}
           <div className="grid grid-cols-2 gap-4 border-t border-gray-100 pt-6 md:pt-8">
              <div className="flex items-center gap-2 md:gap-3 text-[10px] md:text-xs font-black uppercase tracking-tighter text-gray-500">
                 <ShieldCheck className="text-teal-600 w-5 h-5 md:w-6 md:h-6" /> Genuine Parts
@@ -220,7 +262,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
         </section>
       </main>
 
-      {/* TABS SECTION - TANPA BORDER TEBAL */}
+      {/* TABS SECTION */}
       <div className="max-w-7xl mx-auto px-4 md:px-6 mt-16 md:mt-24">
         <div className="flex border-b border-gray-100 gap-6 md:gap-10 overflow-x-auto scrollbar-hide">
           {[

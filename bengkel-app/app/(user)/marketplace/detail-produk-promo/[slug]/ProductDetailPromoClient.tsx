@@ -14,7 +14,8 @@ import {
   Star,
   Wrench,
   Clock,
-  ChevronRight
+  ChevronRight,
+  ChevronLeft
 } from "lucide-react";
 import { alertSuccess, alertError } from "@/components/Alert";
 
@@ -24,6 +25,9 @@ export default function ProductDetailPromoClient({ slug }: { slug: string }) {
   const [promo, setPromo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
+  
+  // STATE BARU: Untuk kontrol gallery gambar
+  const [activeImgIndex, setActiveImgIndex] = useState(0);
 
   const BASE_URL = "https://tekweb-uas-production.up.railway.app";
   const API_URL = `${BASE_URL}/api`;
@@ -52,6 +56,20 @@ export default function ProductDetailPromoClient({ slug }: { slug: string }) {
       const jsonP = await resP.json();
       const pData = jsonP.product || jsonP.data;
 
+      // Parsing img_urls menjadi array agar bisa di-slide
+      let finalImages: string[] = [];
+      const sourceImages = pData.img_urls || pData.img_url || [];
+      if (typeof sourceImages === 'string') {
+        try { 
+          const parsed = JSON.parse(sourceImages);
+          finalImages = Array.isArray(parsed) ? parsed : [parsed];
+        } catch { 
+          finalImages = sourceImages.split(',').map((s: string) => s.trim()); 
+        }
+      } else {
+        finalImages = Array.isArray(sourceImages) ? sourceImages : [sourceImages];
+      }
+      
       const resPr = await fetch(`${API_URL}/promotions`, { cache: "no-store" });
       const jsonPr = await resPr.json();
       const promos = jsonPr.promotions || jsonPr.data || [];
@@ -60,7 +78,7 @@ export default function ProductDetailPromoClient({ slug }: { slug: string }) {
         item.is_active && item.products.some((prod: any) => prod.slug === slug)
       );
 
-      setProduct(pData);
+      setProduct({ ...pData, img_urls: finalImages });
       setPromo(activeP);
     } catch (err) { 
       alertError("Gagal memuat data promosi"); 
@@ -134,13 +152,13 @@ export default function ProductDetailPromoClient({ slug }: { slug: string }) {
 
       <main className="max-w-7xl mx-auto px-4 md:px-8 grid lg:grid-cols-2 gap-12 lg:gap-20 items-start">
         
-        {/* 📸 IMAGE SECTION (Border Hitam Khusus Disini) */}
-        <section className="relative">
+        {/* 📸 IMAGE SECTION (MULTI-IMAGE GALLERY) */}
+        <section className="flex flex-col gap-6">
           <div className="aspect-square bg-white rounded-[2.5rem] overflow-hidden relative border-2 border-black shadow-[10px_10px_0px_0px_rgba(0,0,0,1)] group">
             <img 
-              src={getImageUrl(product.img_urls || product.img_url)} 
+              src={getImageUrl(product.img_urls[activeImgIndex])} 
               alt={product.name} 
-              className="w-full h-full object-contain p-8 md:p-12 group-hover:scale-110 transition-transform duration-700 ease-in-out" 
+              className="w-full h-full object-contain p-8 md:p-12 transition-all duration-500 ease-in-out" 
             />
             
             {/* Promo Label melayang */}
@@ -150,6 +168,45 @@ export default function ProductDetailPromoClient({ slug }: { slug: string }) {
                 <span className="font-black text-[10px] uppercase tracking-tighter">HEMAT {discountPercent}%</span>
               </div>
             </div>
+
+            {/* Tombol Panah Navigasi */}
+            {product.img_urls.length > 1 && (
+                <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 flex justify-between opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                    <button 
+                        onClick={() => setActiveImgIndex((prev) => (prev === 0 ? product.img_urls.length - 1 : prev - 1))}
+                        className="p-3 bg-white border-2 border-black rounded-full shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] pointer-events-auto hover:bg-orange-50 active:translate-y-0.5 active:translate-x-0.5 active:shadow-none transition-all"
+                    >
+                        <ChevronLeft size={20} />
+                    </button>
+                    <button 
+                        onClick={() => setActiveImgIndex((prev) => (prev === product.img_urls.length - 1 ? 0 : prev + 1))}
+                        className="p-3 bg-white border-2 border-black rounded-full shadow-[3px_3px_0px_0px_rgba(0,0,0,1)] pointer-events-auto hover:bg-orange-50 active:translate-y-0.5 active:translate-x-0.5 active:shadow-none transition-all"
+                    >
+                        <ChevronRight size={20} />
+                    </button>
+                </div>
+            )}
+          </div>
+
+          {/* Thumbnail List */}
+          <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
+            {product.img_urls.map((img: string, index: number) => (
+              <div 
+                key={index}
+                onClick={() => setActiveImgIndex(index)}
+                className={`min-w-20 md:min-w-24 w-20 md:w-24 h-20 md:h-24 rounded-2xl border-2 cursor-pointer transition-all bg-white overflow-hidden p-1 ${
+                  activeImgIndex === index 
+                  ? "border-orange-500 shadow-[4px_4px_0px_0px_rgba(249,115,22,1)] scale-95" 
+                  : "border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] hover:scale-105"
+                }`}
+              >
+                <img 
+                  src={getImageUrl(img)} 
+                  className="w-full h-full object-cover rounded-xl" 
+                  alt={`thumb-${index}`} 
+                />
+              </div>
+            ))}
           </div>
         </section>
 
@@ -237,12 +294,12 @@ export default function ProductDetailPromoClient({ slug }: { slug: string }) {
 
           {/* Badges Bawah */}
           <div className="flex items-center justify-center gap-8 py-6">
-             <div className="flex items-center gap-2 text-[10px] font-black text-slate-300 uppercase tracking-[0.2em] italic">
+              <div className="flex items-center gap-2 text-[10px] font-black text-slate-300 uppercase tracking-[0.2em] italic">
                 <CheckCircle2 size={16} className="text-teal-500" /> Fast Shipping
-             </div>
-             <div className="flex items-center gap-2 text-[10px] font-black text-slate-300 uppercase tracking-[0.2em] italic">
+              </div>
+              <div className="flex items-center gap-2 text-[10px] font-black text-slate-300 uppercase tracking-[0.2em] italic">
                 <Clock size={16} /> 24h Support
-             </div>
+              </div>
           </div>
         </section>
       </main>

@@ -22,3 +22,18 @@ export const metadata = {
     locale: "id_ID",
   },
 };
+
+// --- BAGIAN YANG TADI HILANG ---
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="id">
+      <body className="antialiased">
+        {children}
+      </body>
+    </html>
+  );
+}
