@@ -1,13 +1,12 @@
 <?php
+
 return [
 
     'paths' => [
-        'api/*',
-        'email/verify/*',
-        'sanctum/csrf-cookie',
+        'api/*', // ⬅️ INI SAJA SUDAH CUKUP
     ],
 
-    'allowed_methods' => ['*'],
+    'allowed_methods' => ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
 
     'allowed_origins' => [
         'https://bengkeldexar.vercel.app',
