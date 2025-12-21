@@ -6,7 +6,6 @@ use Illuminate\Support\ServiceProvider;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Support\Facades\URL;
-use Illuminate\Support\Facades\Artisan; // ⬅️ TAMBAH INI
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -23,37 +22,42 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        /**
+         * 🔐 Paksa HTTPS di production (Railway)
+         * WAJIB supaya:
+         * - Link verifikasi email tidak http
+         * - Tidak kena mixed-content
+         */
         if (config('app.env') === 'production') {
             URL::forceScheme('https');
-
-            try {
-                // 🔥 INI WAJIB UNTUK FIX CORS DI RAILWAY
-                Artisan::call('config:clear');
-                Artisan::call('route:clear');
-                Artisan::call('cache:clear');
-
-                // (opsional, sudah kamu pakai)
-                Artisan::call('migrate', ['--force' => true]);
-            } catch (\Throwable $e) {
-                // biarkan kosong
-            }
         }
 
+        /**
+         * 📧 CUSTOM EMAIL VERIFICATION
+         * Link diarahkan ke FRONTEND (Next.js)
+         */
         VerifyEmail::toMailUsing(function (object $notifiable, string $url) {
+
+            // ID & hash user
             $id = $notifiable->getKey();
             $hash = sha1($notifiable->getEmailForVerification());
-            $queries = parse_url($url, PHP_URL_QUERY);
+
+            // Ambil query expires & signature
+            $query = parse_url($url, PHP_URL_QUERY);
+
+            // FRONTEND URL (dari .env)
             $frontendBaseUrl = rtrim(config('app.frontend_url'), '/');
 
-            $frontendUrl = "{$frontendBaseUrl}/auth/verify-email/{$id}/{$hash}?{$queries}";
+            // Final URL ke Next.js
+            $frontendUrl = "{$frontendBaseUrl}/auth/verify-email/{$id}/{$hash}?{$query}";
 
             return (new MailMessage)
                 ->subject('Verifikasi Alamat Email - Bengkel Dexar')
-                ->greeting('Halo, ' . $notifiable->name . '!')
-                ->line('Terima kasih telah bergabung. Klik tombol di bawah ini untuk memverifikasi akun Anda.')
+                ->greeting('Halo, ' . $notifiable->name . ' 👋')
+                ->line('Terima kasih telah mendaftar.')
+                ->line('Silakan klik tombol di bawah ini untuk memverifikasi akun Anda.')
                 ->action('Verifikasi Email', $frontendUrl)
                 ->line('Jika Anda tidak merasa mendaftar, abaikan email ini.');
         });
     }
-
 }
