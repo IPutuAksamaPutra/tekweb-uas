@@ -19,7 +19,6 @@ interface Booking {
   jenis_service: string;
   booking_date: string;
   status: string | null;
-  // Relasi User dari Laravel
   user?: {
     id: number;
     name: string;
@@ -30,81 +29,96 @@ interface Booking {
 export default function AdminBookingPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [isMount, setIsMount] = useState(false);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://tekweb-uas-production.up.railway.app";
 
-  // ================= TOKEN HELPER =================
-  const getTokenFromCookie = () => {
+  // ================= TOKEN HELPER (FIXED) =================
+  const getTokenFromCookie = useCallback(() => {
     if (typeof document === "undefined") return null;
-    const match = document.cookie.match(/token=([^;]+)/);
-    return match ? match[1] : null;
-  };
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; token=`);
+    if (parts.length === 2) return parts.pop()?.split(';').shift();
+    return null;
+  }, []);
 
   // ================= FETCH BOOKINGS =================
   const fetchBookings = useCallback(async () => {
     try {
       setLoading(true);
-      setError(null);
-
       const token = getTokenFromCookie();
-      if (!token) throw new Error("Token tidak ditemukan. Silakan login kembali.");
+      
+      if (!token) {
+        alertError("Sesi habis. Silakan login kembali.");
+        return;
+      }
 
       const res = await fetch(`${apiUrl}/api/bookings/manage`, {
         headers: {
-          Accept: "application/json",
-          Authorization: `Bearer ${token}`,
+          "Accept": "application/json",
+          "Authorization": `Bearer ${token}`,
         },
       });
 
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.message || `Error: ${res.status}`);
+      if (res.status === 401) {
+        alertError("Token tidak valid atau kedaluwarsa.");
+        return;
       }
 
-      const data = await res.json();
-      // Laravel biasanya mengirim di properti 'bookings' atau 'data'
-      const finalArray = data.bookings || data.data || (Array.isArray(data) ? data : []);
+      if (!res.ok) throw new Error("Gagal mengambil data antrean");
 
+      const data = await res.json();
+      const finalArray = data.bookings || data.data || (Array.isArray(data) ? data : []);
       setBookings([...finalArray].reverse());
     } catch (err: any) {
-      setError(err.message);
       alertError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [apiUrl]);
+  }, [apiUrl, getTokenFromCookie]);
 
   useEffect(() => {
     setIsMount(true);
     fetchBookings();
   }, [fetchBookings]);
 
-  // ================= UPDATE STATUS =================
+  // ================= UPDATE STATUS (FIXED 401 & LOGIC) =================
   async function updateStatus(id: number, newStatus: string) {
-    const previous = [...bookings];
+    const token = getTokenFromCookie();
+    
+    if (!token) {
+      alertError("Token tidak ditemukan. Silakan login ulang.");
+      return;
+    }
+
+    // Simpan data lama untuk rollback jika gagal
+    const previousBookings = [...bookings];
+
     try {
+      // Optimistic UI Update (Ganti di layar dulu biar cepet)
       setBookings((prev) =>
         prev.map((item) => (item.id === id ? { ...item, status: newStatus } : item))
       );
 
-      const token = getTokenFromCookie();
       const res = await fetch(`${apiUrl}/api/bookings/${id}`, {
         method: "PUT",
         headers: {
-          Accept: "application/json",
+          "Accept": "application/json",
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          "Authorization": `Bearer ${token}`, // Header krusial agar tidak 401
         },
         body: JSON.stringify({ status: newStatus }),
       });
 
-      if (!res.ok) throw new Error("Gagal update ke server");
-      alertSuccess(`Booking #${id} dikonfirmasi!`);
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || "Gagal memperbarui status ke server");
+      }
+
+      alertSuccess(`Booking #${id} berhasil di-update ke ${newStatus}!`);
     } catch (err: any) {
       alertError(err.message);
-      setBookings(previous);
+      setBookings(previousBookings); // Rollback data jika gagal
     }
   }
 
@@ -169,7 +183,6 @@ export default function AdminBookingPage() {
                   </h3>
 
                   <div className="space-y-4">
-                    {/* 🔥 NAMA PELANGGAN (DIPERBAIKI) */}
                     <div className="flex items-center gap-3">
                       <div className="p-2 bg-slate-100 rounded-lg text-slate-400">
                         <User size={14} />
