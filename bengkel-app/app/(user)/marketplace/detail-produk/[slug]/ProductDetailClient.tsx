@@ -229,7 +229,7 @@ export default function ProductDetailClient({ slug }: { slug: string }) {
 
           <div className="flex items-baseline gap-4 md:gap-6">
             <h2 className="text-4xl md:text-5xl font-black text-gray-900 tracking-tighter italic">Rp {product.price.toLocaleString("id-ID")}</h2>
-            <p className="text-gray-300 line-through font-black text-lg md:text-xl italic opacity-60">Rp {(product.price * 1.2).toLocaleString("id-ID")}</p>
+            
           </div>
 
           <div className="bg-gray-50 p-5 md:p-6 rounded-2xl border border-gray-100 shadow-sm">
