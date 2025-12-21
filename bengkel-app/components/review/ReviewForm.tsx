@@ -1,161 +1,138 @@
 "use client";
 
-import { useState } from "react";
-import { Star } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Star, Loader2, MessageSquare } from "lucide-react";
+import { alertSuccess, alertError } from "@/components/Alert";
 
 interface Item {
   product_id: number;
 }
 
-interface Props {
+interface ReviewFormProps {
   orderId: number;
   items: Item[];
   onSuccess: () => void;
 }
 
-export default function ReviewForm({ orderId, items, onSuccess }: Props) {
-  const [productId, setProductId] = useState(items[0]?.product_id || 0);
+interface ProductMap {
+  [key: number]: string;
+}
+
+const BASE_URL = "https://tekweb-uas-production.up.railway.app";
+
+export default function ReviewForm({ orderId, items, onSuccess }: ReviewFormProps) {
+  const [selectedProductId, setSelectedProductId] = useState<string>("");
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [productNames, setProductNames] = useState<ProductMap>({});
 
-  const getToken = () =>
-    document.cookie.match(/token=([^;]+)/)?.[1];
+  // Ambil Nama Produk Asli untuk Dropdown
+  useEffect(() => {
+    const fetchNames = async () => {
+      try {
+        const res = await fetch(`${BASE_URL}/api/products`);
+        const data = await res.json();
+        const list = data.products || data.data || [];
+        
+        const map: ProductMap = {};
+        list.forEach((p: any) => { map[p.id] = p.name; });
+        setProductNames(map);
 
-  const handleSubmit = async () => {
-    setError(null);
-    setLoading(true);
+        if (items && items.length > 0) {
+          setSelectedProductId(items[0].product_id.toString());
+        }
+      } catch (err) {
+        console.error("Gagal load nama produk");
+      }
+    };
+    fetchNames();
+  }, [items]);
 
+  const getToken = () => document.cookie.match(/token=([^;]+)/)?.[1];
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     const token = getToken();
+    if (!token) return alertError("Sesi login berakhir.");
 
-    if (!token) {
-      setError("Silakan login terlebih dahulu");
-      setLoading(false);
-      return;
-    }
-
+    setLoading(true);
     try {
-      const res = await fetch("http://localhost:8000/api/reviews", {
+      const res = await fetch(`${BASE_URL}/api/reviews`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
-          Accept: "application/json",
+          "Accept": "application/json",
+          "Authorization": `Bearer ${token}`,
         },
         body: JSON.stringify({
           order_id: orderId,
-          product_id: productId,
+          product_id: parseInt(selectedProductId),
           rating,
           comment,
         }),
       });
 
-      const data = await res.json();
+      if (!res.ok) throw new Error("Gagal kirim ulasan");
 
-      if (!res.ok) {
-        if (data?.errors) {
-          const firstError = Object.values(data.errors)[0] as string[];
-          throw new Error(firstError[0]);
-        }
-        throw new Error(data?.message || "Gagal mengirim review");
-      }
-
+      alertSuccess("Ulasan terposting!");
       onSuccess();
     } catch (err: any) {
-      setError(err.message);
+      alertError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="mt-8 bg-white border rounded-2xl p-6 shadow-sm text-black">
-      <h3 className="text-xl font-bold mb-6 text-[#234C6A]">
-        Tulis Ulasan Produk
-      </h3>
-
-      {/* PILIH PRODUK */}
-      <div className="mb-5">
-        <label className="block font-semibold mb-2 text-gray-700">
-          Pilih Produk
-        </label>
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <div>
+        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 italic">Pilih Produk</label>
         <select
-          value={productId}
-          onChange={(e) => setProductId(Number(e.target.value))}
-          className="w-full border rounded-xl p-3 focus:ring-2 focus:ring-orange-400 outline-none"
+          value={selectedProductId}
+          onChange={(e) => setSelectedProductId(e.target.value)}
+          className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-4 font-bold text-[#234C6A] outline-none focus:border-orange-500 appearance-none transition-all"
         >
-          {items.map((item, i) => (
-            <option key={i} value={item.product_id}>
-              Produk #{item.product_id}
+          {items?.map((item) => (
+            <option key={item.product_id} value={item.product_id}>
+              {productNames[item.product_id] || `Produk #${item.product_id}`}
             </option>
           ))}
         </select>
       </div>
 
-      {/* RATING */}
-      <div className="mb-5">
-        <label className="block font-semibold mb-2 text-gray-700">
-          Rating
-        </label>
-
+      <div>
+        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 italic">Rating</label>
         <div className="flex gap-2">
-          {[1, 2, 3, 4, 5].map((r) => (
-            <button
-              key={r}
-              type="button"
-              onClick={() => setRating(r)}
-              className="transition-transform hover:scale-110"
-            >
-              <Star
-                size={32}
-                className={
-                  r <= rating
-                    ? "fill-yellow-400 text-yellow-400"
-                    : "text-gray-300"
-                }
-              />
+          {[1, 2, 3, 4, 5].map((num) => (
+            <button key={num} type="button" onClick={() => setRating(num)} className="transition-transform active:scale-90">
+              <Star size={32} className={`${num <= rating ? "fill-orange-500 text-orange-500" : "text-slate-200"}`} />
             </button>
           ))}
         </div>
-
-        <p className="text-sm text-gray-500 mt-1">
-          {rating === 5 && "Sangat puas"}
-          {rating === 4 && "Puas"}
-          {rating === 3 && "Cukup"}
-          {rating === 2 && "Kurang"}
-          {rating === 1 && "Sangat buruk"}
-        </p>
       </div>
 
-      {/* KOMENTAR */}
-      <div className="mb-5">
-        <label className="block font-semibold mb-2 text-gray-700">
-          Komentar
-        </label>
-        <textarea
-          value={comment}
-          onChange={(e) => setComment(e.target.value)}
-          className="w-full border rounded-xl p-3 min-h-[100px] focus:ring-2 focus:ring-orange-400 outline-none"
-          placeholder="Ceritakan pengalamanmu tentang produk ini"
-        />
-      </div>
-
-      {/* ERROR */}
-      {error && (
-        <div className="mb-4 bg-red-50 border border-red-200 text-red-600 px-4 py-2 rounded-xl text-sm">
-          {error}
+      <div>
+        <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3 italic">Komentar</label>
+        <div className="relative">
+          <MessageSquare className="absolute left-4 top-4 text-slate-300" size={18} />
+          <textarea
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            className="w-full bg-slate-50 border-2 border-slate-100 rounded-3xl p-4 pl-12 h-32 outline-none focus:border-orange-500 font-bold text-slate-600 resize-none transition-all"
+            placeholder="Bagus lo, performa mesin jadi..."
+            required
+          />
         </div>
-      )}
+      </div>
 
-      {/* SUBMIT */}
       <button
-        onClick={handleSubmit}
+        type="submit"
         disabled={loading}
-        className="w-full bg-[#FF6D1F] hover:bg-[#E85E15] text-white font-bold py-3 rounded-full transition disabled:opacity-50"
+        className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-slate-300 text-white py-5 rounded-2xl font-black uppercase italic tracking-widest transition-all flex items-center justify-center gap-3 shadow-xl shadow-orange-100"
       >
-        {loading ? "Mengirim ulasan..." : "Kirim Ulasan"}
+        {loading ? <Loader2 className="animate-spin" /> : "Kirim Ulasan"}
       </button>
-    </div>
+    </form>
   );
 }

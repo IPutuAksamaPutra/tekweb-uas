@@ -10,7 +10,8 @@ interface PromoProduct {
   original_price: number;
   discountPercent: number;
   jenis_barang: string;
-  img_urls: string; // URL FULL dari MarketplaceClient
+  // 🔥 SEKARANG FIX PAKAI ARRAY STRING
+  img_urls: string[]; 
 }
 
 interface Props {
@@ -35,7 +36,8 @@ export default function ProductCardPromo({
       {/* BAGIAN GAMBAR */}
       <div className="relative h-48 w-full bg-slate-100 overflow-hidden">
         <img
-          src={product.img_urls || "/no-image.png"}
+          // 🔥 AMBIL INDEX 0 DARI ARRAY
+          src={product.img_urls?.[0] || "/no-image.png"}
           alt={product.name}
           onError={(e) => {
             const target = e.target as HTMLImageElement;
@@ -74,7 +76,7 @@ export default function ProductCardPromo({
         <div className="flex justify-end items-center mt-2">
           <button
             onClick={(e) => {
-              e.stopPropagation();
+              e.stopPropagation(); // Biar ga trigger onClick milik Card
               onAdd(product.id);
             }}
             className="bg-[#0f172a] text-white p-3 rounded-2xl hover:bg-orange-500 transition-all shadow-xl active:scale-90"

@@ -19,61 +19,61 @@ interface Order {
   created_at: string;
 }
 
-interface ProductImageMap {
-  [key: number]: string | null;
+// Map untuk menyimpan detail produk (Nama & Gambar)
+interface ProductDetailMap {
+  [key: number]: {
+    name: string;
+    image: string | null;
+  };
 }
 
 const BASE_URL = "https://tekweb-uas-production.up.railway.app";
 
 export default function PesananPage() {
   const [orders, setOrders] = useState<Order[]>([]);
-  const [productImages, setProductImages] = useState<ProductImageMap>({});
+  const [productDetails, setProductDetails] = useState<ProductDetailMap>({});
   const [loading, setLoading] = useState(true);
   const [isMount, setIsMount] = useState(false);
 
-  // Helper baca cookie yang aman untuk SSR
   const getCookie = useCallback((name: string) => {
     if (typeof document === "undefined") return null;
     const match = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
     return match ? decodeURIComponent(match[2]) : null;
   }, []);
 
-  // ================= FETCH PRODUCT IMAGES =================
-  const fetchProductImages = async (ordersData: Order[]) => {
+  // ================= FETCH PRODUCT DETAILS (NAME & IMAGE) =================
+  const fetchProductDetails = async () => {
     try {
-      const productIds = Array.from(
-        new Set(ordersData.flatMap((o) => o.items.map((i) => i.product_id)))
-      );
-
-      if (productIds.length === 0) return;
-
       const res = await fetch(`${BASE_URL}/api/products`);
       const data = await res.json();
       const productList = data.products || data.data || [];
 
-      const map: ProductImageMap = {};
+      const map: ProductDetailMap = {};
       productList.forEach((p: any) => {
-        // Ambil data gambar dari img_url (sesuai data Busi Motor kamu) atau img_urls
+        // Ambil data gambar (Logic yang sama dengan Marketplace kamu)
+        let finalImg = null;
         const rawImg = Array.isArray(p.img_url) && p.img_url.length > 0
           ? p.img_url[0]
           : (p.img_urls && p.img_urls.length > 0 ? p.img_urls[0] : (p.img_url || null));
         
         if (rawImg) {
           if (rawImg.startsWith('http')) {
-            map[p.id] = rawImg;
+            finalImg = rawImg;
           } else {
-            // Bersihkan path untuk Railway Storage
-            const fileName = rawImg.replace('public/products/', '').replace('products/', '');
-            map[p.id] = `${BASE_URL}/storage/products/${fileName}`;
+            const fileName = rawImg.split('/').pop(); // Ambil nama file saja agar aman
+            finalImg = `${BASE_URL}/storage/products/${fileName}`;
           }
-        } else {
-          map[p.id] = null;
         }
+
+        map[p.id] = {
+          name: p.name, // 🔥 AMBIL NAMA PRODUK
+          image: finalImg
+        };
       });
 
-      setProductImages(map);
+      setProductDetails(map);
     } catch (err) {
-      console.error("Gagal memuat gambar produk", err);
+      console.error("Gagal memuat detail produk", err);
     }
   };
 
@@ -97,8 +97,10 @@ export default function PesananPage() {
       if (!res.ok) throw new Error("Gagal mengambil data");
 
       const orderList = Array.isArray(data.orders) ? data.orders : [];
-      setOrders(orderList.reverse()); // Terbaru di atas
-      await fetchProductImages(orderList);
+      setOrders(orderList.reverse()); 
+      
+      // Ambil detail produk setelah dapet list order
+      await fetchProductDetails();
     } catch (e) {
       console.error(e);
       alertError("Gagal memuat daftar pesanan!");
@@ -118,117 +120,127 @@ export default function PesananPage() {
     return (
       <div className="min-h-screen flex flex-col justify-center items-center bg-gray-50">
         <Loader2 className="animate-spin h-12 w-12 text-[#FF6D1F]" />
-        <p className="mt-4 text-[#234C6A] font-black uppercase text-xs tracking-widest">Sinkronisasi Riwayat...</p>
+        <p className="mt-4 text-[#234C6A] font-black uppercase text-xs tracking-widest italic">Syncing History...</p>
       </div>
     );
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4">
+    <div className="min-h-screen bg-gray-50 py-12 px-4 font-sans">
       <div className="max-w-4xl mx-auto space-y-10">
 
         {/* TITLE */}
         <div className="text-center space-y-2">
-          <h1 className="text-5xl font-black text-[#234C6A] tracking-tighter uppercase">
-            Pesanan Saya 🛍️
+          <h1 className="text-6xl font-black text-[#234C6A] tracking-tighter uppercase italic">
+            Pesanan <span className="text-[#FF6D1F]">Saya</span>
           </h1>
-          <p className="text-gray-400 font-bold uppercase text-[10px] tracking-widest mx-auto">
-            Pantau status pengiriman dan riwayat belanja kamu.
+          <p className="text-gray-400 font-bold uppercase text-[10px] tracking-widest italic">
+            Pantau status komponen racing yang kamu beli.
           </p>
         </div>
 
         {/* LIST PESANAN */}
-        <div className="space-y-6">
+        <div className="space-y-8">
           {orders.length > 0 ? (
             orders.map((item) => (
               <div
                 key={item.id}
-                className="bg-white rounded-[2.5rem] border border-gray-100 shadow-xl shadow-blue-900/5 hover:shadow-orange-900/5 transition-all duration-500 group overflow-hidden"
+                className="bg-white rounded-[2.5rem] border border-gray-100 shadow-xl shadow-blue-900/5 group overflow-hidden transition-all duration-300 hover:border-[#FF6D1F]/30"
               >
-                {/* HEADER */}
-                <div className="flex justify-between items-center px-8 py-5 bg-gray-50/50 border-b border-gray-100">
-                  <div className="flex items-center gap-4">
-                    <div className="bg-white p-3 rounded-2xl shadow-sm text-gray-400">
+                {/* HEADER CARD */}
+                <div className="flex justify-between items-center px-10 py-6 bg-gray-50/50 border-b border-gray-100">
+                  <div className="flex items-center gap-5">
+                    <div className="bg-white p-3 rounded-2xl shadow-sm text-[#FF6D1F]">
                       <Calendar size={20} />
                     </div>
                     <div>
-                      <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">
-                        Waktu Transaksi
-                      </p>
-                      <p className="font-black text-[#234C6A] text-sm uppercase">
+                      <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Invoice Date</p>
+                      <p className="font-black text-[#234C6A] text-sm uppercase italic">
                         {new Date(item.created_at).toLocaleDateString("id-ID", { day: 'numeric', month: 'long', year: 'numeric' })}
                       </p>
                     </div>
                   </div>
 
-                  <div className={`flex items-center gap-2 px-5 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest
+                  <div className={`flex items-center gap-2 px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest italic
                     ${item.status === "completed" ? "bg-green-50 text-green-600 border border-green-100" : "bg-orange-50 text-orange-600 border border-orange-100"}
                   `}>
-                    {item.status === "completed" ? <CheckCircle size={14} /> : <Truck size={14} className="animate-bounce" />}
-                    {item.status === "completed" ? "Selesai" : "Diproses"}
+                    {item.status === "completed" ? <CheckCircle size={14} /> : <Truck size={14} className="animate-pulse" />}
+                    {item.status === "completed" ? "Selesai" : "In Transit"}
                   </div>
                 </div>
 
-                {/* BODY */}
-                <div className="px-8 py-8">
-                  <div className="space-y-5 mb-8">
+                {/* BODY CARD */}
+                <div className="px-10 py-8">
+                  <div className="space-y-6 mb-10">
                     {item.items.map((i, idx) => (
-                      <div key={idx} className="flex items-center gap-5 group/item">
-                        <div className="w-20 h-20 bg-gray-50 rounded-2xl overflow-hidden border-2 border-transparent group-hover/item:border-[#FF6D1F] transition-all shrink-0 shadow-inner flex items-center justify-center p-2">
-                          {productImages[i.product_id] ? (
+                      <div key={idx} className="flex items-center gap-6 group/item">
+                        {/* PRODUCT IMAGE */}
+                        <div className="w-24 h-24 bg-gray-50 rounded-3xl overflow-hidden border-2 border-transparent group-hover/item:border-[#FF6D1F] transition-all shrink-0 shadow-inner flex items-center justify-center p-3">
+                          {productDetails[i.product_id]?.image ? (
                             <img
-                              src={productImages[i.product_id] as string}
+                              src={productDetails[i.product_id].image as string}
                               className="max-w-full max-h-full object-contain"
                               alt="Produk"
-                              onError={(e) => { (e.currentTarget as HTMLImageElement).src = "https://placehold.co/200x200?text=Error"; }}
+                              onError={(e) => { (e.currentTarget as HTMLImageElement).src = "/no-image.png"; }}
                             />
                           ) : (
-                            <Package size={24} className="text-gray-200" />
+                            <Package size={28} className="text-gray-200" />
                           )}
                         </div>
 
+                        {/* PRODUCT INFO */}
                         <div className="flex-1">
-                          <p className="font-black text-[#234C6A] uppercase text-sm tracking-tight">Produk ID #{i.product_id}</p>
-                          <p className="text-xs text-gray-400 font-bold uppercase tracking-widest mt-1">
-                            Jumlah: {i.quantity} Unit
+                          <p className="font-black text-[#234C6A] uppercase text-lg leading-none tracking-tight italic">
+                            {/* 🔥 DISINI NAMA PRODUK MUNCUL */}
+                            {productDetails[i.product_id]?.name || `Sparepart #${i.product_id}`}
                           </p>
+                          <div className="flex items-center gap-3 mt-3">
+                            <span className="text-[10px] font-black text-white bg-[#234C6A] px-3 py-1 rounded-lg italic">
+                              {i.quantity} UNIT
+                            </span>
+                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                              Genuine Parts
+                            </span>
+                          </div>
                         </div>
                       </div>
                     ))}
                   </div>
 
-                  <div className="flex justify-between items-end border-t border-gray-50 pt-6">
+                  {/* FOOTER CARD */}
+                  <div className="flex flex-col md:flex-row justify-between items-center gap-6 border-t border-gray-100 pt-8">
                     <div>
-                      <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Pembayaran</p>
-                      <p className="text-3xl font-black text-[#FF6D1F] tracking-tighter">
+                      <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 italic">Total Transaction</p>
+                      <p className="text-4xl font-black text-[#234C6A] tracking-tighter italic">
                         Rp {item.total.toLocaleString("id-ID")}
                       </p>
                     </div>
                     
                     <Link
                       href={`/marketplace/pesanan/${item.id}`}
-                      className="flex items-center gap-2 px-8 py-4 rounded-2xl bg-[#234C6A] text-white text-xs font-black uppercase tracking-widest
-                                 hover:bg-[#FF6D1F] transition-all transform active:scale-95 shadow-xl shadow-blue-900/10"
+                      className="w-full md:w-auto flex items-center justify-center gap-3 px-10 py-5 rounded-3xl bg-[#234C6A] text-white text-xs font-black uppercase tracking-widest
+                                 hover:bg-[#FF6D1F] transition-all transform active:scale-95 shadow-xl shadow-blue-900/10 italic"
                     >
-                      Detail Pesanan <ChevronRight size={18} />
+                      Cek Detail <ChevronRight size={18} />
                     </Link>
                   </div>
                 </div>
               </div>
             ))
           ) : (
-            <div className="bg-white rounded-[3rem] p-20 text-center border-2 border-dashed border-gray-100 shadow-xl shadow-blue-900/5">
-              <div className="bg-gray-50 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-8">
-                <ShoppingBag size={48} className="text-gray-200" />
+            /* EMPTY STATE */
+            <div className="bg-white rounded-[3rem] p-20 text-center border-2 border-dashed border-gray-100 shadow-xl">
+              <div className="bg-gray-50 w-28 h-28 rounded-full flex items-center justify-center mx-auto mb-8">
+                <ShoppingBag size={56} className="text-gray-200" />
               </div>
-              <h3 className="text-2xl font-black text-[#234C6A] uppercase tracking-tighter">Belum Ada Riwayat</h3>
-              <p className="text-gray-400 font-bold text-xs uppercase tracking-widest mt-3 max-w-xs mx-auto leading-relaxed">
-                Sepertinya kamu belum belanja apapun nih. Yuk cek marketplace sekarang!
+              <h3 className="text-3xl font-black text-[#234C6A] uppercase italic">Garasi Kosong</h3>
+              <p className="text-gray-400 font-bold text-xs uppercase tracking-widest mt-4 max-w-xs mx-auto leading-relaxed italic">
+                Kamu belum memesan sparepart apapun. Yuk upgrade performa kendaraanmu!
               </p>
               <Link 
                 href="/marketplace" 
-                className="inline-block mt-10 px-10 py-4 bg-[#FF6D1F] text-white rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-orange-100 hover:scale-105 transition-transform active:scale-95"
+                className="inline-block mt-12 px-12 py-5 bg-[#FF6D1F] text-white rounded-3xl font-black uppercase tracking-widest shadow-xl hover:scale-105 transition-all active:scale-95 italic"
               >
-                Mulai Belanja
+                Gas ke Marketplace
               </Link>
             </div>
           )}
