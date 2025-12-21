@@ -2,9 +2,31 @@
 
 return [
 
-    'default' => env('MAIL_MAILER', 'smtp'),
+    /*
+    |--------------------------------------------------------------------------
+    | Default Mailer
+    |--------------------------------------------------------------------------
+    */
+    'default' => env('MAIL_MAILER', 'resend'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Mailer Configurations
+    |--------------------------------------------------------------------------
+    */
     'mailers' => [
+
+        'resend' => [
+            'transport' => 'resend',
+            'api_key' => env('RESEND_API_KEY'),
+        ],
+
+        'log' => [
+            'transport' => 'log',
+            'channel' => env('MAIL_LOG_CHANNEL'),
+        ],
+
+        // optional kalau masih mau pakai SMTP
         'smtp' => [
             'transport' => 'smtp',
             'host' => env('MAIL_HOST', 'smtp.gmail.com'),
@@ -15,14 +37,15 @@ return [
             'timeout' => null,
         ],
 
-        'log' => [
-            'transport' => 'log',
-            'channel' => env('MAIL_LOG_CHANNEL'),
-        ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Global "From" Address
+    |--------------------------------------------------------------------------
+    */
     'from' => [
-        'address' => env('MAIL_FROM_ADDRESS', 'msuka5641l@gmail.com'),
+        'address' => env('MAIL_FROM_ADDRESS', 'your_email@example.com'),
         'name' => env('MAIL_FROM_NAME', 'Bengkel Dexar'),
     ],
 
