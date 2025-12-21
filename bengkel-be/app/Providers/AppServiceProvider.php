@@ -23,30 +23,28 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // 🔐 Paksa HTTPS di production (fix mixed content)
         if (config('app.env') === 'production') {
             URL::forceScheme('https');
 
-            // 🚀 AUTO MIGRATE (Railway tanpa shell)
             try {
+                // 🔥 INI WAJIB UNTUK FIX CORS DI RAILWAY
+                Artisan::call('config:clear');
+                Artisan::call('route:clear');
+                Artisan::call('cache:clear');
+
+                // (opsional, sudah kamu pakai)
                 Artisan::call('migrate', ['--force' => true]);
             } catch (\Throwable $e) {
-                // sengaja dikosongkan supaya app tidak crash
+                // biarkan kosong
             }
         }
 
         VerifyEmail::toMailUsing(function (object $notifiable, string $url) {
-            // Ambil ID dan hash user
             $id = $notifiable->getKey();
             $hash = sha1($notifiable->getEmailForVerification());
-
-            // Ambil query asli (expires & signature)
             $queries = parse_url($url, PHP_URL_QUERY);
-
-            // Ambil frontend URL dari ENV (local / production aman)
             $frontendBaseUrl = rtrim(config('app.frontend_url'), '/');
 
-            // Gabungkan ke URL Next.js
             $frontendUrl = "{$frontendBaseUrl}/auth/verify-email/{$id}/{$hash}?{$queries}";
 
             return (new MailMessage)
@@ -57,4 +55,5 @@ class AppServiceProvider extends ServiceProvider
                 ->line('Jika Anda tidak merasa mendaftar, abaikan email ini.');
         });
     }
+
 }
